@@ -9,6 +9,7 @@ use std::fs;
 const OPTIONS_FILE: &str = "record.json";
 const USER_HZ: u64 = 100; // fixed for /proc regardless of kernel HZ
 const PICKER: &str = "omarchy-capture-region";
+const PID_FILE: &str = "recorder-pid.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Options {
@@ -47,11 +48,23 @@ fn output_dir() -> String {
 
 /// The same question the omarchy script asks, so both agree on what "recording"
 /// means.
-fn recorder_pid() -> Option<u32> {
+fn known_pid() -> Option<u32> {
+    let pid = state::read_state::<u32>(PID_FILE).filter(|pid| *pid > 0)?;
+    fs::metadata(format!("/proc/{pid}")).ok().map(|_| pid)
+}
+
+fn recorder_pid(search: bool) -> Option<u32> {
+    if let Some(pid) = known_pid() {
+        return Some(pid);
+    }
+    if !search {
+        return None;
+    }
     sh::run(&["pgrep", "-f", "^gpu-screen-recorder"])
         .lines()
         .next()
         .and_then(|line| line.trim().parse().ok())
+        .inspect(|pid| state::write_state(PID_FILE, pid))
 }
 
 fn elapsed_seconds(pid: u32) -> u64 {
@@ -123,8 +136,8 @@ fn focused_monitor() -> String {
     format!("monitor:{name}")
 }
 
-pub fn status() -> Status {
-    let pid = recorder_pid();
+pub fn status(search: bool) -> Status {
+    let pid = recorder_pid(search);
     let history = scopes();
     Status {
         active: pid.is_some(),
@@ -185,7 +198,8 @@ pub fn start(target: &str, options: Options) {
         cmd.push("aac".to_owned());
     }
     state::write_state("recording.json", &filename);
-    sh::spawn_detached(&cmd);
+    let pid = sh::spawn_detached(&cmd).unwrap_or(0);
+    state::write_state(PID_FILE, &pid);
 }
 
 fn timestamp() -> String {
@@ -193,7 +207,7 @@ fn timestamp() -> String {
 }
 
 pub fn stop() {
-    let Some(pid) = recorder_pid() else {
+    let Some(pid) = recorder_pid(true) else {
         return;
     };
     sh::run(&["pkill", "-SIGINT", "-f", "^gpu-screen-recorder"]);
@@ -203,6 +217,7 @@ pub fn stop() {
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
+    state::write_state(PID_FILE, &0u32);
     if let Some(file) = state::read_state::<String>("recording.json") {
         finalize(&file);
     }

@@ -18,14 +18,15 @@ pub fn detect(cfg: &Config) -> CamState {
         return CamState::Disabled;
     }
 
-    if let Some(holder) = direct_holder(cfg) {
-        return CamState::On(holder);
-    }
-
     match pw_state(&cfg.device_pattern) {
-        Some(s) if s == "running" => CamState::On("PipeWire client".into()),
+        Some(s) if s == "running" => {
+            CamState::On(direct_holder(cfg).unwrap_or_else(|| "PipeWire client".into()))
+        }
         Some(s) => CamState::Off(s),
-        None => CamState::Disconnected,
+        None => match direct_holder(cfg) {
+            Some(holder) => CamState::On(holder),
+            None => CamState::Disconnected,
+        },
     }
 }
 

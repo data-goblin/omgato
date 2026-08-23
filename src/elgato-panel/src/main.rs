@@ -20,6 +20,14 @@ struct Cli {
     #[arg(long, global = true)]
     lights_only: bool,
 
+    /// Also report which shortcuts clash with an existing binding
+    #[arg(long, global = true)]
+    with_conflicts: bool,
+
+    /// Search for a recorder this tool did not start
+    #[arg(long, global = true)]
+    with_record: bool,
+
     #[command(subcommand)]
     cmd: Option<Cmd>,
 }
@@ -98,7 +106,7 @@ struct Document {
     shortcuts: Option<shortcuts::Status>,
 }
 
-fn status(lights_only: bool) {
+fn status(lights_only: bool, with_conflicts: bool, with_record: bool) {
     let (lights, deck, camera) = std::thread::scope(|scope| {
         let devices = (!lights_only).then(|| (scope.spawn(deck::status), scope.spawn(camera::status)));
         let lights = lights::read();
@@ -118,8 +126,8 @@ fn status(lights_only: bool) {
         history: history.flags(),
         deck,
         camera,
-        record: (!lights_only).then(record::status),
-        shortcuts: (!lights_only).then(shortcuts::status),
+        record: (!lights_only).then(|| record::status(with_record)),
+        shortcuts: (!lights_only).then(|| shortcuts::status(with_conflicts)),
     };
     println!("{}", serde_json::to_string(&doc).unwrap_or_default());
 }
@@ -143,7 +151,7 @@ fn report(result: Result<(), String>) {
 fn main() {
     let cli = Cli::parse();
     match cli.cmd {
-        None | Some(Cmd::Status) => status(cli.lights_only),
+        None | Some(Cmd::Status) => status(cli.lights_only, cli.with_conflicts, cli.with_record),
         Some(Cmd::Sync) => lights::sync(),
         Some(Cmd::Undo) => travel_lights(-1),
         Some(Cmd::Redo) => travel_lights(1),

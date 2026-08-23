@@ -12,16 +12,16 @@ pub fn run(cmd: &[&str]) -> String {
 
 /// Starts a command and lets it go. Used where the child outlives the call and
 /// capturing its output would block on a pipe the child keeps open.
-pub fn spawn_detached(cmd: &[String]) {
-    let Some((bin, args)) = cmd.split_first() else {
-        return;
-    };
-    let _ = Command::new(bin)
+pub fn spawn_detached(cmd: &[String]) -> Option<u32> {
+    let (bin, args) = cmd.split_first()?;
+    Command::new(bin)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn()
+        .ok()
+        .map(|child| child.id())
 }
 
 /// Runs a command and reports whether it succeeded, for callers that must not

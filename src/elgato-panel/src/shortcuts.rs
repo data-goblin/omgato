@@ -180,9 +180,9 @@ fn conflict_for(keys: &str, binds: &[Bind]) -> String {
         .unwrap_or_default()
 }
 
-pub fn status() -> Status {
+pub fn status(with_conflicts: bool) -> Status {
     let configured = configured();
-    let binds = current_binds();
+    let binds = if with_conflicts { current_binds() } else { Vec::new() };
     Status {
         installed: bindings_path().exists() && sourced(),
         shortcuts: ACTIONS

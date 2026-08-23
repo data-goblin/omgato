@@ -104,16 +104,15 @@ pub fn kill_running() -> bool {
         return false;
     }
     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
-    let deadline = Instant::now() + Duration::from_secs(3);
+    let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
         if !pid_alive(pid) {
             state::remove(&state::pid_file());
             return true;
         }
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(5));
     }
     unsafe { libc::kill(pid as i32, libc::SIGKILL); }
-    std::thread::sleep(Duration::from_millis(200));
     state::remove(&state::pid_file());
     true
 }
@@ -139,14 +138,14 @@ pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
         }
         if let Ok(Some(c)) = hypr::find_window(title)
             && c.mapped {
-                std::thread::sleep(Duration::from_millis(200));
+                std::thread::sleep(Duration::from_millis(30));
                 if pid_alive(pid) {
                     return WaitResult::Mapped(c.address);
                 }
                 state::remove(&state::pid_file());
                 return WaitResult::Died;
             }
-        std::thread::sleep(Duration::from_millis(80));
+        std::thread::sleep(Duration::from_millis(10));
     }
     WaitResult::Timeout
 }

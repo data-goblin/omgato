@@ -46,6 +46,7 @@ Panel {
   property string lastError: ""
   property var shortcuts: ({ installed: false, shortcuts: [] })
   property string capturingShortcut: ""
+  property bool wantConflicts: true
   property int dragFrom: -1
   property int dragTo: -1
 
@@ -100,13 +101,20 @@ Panel {
       return
     }
     if (interacting || renameIp !== "") return
-    statusProc.command = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
+    var cmd = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
+    if (root.opened && root.view === "camera") cmd.push("--with-record")
+    if (root.wantConflicts && root.opened) {
+      cmd.push("--with-conflicts")
+      root.wantConflicts = false
+    }
+    statusProc.command = cmd
     statusStartedAt = Date.now()
     statusProc.running = true
   }
 
   function act(cmd) {
     lastError = ""
+    if (cmd[0] === "elgato-panel" && String(cmd[1]).indexOf("shortcut") >= 0) wantConflicts = true
     actionQueue.push(cmd)
     runNextAction()
   }
@@ -333,7 +341,15 @@ Panel {
             }
           }
           if (data.camera) root.camera = data.camera
-          if (data.shortcuts) root.shortcuts = data.shortcuts
+          if (data.shortcuts) {
+            var incoming = data.shortcuts
+            if (root.shortcuts.shortcuts && root.shortcuts.shortcuts.length === incoming.shortcuts.length) {
+              for (var c = 0; c < incoming.shortcuts.length; c++) {
+                if (!incoming.shortcuts[c].conflict) incoming.shortcuts[c].conflict = root.shortcuts.shortcuts[c].conflict || ""
+              }
+            }
+            root.shortcuts = incoming
+          }
           if (data.record) {
             root.record = data.record
             root.recSeconds = data.record.seconds
@@ -395,6 +411,7 @@ Panel {
   }
 
   onOpenedChanged: {
+    if (opened) wantConflicts = true
     if (!opened) {
       renameIp = ""
       selection = []
@@ -1363,30 +1380,37 @@ Panel {
       }
 
       Row {
+        id: pipRow
         width: parent.width
         spacing: Style.space(6)
+        readonly property real cellWidth: (width - spacing * 4) / 5
+        readonly property real cellHeight: Style.spacing.controlHeight * 1.5
+
         Repeater {
           model: [ { id: "tl", label: "◰" }, { id: "tr", label: "◳" },
                    { id: "bl", label: "◱" }, { id: "br", label: "◲" } ]
           PanelButton {
             required property var modelData
-            width: (parent.width - parent.spacing * 3) / 4
+            width: pipRow.cellWidth
+            height: pipRow.cellHeight
             text: modelData.label
+            fontSize: Style.font.display
             bordered: true
             active: root.camera.corner === modelData.id
+            tooltipText: "Put the camera overlay in this corner"
             onClicked: root.act(["camctl", "move", modelData.id])
           }
         }
-      }
 
-      PanelButton {
-        width: parent.width
-        iconText: "󰩭"
-        text: "PiP position"
-        tooltipText: "Drag out exactly where the camera overlay sits"
-        bordered: true
-        active: root.camera.corner === "area"
-        onClicked: root.act(["camctl", "pick"])
+        PanelButton {
+          width: pipRow.cellWidth
+          height: pipRow.cellHeight
+          text: "Custom"
+          bordered: true
+          active: root.camera.corner === "area"
+          tooltipText: "Drag out exactly where the camera overlay sits"
+          onClicked: root.act(["camctl", "pick"])
+        }
       }
 
       InfoPair { label: "Cam Link 4K"; value: String(root.camera.tooltip || root.camera.state || "unknown") }
