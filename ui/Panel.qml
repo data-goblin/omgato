@@ -51,6 +51,15 @@ Panel {
   property int dragTo: -1
 
   readonly property bool anyOn: lights.some(function(l) { return l.on })
+  readonly property string barSummary: {
+    var parts = []
+    var on = lights.filter(function(l) { return l.on }).length
+    if (lights.length) parts.push(on + " of " + lights.length + " lights on")
+    if (anyUnreachable) parts.push("a light is not answering")
+    if (deck.devices && deck.devices.length) parts.push(deck.devices.length + " deck device connected")
+    if (camera.state && camera.state !== "disconnected") parts.push("camera " + camera.state)
+    return parts.join("  ·  ")
+  }
   readonly property bool anyUnreachable: lights.some(function(l) { return !l.reachable })
   readonly property var page: deckPages.length ? deckPages[Math.min(pageIndex, deckPages.length - 1)] : null
   readonly property var deckDevice: deck.devices.find(function(d) { return !d.pedal })
@@ -425,8 +434,10 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.anyUnreachable ? "󰂑" : (root.anyOn ? "󰌵" : "󰌶")
-    dimmed: !root.anyOn
+    text: "󱕂"
+    dimmed: !root.anyOn && !root.anyUnreachable
+    active: root.anyUnreachable
+    tooltipText: root.barSummary
     slotSize: Style.bar.statusSlot
     fontSize: Style.font.caption
     tooltipText: ""
