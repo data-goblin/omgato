@@ -26,7 +26,10 @@ Panel {
   property string renameIp: ""
   property string view: "lights"
   property int pageIndex: 0
-  property int editIndex: -1
+  property var selection: []
+  property int selectionAnchor: -1
+  readonly property int editIndex: selection.length === 1 ? selection[0] : -1
+  readonly property bool multiSelect: selection.length > 1
   property string device: "deck"
   property string pedalPosition: "left"
   property string lightsJson: ""
@@ -172,12 +175,12 @@ Panel {
     var count = deckPages.length
     if (!count) return
     pageIndex = (pageIndex + delta + count) % count
-    editIndex = -1
+    selection = []
   }
 
   function gotoPage(name) {
     for (var i = 0; i < deckPages.length; i++) {
-      if (deckPages[i].name === name) { pageIndex = i; editIndex = -1; return }
+      if (deckPages[i].name === name) { pageIndex = i; selection = []; return }
     }
   }
 
@@ -200,6 +203,43 @@ Panel {
     if (pendingDeckBrightness < 0) return
     act(["streamdeck-ctl", "deck", "brightness", String(pendingDeckBrightness)])
     pendingDeckBrightness = -1
+  }
+
+  // Plain click selects one, ctrl adds or removes, shift takes the run between
+  // the anchor and the key clicked, in reading order.
+  function selectKey(index, modifiers) {
+    if ((modifiers & Qt.ShiftModifier) && selectionAnchor >= 0) {
+      var low = Math.min(selectionAnchor, index)
+      var high = Math.max(selectionAnchor, index)
+      var run = []
+      for (var i = low; i <= high; i++) run.push(i)
+      selection = run
+      return
+    }
+    if (modifiers & Qt.ControlModifier) {
+      var next = selection.slice()
+      var at = next.indexOf(index)
+      if (at >= 0) next.splice(at, 1)
+      else next.push(index)
+      next.sort(function(a, b) { return a - b })
+      selection = next
+      selectionAnchor = index
+      return
+    }
+    selection = (selection.length === 1 && selection[0] === index) ? [] : [index]
+    selectionAnchor = index
+  }
+
+  function selectionContains(index) {
+    return selection.indexOf(index) >= 0
+  }
+
+  // Applies one field to every selected key.
+  function applyToSelection(field, value) {
+    if (!page) return
+    for (var i = 0; i < selection.length; i++) {
+      act(["streamdeck-ctl", "deck", "set", page.name, String(selection[i]), "--" + field, value])
+    }
   }
 
   function editKey() {
@@ -326,7 +366,7 @@ Panel {
   onOpenedChanged: {
     if (!opened) {
       renameIp = ""
-      editIndex = -1
+      selection = []
       interacting = false
       cancelOrder()
     }
@@ -814,7 +854,7 @@ Panel {
               anchors.fill: parent
               color: "transparent"
               radius: Style.space(5)
-              border.width: root.editIndex === keyCell.modelData.index ? 2 : (keyArea.containsMouse ? 1 : 0)
+              border.width: root.selectionContains(keyCell.modelData.index) ? 2 : (keyArea.containsMouse ? 1 : 0)
               border.color: root.foreground
             }
 
@@ -823,9 +863,13 @@ Panel {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: {
-                if (keyCell.modelData.kind === "page") { root.gotoPage(keyCell.modelData.target); return }
-                root.editIndex = root.editIndex === keyCell.modelData.index ? -1 : keyCell.modelData.index
+              acceptedButtons: Qt.LeftButton
+              onClicked: function(mouse) {
+                if (keyCell.modelData.kind === "page" && mouse.modifiers === Qt.NoModifier) {
+                  root.gotoPage(keyCell.modelData.target)
+                  return
+                }
+                root.selectKey(keyCell.modelData.index, mouse.modifiers)
               }
             }
           }
@@ -833,56 +877,75 @@ Panel {
       }
 
       Column {
-        visible: root.editIndex >= 0 && !!root.page
+        visible: root.selection.length > 0 && !!root.page
         width: parent.width
         spacing: Style.space(6)
         readonly property var key: root.editKey()
 
-        PanelSectionHeader { text: "KEY " + root.editIndex + " ON " + (root.page ? root.page.name.toUpperCase() : ""); foreground: root.foreground; fontFamily: root.fontFamily }
+        PanelSectionHeader {
+          text: (root.multiSelect ? root.selection.length + " KEYS" : "KEY " + root.editIndex)
+                + " ON " + (root.page ? root.page.name.toUpperCase() : "")
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
 
         FieldRow {
           label: "Label"
           placeholder: "Shown under the icon"
           value: parent.key.label || ""
+          visible: !root.multiSelect
           onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "label", v) }
         }
         FieldRow {
           label: "Glyph"
           placeholder: "Nerd Font character"
           value: parent.key.glyph || ""
+          visible: !root.multiSelect
           onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "glyph", v) }
         }
         FieldRow {
           label: "Action"
           placeholder: "exec:obs or key:KEY_F13"
           value: parent.key.action || ""
+          visible: !root.multiSelect
           onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "action", v) }
+        }
+        FieldRow {
+          label: "Icon"
+          placeholder: "Path to a PNG"
+          value: root.multiSelect ? "" : (parent.key.icon || "")
+          onCommitted: function(v) { root.applyToSelection("icon", v) }
         }
         FieldRow {
           label: "Background"
           placeholder: "#rrggbb"
           colorPreview: true
           value: parent.key.bg || ""
-          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "bg", v) }
+          onCommitted: function(v) { root.applyToSelection("bg", v) }
         }
         FieldRow {
           label: "Foreground"
           placeholder: "#rrggbb"
           colorPreview: true
           value: parent.key.fg || ""
-          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "fg", v) }
+          onCommitted: function(v) { root.applyToSelection("fg", v) }
         }
         Row {
           width: parent.width
           spacing: Style.space(6)
           Button {
             width: (parent.width - parent.spacing) / 2
-            text: "Clear key"
+            text: root.multiSelect ? "Clear keys" : "Clear key"
             fontSize: Style.font.caption
             foreground: root.foreground
             fontFamily: root.fontFamily
             bordered: true
-            onClicked: { root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.editIndex)]); root.editIndex = -1 }
+            onClicked: {
+              for (var i = 0; i < root.selection.length; i++) {
+                root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.selection[i])])
+              }
+              root.selection = []
+            }
           }
           Button {
             width: (parent.width - parent.spacing) / 2
@@ -891,7 +954,7 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             bordered: true
-            onClicked: root.editIndex = -1
+            onClicked: root.selection = []
           }
         }
       }
