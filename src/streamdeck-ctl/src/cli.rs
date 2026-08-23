@@ -27,16 +27,12 @@ pub enum Cmd {
     },
     /// Open the TUI (status, bindings, daemon control)
     Tui,
-    /// Emit unified waybar status JSON
-    Waybar,
     /// Print or install the udev rules
     InstallRules,
     /// Enable user systemd services (pedal + deck daemons)
     Enable,
     /// Disable user systemd services
     Disable,
-    /// Toggle the pedal daemon (kept for waybar back-compat)
-    Toggle,
 }
 
 #[derive(Subcommand, Debug)]
@@ -106,10 +102,12 @@ pub enum DeckCmd {
     Unset { page: String, index: u8 },
     /// List all pages
     Pages,
-    /// Add an empty page
-    PageAdd { name: String },
+    /// Add an empty page; without a name it is called Page N
+    PageAdd { name: Option<String> },
     /// Remove a page
     PageRm { name: String },
+    /// Rename a page, keeping its position and buttons
+    PageRename { from: String, to: String },
     /// Set the default page (loaded on daemon start)
     Default { name: String },
     /// Show the page order array (used for auto-pagination)

@@ -1,4 +1,4 @@
-use crate::waybar;
+use crate::units;
 use anyhow::Result;
 use std::process::Command;
 
@@ -36,22 +36,12 @@ fn is_active(unit: &str) -> bool {
 }
 
 pub fn enable_all() -> Result<()> {
-    run(&["--user", "enable", "--now", waybar::PEDAL_SERVICE])?;
-    run(&["--user", "enable", "--now", waybar::DECK_SERVICE])
+    run(&["--user", "enable", "--now", units::PEDAL_SERVICE])?;
+    run(&["--user", "enable", "--now", units::DECK_SERVICE])
 }
 
 pub fn disable_all() -> Result<()> {
-    let _ = run(&["--user", "disable", "--now", waybar::PEDAL_SERVICE]);
-    run(&["--user", "disable", "--now", waybar::DECK_SERVICE])
+    let _ = run(&["--user", "disable", "--now", units::PEDAL_SERVICE]);
+    run(&["--user", "disable", "--now", units::DECK_SERVICE])
 }
 
-pub fn toggle_pedal() -> Result<()> {
-    let active = waybar::service_active();
-    if active {
-        run(&["--user", "disable", "--now", waybar::PEDAL_SERVICE])?;
-    } else {
-        run(&["--user", "enable", "--now", waybar::PEDAL_SERVICE])?;
-    }
-    let _ = Command::new("pkill").args(["-RTMIN+12", "waybar"]).status();
-    Ok(())
-}

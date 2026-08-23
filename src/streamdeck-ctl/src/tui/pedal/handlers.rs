@@ -2,7 +2,7 @@ use super::{join_action, split_action, ActionKind, Mode, ROWS};
 use crate::action;
 use crate::config;
 use crate::tui::state::App;
-use crate::waybar;
+use crate::units;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::style::Color;
@@ -31,19 +31,19 @@ fn normal(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool> {
         KeyCode::Char('e') | KeyCode::Enter => begin_edit(app),
         KeyCode::Char('E') => svc(
             app,
-            &["--user", "enable", "--now", waybar::PEDAL_SERVICE],
+            &["--user", "enable", "--now", units::PEDAL_SERVICE],
             "enabled",
         ),
         KeyCode::Char('D') => svc(
             app,
-            &["--user", "disable", "--now", waybar::PEDAL_SERVICE],
+            &["--user", "disable", "--now", units::PEDAL_SERVICE],
             "disabled",
         ),
         KeyCode::Char('t') => {
             let args: &[&str] = if app.conn.pedal_active {
-                &["--user", "disable", "--now", waybar::PEDAL_SERVICE]
+                &["--user", "disable", "--now", units::PEDAL_SERVICE]
             } else {
-                &["--user", "enable", "--now", waybar::PEDAL_SERVICE]
+                &["--user", "enable", "--now", units::PEDAL_SERVICE]
             };
             svc(app, args, "toggled");
         }
@@ -118,9 +118,8 @@ fn commit(app: &mut App) {
         return;
     }
     let _ = Command::new("systemctl")
-        .args(["--user", "kill", "--signal=SIGHUP", waybar::PEDAL_SERVICE])
+        .args(["--user", "kill", "--signal=SIGHUP", units::PEDAL_SERVICE])
         .status();
-    let _ = Command::new("pkill").args(["-RTMIN+12", "waybar"]).status();
     app.flash(
         format!(
             "{} {} = {}",
@@ -136,7 +135,7 @@ fn commit(app: &mut App) {
 
 fn reload(app: &mut App) {
     let _ = Command::new("systemctl")
-        .args(["--user", "kill", "--signal=SIGHUP", waybar::PEDAL_SERVICE])
+        .args(["--user", "kill", "--signal=SIGHUP", units::PEDAL_SERVICE])
         .status();
     app.refresh();
     app.flash("daemon restarted", Color::Cyan);
@@ -145,8 +144,7 @@ fn reload(app: &mut App) {
 fn svc(app: &mut App, args: &[&str], verb: &str) {
     match Command::new("systemctl").args(args).status() {
         Ok(s) if s.success() => {
-            let _ = Command::new("pkill").args(["-RTMIN+12", "waybar"]).status();
-            app.flash(format!("{verb} {}", waybar::PEDAL_SERVICE), Color::Cyan);
+            app.flash(format!("{verb} {}", units::PEDAL_SERVICE), Color::Cyan);
         }
         Ok(s) => app.flash(format!("systemctl exited {s}"), Color::Red),
         Err(e) => app.flash(format!("systemctl error: {e}"), Color::Red),

@@ -25,6 +25,7 @@ Panel {
   property int recSeconds: 0
   property var history: ({ can_undo: false, can_redo: false })
   property string renameIp: ""
+  property bool renamingPage: false
   property string view: "lights"
   property int pageIndex: 0
   property var selection: []
@@ -797,25 +798,63 @@ Panel {
       spacing: Style.space(10)
 
       Item {
+        id: pageBar
         width: parent.width
         implicitHeight: Style.spacing.controlHeight
+
+        HoverHandler { id: pageHover }
+
         PanelButton {
           iconText: "󰅁"
-          bordered: true
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           onClicked: root.stepPage(-1)
         }
-        Text {
-          text: root.page ? (root.page.name + (root.page.name === root.deck.default_page ? "  ·  default" : "")) : "no pages"
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
+
+        Row {
+          visible: !root.renamingPage
           anchors.centerIn: parent
+          spacing: Style.space(4)
+          Text {
+            text: root.page ? (root.page.name + (root.page.name === root.deck.default_page ? "  ·  default" : "")) : "no pages"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          WidgetButton {
+            bar: root.bar
+            text: "󰏫"
+            fontSize: Style.font.caption
+            foreground: root.dim
+            labelVisible: true
+            horizontalMargin: 2
+            visible: !!root.page
+            opacity: pageHover.hovered ? 1 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            onPressed: root.renamingPage = true
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+          }
         }
+
+        EditField {
+          visible: root.renamingPage
+          width: Math.min(parent.width * 0.6, Style.space(220))
+          anchors.centerIn: parent
+          text: root.page ? root.page.name : ""
+          placeholderText: "Page name"
+          onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
+          onActiveFocusChanged: if (!activeFocus) root.renamingPage = false
+          onCommitted: function(v) {
+            if (root.page && v.trim() !== "" && v !== root.page.name) {
+              root.act(["streamdeck-ctl", "deck", "page-rename", root.page.name, v.trim()])
+            }
+            root.renamingPage = false
+          }
+        }
+
         PanelButton {
           iconText: "󰅂"
-          bordered: true
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           onClicked: root.stepPage(1)

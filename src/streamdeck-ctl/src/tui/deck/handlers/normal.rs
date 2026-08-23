@@ -2,7 +2,7 @@ use super::persist;
 use crate::config::Page;
 use crate::tui::deck::{Field, Mode, page_select};
 use crate::tui::state::App;
-use crate::waybar;
+use crate::units;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::style::Color;
@@ -84,9 +84,9 @@ fn begin_brightness(app: &mut App) {
 
 fn toggle_service(app: &mut App) {
     let args: &[&str] = if app.conn.deck_active {
-        &["--user", "disable", "--now", waybar::DECK_SERVICE]
+        &["--user", "disable", "--now", units::DECK_SERVICE]
     } else {
-        &["--user", "enable", "--now", waybar::DECK_SERVICE]
+        &["--user", "enable", "--now", units::DECK_SERVICE]
     };
     run_systemctl(app, args, "toggled");
 }
@@ -94,7 +94,7 @@ fn toggle_service(app: &mut App) {
 fn reload_service(app: &mut App) {
     run_systemctl(
         app,
-        &["--user", "kill", "--signal=SIGHUP", waybar::DECK_SERVICE],
+        &["--user", "kill", "--signal=SIGHUP", units::DECK_SERVICE],
         "restarted",
     );
 }
@@ -102,8 +102,7 @@ fn reload_service(app: &mut App) {
 pub fn run_systemctl(app: &mut App, args: &[&str], verb: &str) {
     match Command::new("systemctl").args(args).status() {
         Ok(s) if s.success() => {
-            let _ = Command::new("pkill").args(["-RTMIN+13", "waybar"]).status();
-            app.flash(format!("{verb} {}", waybar::DECK_SERVICE), Color::Cyan);
+            app.flash(format!("{verb} {}", units::DECK_SERVICE), Color::Cyan);
         }
         Ok(s) => app.flash(format!("systemctl exited {s}"), Color::Red),
         Err(e) => app.flash(format!("systemctl error: {e}"), Color::Red),

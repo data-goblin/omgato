@@ -3,7 +3,7 @@ use crate::action;
 use crate::cli::DeckCmd;
 use crate::config::{self, Button, Config, Page};
 use crate::render::Renderer;
-use crate::{daemon, device, waybar};
+use crate::{daemon, device, units};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -16,7 +16,7 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Brightness { value } => set_brightness(value),
         DeckCmd::Power { state } => set_power(&state),
         DeckCmd::Reset => reset(),
-        DeckCmd::Reload => service::reload(waybar::DECK_SERVICE),
+        DeckCmd::Reload => service::reload(units::DECK_SERVICE),
         DeckCmd::Set {
             page,
             index,
@@ -31,6 +31,7 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Pages => list_pages(&config::load()?),
         DeckCmd::PageAdd { name } => page_add(name),
         DeckCmd::PageRm { name } => page_rm(name),
+        DeckCmd::PageRename { from, to } => page_rename(&from, &to),
         DeckCmd::Default { name } => set_default_page(name),
         DeckCmd::Order => show_order(&config::load()?),
         DeckCmd::OrderSet { names } => set_order(names),
@@ -71,7 +72,7 @@ fn set_order(names: Vec<String>) -> Result<()> {
     }
     cfg.deck.page_order = names;
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -79,7 +80,7 @@ fn set_auto_paginate(enabled: bool) -> Result<()> {
     let mut cfg = config::load()?;
     cfg.deck.auto_paginate = enabled;
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -201,7 +202,7 @@ fn apply_brightness(cfg: &Config) -> Result<()> {
     if let Ok(d) = device::deck::open_first() {
         let _ = d.deck.set_brightness(level);
     }
-    let _ = service::refresh_brightness(waybar::DECK_SERVICE);
+    let _ = service::refresh_brightness(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -251,7 +252,7 @@ fn set_button(
     apply_opt(bref, fg, |b, v| b.fg = v);
     apply_field(bref, action_spec, |b, v| b.action = v);
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -279,7 +280,7 @@ fn unset_button(page: String, index: u8) -> Result<()> {
         p.buttons.retain(|b| b.index != index);
     }
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -320,17 +321,50 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
         cfg.deck.default_page = "main".into();
     }
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     println!("applied preset '{name}' ({} pages)", cfg.deck.pages.len());
     Ok(())
 }
 
-fn page_add(name: String) -> Result<()> {
+fn page_add(name: Option<String>) -> Result<()> {
+    let mut cfg_for_name = config::load()?;
+    let name = match name {
+        Some(name) => name,
+        None => (1..)
+            .map(|n| format!("Page {n}"))
+            .find(|candidate| !cfg_for_name.deck.pages.contains_key(candidate))
+            .expect("an unused page name always exists"),
+    };
+    cfg_for_name.deck.pages.clear();
     validate_page_name(&name)?;
     let mut cfg = config::load()?;
     cfg.deck.pages.entry(name).or_insert_with(Page::default);
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
+fn page_rename(from: &str, to: &str) -> Result<()> {
+    validate_page_name(to)?;
+    let mut cfg = config::load()?;
+    let Some(page) = cfg.deck.pages.remove(from) else {
+        anyhow::bail!("page not found: {from}");
+    };
+    if cfg.deck.pages.contains_key(to) {
+        cfg.deck.pages.insert(from.to_owned(), page);
+        anyhow::bail!("page already exists: {to}");
+    }
+    cfg.deck.pages.insert(to.to_owned(), page);
+    for name in cfg.deck.page_order.iter_mut() {
+        if name == from {
+            *name = to.to_owned();
+        }
+    }
+    if cfg.deck.default_page == from {
+        cfg.deck.default_page = to.to_owned();
+    }
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -346,7 +380,7 @@ fn page_rm(name: String) -> Result<()> {
         }
     }
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
 
@@ -357,6 +391,6 @@ fn set_default_page(name: String) -> Result<()> {
     }
     cfg.deck.default_page = name;
     config::save(&cfg)?;
-    let _ = service::reload(waybar::DECK_SERVICE);
+    let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }

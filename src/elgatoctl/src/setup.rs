@@ -77,7 +77,7 @@ fn repl() -> i32 {
         argv.extend(t.split_whitespace().map(String::from));
         match Cli::try_parse_from(&argv) {
             Ok(cli) => {
-                if matches!(cli.cmd, Cmd::Setup | Cmd::Waybar) {
+                if matches!(cli.cmd, Cmd::Setup) {
                     eprintln!("not available in REPL");
                     continue;
                 }

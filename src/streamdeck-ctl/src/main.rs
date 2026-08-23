@@ -8,7 +8,7 @@ mod export;
 mod render;
 mod synth;
 mod tui;
-mod waybar;
+mod units;
 
 use clap::Parser;
 

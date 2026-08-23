@@ -1,5 +1,5 @@
 use crate::config::{self, Config};
-use crate::{device, waybar};
+use crate::{device, units};
 use ratatui::style::Color;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -62,8 +62,8 @@ impl App {
         self.conn = Connectivity {
             pedal_connected: device::list_pedals().map(|v| !v.is_empty()).unwrap_or(false),
             deck_connected: device::list_decks().map(|v| !v.is_empty()).unwrap_or(false),
-            pedal_active: waybar::service_active(),
-            deck_active: waybar::deck_service_active(),
+            pedal_active: units::service_active(),
+            deck_active: units::deck_service_active(),
         };
         self.deck.reconcile_after_config_change(&self.cfg);
     }

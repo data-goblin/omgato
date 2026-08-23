@@ -2,7 +2,7 @@ use super::service;
 use crate::action;
 use crate::cli::PedalCmd;
 use crate::config::{self, Gesture, PedalPos};
-use crate::{daemon, waybar};
+use crate::{daemon, units};
 use anyhow::Result;
 
 pub fn dispatch(cmd: PedalCmd) -> Result<()> {
@@ -12,7 +12,7 @@ pub fn dispatch(cmd: PedalCmd) -> Result<()> {
         PedalCmd::Show => show(),
         PedalCmd::Get { position, gesture } => get(&position, &gesture),
         PedalCmd::Set { position, gesture, action } => set(&position, &gesture, action),
-        PedalCmd::Reload => service::reload(waybar::PEDAL_SERVICE),
+        PedalCmd::Reload => service::reload(units::PEDAL_SERVICE),
     }
 }
 
@@ -49,6 +49,6 @@ fn set(position: &str, gesture: &str, action_spec: String) -> Result<()> {
     let mut cfg = config::load()?;
     cfg.pedal.set(pos, g, action_spec);
     config::save(&cfg)?;
-    let _ = service::reload(waybar::PEDAL_SERVICE);
+    let _ = service::reload(units::PEDAL_SERVICE);
     Ok(())
 }

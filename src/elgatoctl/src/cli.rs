@@ -65,9 +65,7 @@ pub enum Cmd {
         #[arg(default_value = "all")]
         target: String,
     },
-    /// Emit waybar status JSON
-    Waybar,
-    /// Smart waybar click: rediscover if any unreachable, then toggle
+    /// Rediscover if any light is unreachable, then toggle
     Click {
         #[arg(default_value = "all")]
         target: String,

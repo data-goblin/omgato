@@ -1,6 +1,6 @@
 use crate::config;
 use crate::tui::state::App;
-use crate::waybar;
+use crate::units;
 use ratatui::style::Color;
 use std::process::Command;
 
@@ -13,9 +13,8 @@ pub fn save_and_restart(app: &mut App, msg: &str) -> bool {
         return false;
     }
     let _ = Command::new("systemctl")
-        .args(["--user", "kill", "--signal=SIGHUP", waybar::DECK_SERVICE])
+        .args(["--user", "kill", "--signal=SIGHUP", units::DECK_SERVICE])
         .status();
-    let _ = Command::new("pkill").args(["-RTMIN+13", "waybar"]).status();
     app.refresh();
     app.flash(msg.to_string(), Color::Green);
     true

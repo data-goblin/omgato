@@ -1,7 +1,7 @@
 use crate::cli::Cmd;
 use crate::config::{self, Cache, Light};
 use crate::light::{self, LightPatch, LightState};
-use crate::{discover, setup, waybar};
+use crate::{discover, setup};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -100,11 +100,6 @@ pub fn run(cmd: Cmd, out: Out) -> i32 {
                 return 2;
             }
             apply_each(&target, patch, &out)
-        }
-        Cmd::Waybar => {
-            let cache = config::load();
-            waybar::emit(&cache);
-            0
         }
         Cmd::Click { target } => cmd_click(&target, &out),
     }

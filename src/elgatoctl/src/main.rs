@@ -6,7 +6,6 @@ mod discover;
 mod dispatch;
 mod light;
 mod setup;
-mod waybar;
 
 fn main() {
     let parsed = cli::Cli::parse();
