@@ -311,18 +311,27 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
         cfg.deck.pages.clear();
         cfg.deck.page_order.clear();
     }
+    let mut added = Vec::new();
     for (page, buttons) in preset.deck.pages {
+        if !replace && cfg.deck.pages.contains_key(&page) {
+            continue;
+        }
         cfg.deck.pages.insert(page.clone(), buttons);
         if !cfg.deck.page_order.contains(&page) {
-            cfg.deck.page_order.push(page);
+            cfg.deck.page_order.push(page.clone());
         }
+        added.push(page);
     }
     if cfg.deck.pages.contains_key("main") {
         cfg.deck.default_page = "main".into();
     }
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);
-    println!("applied preset '{name}' ({} pages)", cfg.deck.pages.len());
+    if added.is_empty() {
+        println!("preset '{name}': every page already exists, nothing changed");
+    } else {
+        println!("preset '{name}': added {}", added.join(", "));
+    }
     Ok(())
 }
 

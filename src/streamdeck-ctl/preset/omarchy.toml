@@ -6,7 +6,7 @@ page_order = ["main", "windows", "media", "elgato"]
 [[deck.pages.main.buttons]]
 index = 0
 label = "Terminal"
-glyph = ""
+glyph = ""
 action = "exec:omarchy-launch-terminal"
 
 [[deck.pages.main.buttons]]
@@ -24,7 +24,7 @@ action = "exec:nautilus"
 [[deck.pages.main.buttons]]
 index = 3
 label = "Editor"
-glyph = ""
+glyph = ""
 action = "exec:omarchy-launch-editor"
 
 [[deck.pages.main.buttons]]
@@ -84,20 +84,20 @@ action = "exec:omarchy-menu toggle system"
 [[deck.pages.windows.buttons]]
 index = 0
 label = "Close"
-glyph = "󰒛"
+glyph = "󰅖"
 action = "exec:hyprctl dispatch hl.dsp.window.close({})"
 
 [[deck.pages.windows.buttons]]
 index = 1
 label = "Full"
 glyph = "󰆓"
-action = "exec:hyprctl dispatch hl.dsp.window.fullscreen({ mode = "fullscreen" })"
+action = 'exec:hyprctl dispatch hl.dsp.window.fullscreen({ mode = "fullscreen" })'
 
 [[deck.pages.windows.buttons]]
 index = 2
 label = "Float"
 glyph = "󱒶"
-action = "exec:hyprctl dispatch hl.dsp.window.float({ action = "toggle" })"
+action = 'exec:hyprctl dispatch hl.dsp.window.float({ action = "toggle" })'
 
 [[deck.pages.windows.buttons]]
 index = 3
@@ -108,38 +108,44 @@ action = "exec:omarchy-hyprland-window-gaps-toggle"
 [[deck.pages.windows.buttons]]
 index = 4
 label = "Clear"
-glyph = "󰅙"
+glyph = "󰙀"
 action = "exec:omarchy-hyprland-window-transparency-toggle"
 
 [[deck.pages.windows.buttons]]
 index = 5
 label = "1"
-glyph = "󰶍"
-action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "1" })"
+glyph = "󰬺"
+action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "1" })'
 
 [[deck.pages.windows.buttons]]
 index = 6
 label = "2"
-glyph = "󰶐"
-action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "2" })"
+glyph = "󰬻"
+action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "2" })'
 
 [[deck.pages.windows.buttons]]
 index = 7
 label = "3"
-glyph = "󰶓"
-action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "3" })"
+glyph = "󰬼"
+action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "3" })'
 
 [[deck.pages.windows.buttons]]
 index = 8
 label = "4"
-glyph = "󰶖"
-action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "4" })"
+glyph = "󰬽"
+action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "4" })'
 
 [[deck.pages.windows.buttons]]
 index = 9
 label = "5"
-glyph = "󰶙"
-action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "5" })"
+glyph = "󰬾"
+action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "5" })'
+
+[[deck.pages.windows.buttons]]
+index = 11
+label = "Scratch"
+glyph = "󰎜"
+action = 'exec:hyprctl dispatch hl.dsp.workspace.toggle_special("scratchpad")'
 
 [[deck.pages.media.buttons]]
 index = 0
@@ -216,13 +222,13 @@ action = "exec:elgatoctl brightness +10"
 [[deck.pages.elgato.buttons]]
 index = 3
 label = "Warm"
-glyph = "󰌵"
+glyph = "󰔏"
 action = "exec:elgatoctl temperature -300"
 
 [[deck.pages.elgato.buttons]]
 index = 4
 label = "Cool"
-glyph = "󰌵"
+glyph = "󰔐"
 action = "exec:elgatoctl temperature +300"
 
 [[deck.pages.elgato.buttons]]
@@ -234,7 +240,7 @@ action = "exec:camctl toggle"
 [[deck.pages.elgato.buttons]]
 index = 6
 label = "Place"
-glyph = "󰪦"
+glyph = "󰩭"
 action = "exec:camctl pick"
 
 [[deck.pages.elgato.buttons]]
