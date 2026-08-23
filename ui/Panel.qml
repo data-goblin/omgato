@@ -440,7 +440,6 @@ Panel {
     tooltipText: root.barSummary
     slotSize: Style.bar.statusSlot
     fontSize: Style.font.caption
-    tooltipText: ""
     onPressed: function(b) {
       if (b === Qt.RightButton) root.act(["elgatoctl", "click"])
       else root.toggle()
