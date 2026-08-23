@@ -499,6 +499,7 @@ Panel {
               iconText: modelData.glyph
               text: modelData.label
               fontSize: Style.font.bodySmall
+              bordered: true
               active: root.view === modelData.id
               onClicked: root.view = modelData.id
             }
@@ -743,6 +744,7 @@ Panel {
       PanelButton {
         width: parent.width
         text: "Rediscover lights"
+        bordered: true
         onClicked: root.act(["elgatoctl", "discover"])
       }
     }
@@ -774,6 +776,7 @@ Panel {
             required property var modelData
             width: (parent.width - parent.spacing) / 2
             text: modelData.label
+            bordered: true
             active: root.device === modelData.id
             onClicked: root.device = modelData.id
           }
@@ -798,6 +801,7 @@ Panel {
         implicitHeight: Style.spacing.controlHeight
         PanelButton {
           iconText: "󰅁"
+          bordered: true
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           onClicked: root.stepPage(-1)
@@ -811,6 +815,7 @@ Panel {
         }
         PanelButton {
           iconText: "󰅂"
+          bordered: true
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           onClicked: root.stepPage(1)
@@ -944,6 +949,7 @@ Panel {
           PanelButton {
             width: (parent.width - parent.spacing) / 2
             text: root.multiSelect ? "Clear keys" : "Clear key"
+            bordered: true
             onClicked: {
               for (var i = 0; i < root.selection.length; i++) {
                 root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.selection[i])])
@@ -954,6 +960,7 @@ Panel {
           PanelButton {
             width: (parent.width - parent.spacing) / 2
             text: "Done"
+            bordered: true
             onClicked: root.selection = []
           }
         }
@@ -991,6 +998,7 @@ Panel {
           iconText: root.deck.display_off ? "󰤂" : "󰐥"
           iconSize: Style.font.title
           foreground: root.deck.display_off ? root.dim : root.foreground
+          bordered: true
           active: !root.deck.display_off
           tooltipText: root.deck.display_off ? "Switch the key display on" : "Switch the key display off"
           onClicked: root.act(["streamdeck-ctl", "deck", "power", root.deck.display_off ? "on" : "off"])
@@ -1002,6 +1010,7 @@ Panel {
       PanelButton {
         width: parent.width
         text: root.page && root.page.name === root.deck.default_page ? "Default page" : "Make default"
+        bordered: true
         active: root.page && root.page.name === root.deck.default_page
         onClicked: if (root.page) root.act(["streamdeck-ctl", "deck", "default", root.page.name])
       }
@@ -1179,12 +1188,14 @@ Panel {
             width: recordIdle.cellWidth
             iconText: "󰆟"
             text: "Pick area"
+            bordered: true
             onClicked: root.startRecording("pick")
           }
           PanelButton {
             width: recordIdle.cellWidth
             iconText: "󰍹"
             text: "Full screen"
+            bordered: true
             onClicked: root.startRecording("screen")
           }
         }
@@ -1197,6 +1208,7 @@ Panel {
           text: "Stop recording   " + root.recClock()
           foreground: root.urgent
           accent: root.urgent
+          bordered: true
           active: true
           onClicked: root.act(["elgato-panel", "record", "--stop"])
         }
@@ -1258,6 +1270,7 @@ Panel {
         visible: !root.record.active && root.record.scope !== ""
         iconText: "󰑊"
         text: "Record " + root.record.scope + " again"
+        bordered: true
         onClicked: root.startRecording("last")
       }
 
@@ -1272,6 +1285,7 @@ Panel {
           width: audioRow.cellWidth
           iconText: "󰕾"
           text: "Desktop audio"
+          bordered: true
           active: root.recDesktopAudio
           onClicked: root.recDesktopAudio = !root.recDesktopAudio
         }
@@ -1279,6 +1293,7 @@ Panel {
           width: audioRow.cellWidth
           iconText: root.recMic ? "󰍬" : "󰍭"
           text: "Microphone"
+          bordered: true
           active: root.recMic
           onClicked: root.recMic = !root.recMic
         }
@@ -1294,6 +1309,7 @@ Panel {
           iconText: root.camera.overlay ? "󰈉" : "󰈈"
           text: root.camera.overlay ? "Hide" : "Show"
           fontSize: Style.font.bodySmall
+          bordered: true
           active: !!root.camera.overlay
           onClicked: root.act(["camctl", "toggle"])
         }
@@ -1302,6 +1318,7 @@ Panel {
           iconText: "󰊓"
           text: "Fullscreen"
           fontSize: Style.font.bodySmall
+          bordered: true
           onClicked: root.act(["camctl", "full"])
         }
       }
@@ -1316,6 +1333,7 @@ Panel {
             required property var modelData
             width: (parent.width - parent.spacing * 3) / 4
             text: modelData.label
+            bordered: true
             active: root.camera.corner === modelData.id
             onClicked: root.act(["camctl", "move", modelData.id])
           }
@@ -1327,6 +1345,7 @@ Panel {
         iconText: "󰩭"
         text: "PiP position"
         tooltipText: "Drag out exactly where the camera overlay sits"
+        bordered: true
         active: root.camera.corner === "area"
         onClicked: root.act(["camctl", "pick"])
       }
@@ -1363,6 +1382,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         iconText: "󰐕"
         text: "Install"
+        bordered: true
         tooltipText: "Write these shortcuts and source them from your hypr config"
         onClicked: root.act(["elgato-panel", "install-shortcuts"])
       }
@@ -1447,7 +1467,6 @@ Panel {
     fontSize: Style.font.caption
     foreground: root.foreground
     fontFamily: root.fontFamily
-    bordered: true
   }
 
   component ActionRow: Row {
@@ -1468,12 +1487,14 @@ Panel {
       width: actionRow.cellWidth
       iconText: actionRow.primaryIcon
       text: actionRow.primaryText
+      bordered: true
       onClicked: actionRow.primary()
     }
     PanelButton {
       width: actionRow.cellWidth
       iconText: "󰕌"
       text: "Undo"
+      bordered: true
       opacity: actionRow.canUndo ? 1 : 0.35
       onClicked: if (actionRow.canUndo) actionRow.undo()
     }
@@ -1481,6 +1502,7 @@ Panel {
       width: actionRow.cellWidth
       iconText: "󰑎"
       text: "Redo"
+      bordered: true
       opacity: actionRow.canRedo ? 1 : 0.35
       onClicked: if (actionRow.canRedo) actionRow.redo()
     }
