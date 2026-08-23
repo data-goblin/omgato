@@ -259,7 +259,7 @@ checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
 name = "camctl"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "dirs",
@@ -512,7 +512,7 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
 name = "elgato-panel"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "dirs",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "elgatoctl"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "dirs",
@@ -2061,7 +2061,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "streamdeck-ctl"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "ab_glyph",
  "anyhow",

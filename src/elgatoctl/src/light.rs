@@ -1,7 +1,7 @@
 use crate::config::Light;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LightState {
@@ -38,6 +38,9 @@ impl LightPatch {
 
 const TIMEOUT_MS: u64 = 1500;
 const CONNECT_TIMEOUT_MS: u64 = 600;
+const ATTEMPTS: u8 = 3;
+const RETRY_PAUSE_MS: u64 = 80;
+const RETRY_BUDGET_MS: u64 = 500;
 
 fn agent() -> &'static ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
@@ -50,32 +53,55 @@ fn agent() -> &'static ureq::Agent {
     })
 }
 
-pub fn get_state(light: &Light) -> Result<LightState, String> {
-    let resp: LightsResponse = agent()
-        .get(&light.url("/elgato/lights"))
-        .call()
-        .map_err(|e| format!("{}: {e}", light.name))?
-        .into_json()
-        .map_err(|e| format!("{}: parse: {e}", light.name))?;
+/// These lights sit on wifi and drop the odd request. One lost packet must not
+/// read as a light that is gone, so a failure is retried before it is believed.
+/// A light that is really absent fails by timeout and exhausts the budget on its
+/// first try, so it still gives up quickly.
+fn retrying<T>(mut attempt: impl FnMut() -> Result<T, String>) -> Result<T, String> {
+    let started = Instant::now();
+    let budget = Duration::from_millis(RETRY_BUDGET_MS);
+    let mut result = attempt();
+    for _ in 1..ATTEMPTS {
+        if result.is_ok() || started.elapsed() >= budget {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(RETRY_PAUSE_MS));
+        result = attempt();
+    }
+    result
+}
+
+fn first(resp: LightsResponse, name: &str) -> Result<LightState, String> {
     resp.lights
         .into_iter()
         .next()
-        .ok_or_else(|| format!("{}: empty lights array", light.name))
+        .ok_or_else(|| format!("{name}: empty lights array"))
+}
+
+pub fn get_state(light: &Light) -> Result<LightState, String> {
+    retrying(|| {
+        let resp: LightsResponse = agent()
+            .get(&light.url("/elgato/lights"))
+            .call()
+            .map_err(|e| format!("{}: {e}", light.name))?
+            .into_json()
+            .map_err(|e| format!("{}: parse: {e}", light.name))?;
+        first(resp, &light.name)
+    })
 }
 
 pub fn apply(light: &Light, patch: &LightPatch) -> Result<LightState, String> {
-    let body = serde_json::json!({ "lights": [patch] });
-    let resp: LightsResponse = agent()
-        .put(&light.url("/elgato/lights"))
-        .set("Content-Type", "application/json")
-        .send_string(&body.to_string())
-        .map_err(|e| format!("{}: {e}", light.name))?
-        .into_json()
-        .map_err(|e| format!("{}: parse: {e}", light.name))?;
-    resp.lights
-        .into_iter()
-        .next()
-        .ok_or_else(|| format!("{}: empty lights array", light.name))
+    let body = serde_json::json!({ "lights": [patch] }).to_string();
+    retrying(|| {
+        let resp: LightsResponse = agent()
+            .put(&light.url("/elgato/lights"))
+            .set("Content-Type", "application/json")
+            .send_string(&body)
+            .map_err(|e| format!("{}: {e}", light.name))?
+            .into_json()
+            .map_err(|e| format!("{}: parse: {e}", light.name))?;
+        first(resp, &light.name)
+    })
 }
 
 /// Runs `f` against every light at once and returns the results in input order.
