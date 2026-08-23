@@ -7,8 +7,14 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
+deck_config="${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml"
 with_preset=1
 with_skill=1
+
+# Decided before anything can create the file: reading the configuration writes
+# a default one, which would make an untouched machine look configured.
+first_install=0
+[ -f "$deck_config" ] || first_install=1
 
 for arg in "$@"; do
     case "$arg" in
@@ -47,10 +53,10 @@ case ":$PATH:" in
     *) echo "note: $bin_dir is not on PATH" ;;
 esac
 
-if [ "$with_preset" = 1 ] && ! "$bin_dir/streamdeck-ctl" deck pages 2>/dev/null | grep -q .; then
+if [ "$with_preset" = 1 ] && [ "$first_install" = 1 ]; then
     echo
-    echo "No Stream Deck pages configured; applying the omarchy starter layout."
-    "$bin_dir/streamdeck-ctl" deck preset omarchy || true
+    echo "No Stream Deck configuration yet; applying the omarchy starter layout."
+    "$bin_dir/streamdeck-ctl" deck preset omarchy --replace || true
 fi
 
 if [ "$with_skill" = 1 ]; then

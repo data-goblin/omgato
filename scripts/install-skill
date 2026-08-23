@@ -18,13 +18,19 @@ targets=(
     "$home_dir/.gemini/config/skills/$name"
 )
 
+touched=0
 for target in "${targets[@]}"; do
     parent="$(dirname "$target")"
     if [ "$remove" = 1 ]; then
-        [ -L "$target" ] && rm -f "$target" && echo "  removed  $target"
+        [ -L "$target" ] && rm -f "$target" && echo "  removed  $target" && touched=1
         continue
     fi
     [ -d "$parent" ] || continue
     ln -sfn "$source_dir" "$target"
     echo "  linked   $target"
+    touched=1
 done
+
+if [ "$touched" = 0 ] && [ "$remove" = 0 ]; then
+    echo "  no agent skill directories found; nothing linked"
+fi

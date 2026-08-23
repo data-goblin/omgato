@@ -135,8 +135,11 @@ fn format_order(order: &[String]) -> String {
 }
 
 fn list_pages(cfg: &Config) -> Result<()> {
-    for (name, page) in &cfg.deck.pages {
-        let marker = if name == &cfg.deck.default_page { "*" } else { " " };
+    for name in cfg.deck.ordered_pages() {
+        let Some(page) = cfg.deck.pages.get(&name) else {
+            continue;
+        };
+        let marker = if name == cfg.deck.default_page { "*" } else { " " };
         println!("{} {} ({} buttons)", marker, name, page.buttons.len());
     }
     Ok(())
