@@ -1,0 +1,15 @@
+[package]
+name = "camctl"
+description = "Picture-in-picture overlay and status for the Elgato Cam Link 4K"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap.workspace = true
+dirs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

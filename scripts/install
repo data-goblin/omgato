@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Build the workspace and put the four binaries on PATH.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
+
+cargo build --release --manifest-path "$repo/Cargo.toml"
+mkdir -p "$bin_dir"
+
+for tool in camctl elgatoctl elgato-panel streamdeck-ctl; do
+    ln -sfn "$repo/target/release/$tool" "$bin_dir/$tool"
+    echo "  $bin_dir/$tool -> $repo/target/release/$tool"
+done
+
+case ":$PATH:" in
+    *":$bin_dir:"*) ;;
+    *) echo "note: $bin_dir is not on PATH" ;;
+esac

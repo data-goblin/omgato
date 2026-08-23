@@ -1,0 +1,1287 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Ui
+
+Panel {
+  id: root
+  moduleName: "kurt.elgato"
+  ipcTarget: "kurt.elgato"
+
+  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color dim: Qt.darker(foreground, 1.55)
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+
+  property var lights: []
+  property var deck: ({ devices: [], pages: [], pedal: {}, services: {}, brightness: 0, default_page: "", auto_paginate: false, history: { can_undo: false, can_redo: false } })
+  property var camera: ({ history: { can_undo: false, can_redo: false } })
+  property var record: ({ active: false, seconds: 0, directory: "", options: { desktop_audio: false, mic: false } })
+  property bool recDesktopAudio: false
+  property bool recMic: false
+  property bool recOptionsLoaded: false
+  property int recSeconds: 0
+  property var history: ({ can_undo: false, can_redo: false })
+  property string renameIp: ""
+  property string view: "lights"
+  property int pageIndex: 0
+  property int editIndex: -1
+  property string device: "deck"
+  property string pedalPosition: "left"
+  property string lightsJson: ""
+  property string deckJson: ""
+  property string deckPagesJson: ""
+  property var deckPages: []
+  property bool interacting: false
+  property int pendingDeckBrightness: -1
+  property int deckBrightnessLocal: -1
+  readonly property int deckBrightness: deckBrightnessLocal >= 0 ? deckBrightnessLocal : deck.brightness
+  property int dragFrom: -1
+  property int dragTo: -1
+
+  readonly property bool anyOn: lights.some(function(l) { return l.on })
+  readonly property bool anyUnreachable: lights.some(function(l) { return !l.reachable })
+  readonly property var page: deckPages.length ? deckPages[Math.min(pageIndex, deckPages.length - 1)] : null
+  readonly property var deckDevice: deck.devices.find(function(d) { return !d.pedal }) || ({ cols: 5, rows: 3, kind: "Deck" })
+  readonly property var sections: {
+    var out = []
+    if (settings.showLights !== false) out.push({ id: "lights", label: "Lights", glyph: "󰌵" })
+    if (settings.showDeck !== false) out.push({ id: "deck", label: "StreamDeck", glyph: "󰌌" })
+    if (settings.showCamera !== false) out.push({ id: "camera", label: "CamLink", glyph: "󰄀" })
+    return out
+  }
+
+  onSectionsChanged: {
+    if (!sections.length) return
+    for (var i = 0; i < sections.length; i++) if (sections[i].id === view) return
+    view = sections[0].id
+  }
+
+  readonly property string deckDaemonKey: device === "pedal" ? "streamdeck-ctl.service" : "streamdeck-ctl-deck.service"
+
+  readonly property string contextLabel: view === "lights" ? "Lights"
+    : view === "deck" ? (device === "pedal" ? "Pedal" : "Deck")
+    : "Polling"
+  readonly property bool contextChecked: view === "lights" ? anyOn
+    : view === "deck" ? (deck.services[deckDaemonKey] === "active")
+    : !camera.paused
+
+  // Blackbody approximation so the temperature reads as a colour: amber at the
+  // warm end, blue-white at the cool end.
+  function kelvinColor(kelvin) {
+    var t = Math.max(1000, Math.min(40000, kelvin)) / 100
+    var r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592)
+    var g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661
+                    : 288.1221695283 * Math.pow(t - 60, -0.0755148492)
+    var b = t >= 66 ? 255 : (t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307)
+    function channel(v) { return Math.max(0, Math.min(255, v)) / 255 }
+    return Qt.rgba(channel(r), channel(g), channel(b), 1)
+  }
+
+  function contextToggle() {
+    if (view === "lights") { setLights("all", { on: !anyOn }); return }
+    if (view === "deck") { act(["systemctl", "--user", deck.services[deckDaemonKey] === "active" ? "stop" : "start", deckDaemonKey]); return }
+    act(["camctl", camera.paused ? "resume" : "pause"])
+  }
+
+  function refresh() {
+    if (statusProc.running || interacting || renameIp !== "" || editIndex >= 0) return
+    statusProc.command = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
+    statusProc.running = true
+  }
+
+  function act(cmd) {
+    actionQueue.push(cmd)
+    runNextAction()
+  }
+
+  property var actionQueue: []
+  function runNextAction() {
+    if (actionProc.running || !actionQueue.length) return
+    actionProc.command = actionQueue.shift()
+    actionProc.running = true
+  }
+
+  // Paints the expected result locally so the controls answer the click at
+  // once, then hands the change straight to elgatoctl.
+  function setLights(target, patch) {
+    root.lights = lights.map(function(l) {
+      if (target !== "all" && l.name !== target) return l
+      var next = {}
+      for (var k in l) next[k] = l[k]
+      for (var p in patch) next[p] = patch[p]
+      return next
+    })
+    root.lightsJson = ""
+    var cmd = ["elgatoctl", "set"]
+    if (patch.on !== undefined) cmd.push(patch.on ? "--on" : "--off")
+    if (patch.brightness !== undefined) cmd.push("--brightness", String(patch.brightness))
+    if (patch.kelvin !== undefined) cmd.push("--temp", String(patch.kelvin))
+    cmd.push(target)
+    act(cmd)
+  }
+
+  function recClock() {
+    var total = Math.max(0, recSeconds)
+    var minutes = Math.floor(total / 60)
+    var seconds = total % 60
+    return (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+  }
+
+  function startRecording(target) {
+    var cmd = ["elgato-panel", "record", "--target", target]
+    if (recDesktopAudio) cmd.push("--desktop-audio")
+    if (recMic) cmd.push("--mic")
+    act(cmd)
+  }
+
+  function pedalBinding(position, gesture) {
+    var table = deck.pedal ? deck.pedal[position] : null
+    return table && table[gesture] ? table[gesture] : ""
+  }
+
+  function pedalBoundCount(position) {
+    var gestures = ["tap", "long", "double"]
+    var bound = 0
+    for (var i = 0; i < gestures.length; i++) if (pedalBinding(position, gestures[i])) bound++
+    return bound
+  }
+
+  function stepPage(delta) {
+    var count = deckPages.length
+    if (!count) return
+    pageIndex = (pageIndex + delta + count) % count
+    editIndex = -1
+  }
+
+  function gotoPage(name) {
+    for (var i = 0; i < deckPages.length; i++) {
+      if (deckPages[i].name === name) { pageIndex = i; editIndex = -1; return }
+    }
+  }
+
+  // Brightness follows the drag, coalesced so the device gets at most one
+  // update per interval instead of one per pixel.
+  function queueDeckBrightness(value) {
+    deckBrightnessLocal = Math.round(value)
+    pendingDeckBrightness = Math.round(value)
+    if (!deckBrightnessTimer.running) deckBrightnessTimer.start()
+  }
+
+  function flushDeckBrightness(value) {
+    deckBrightnessTimer.stop()
+    deckBrightnessLocal = Math.round(value)
+    pendingDeckBrightness = Math.round(value)
+    sendDeckBrightness()
+  }
+
+  function sendDeckBrightness() {
+    if (pendingDeckBrightness < 0) return
+    act(["streamdeck-ctl", "deck", "brightness", String(pendingDeckBrightness)])
+    pendingDeckBrightness = -1
+  }
+
+  function editKey() {
+    if (!page || editIndex < 0) return ({})
+    for (var i = 0; i < page.keys.length; i++) if (page.keys[i].index === editIndex) return page.keys[i]
+    return ({})
+  }
+
+  function cancelOrder() {
+    dragFrom = -1
+    dragTo = -1
+    interacting = false
+  }
+
+  // Moves the dragged light to where it was dropped and persists the new order.
+  function commitOrder() {
+    var from = dragFrom
+    var to = dragTo
+    cancelOrder()
+    if (from < 0 || to < 0 || from === to) return
+    var addresses = lights.map(function(l) { return l.ip })
+    addresses.splice(to, 0, addresses.splice(from, 1)[0])
+    lightsJson = ""
+    act(["elgato-panel", "order", "--ips", addresses.join(",")])
+  }
+
+  function deckSet(pageName, index, field, value) {
+    act(["streamdeck-ctl", "deck", "set", pageName, String(index), "--" + field, value])
+    act(["streamdeck-ctl", "deck", "reload"])
+  }
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  Process {
+    id: statusProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var data = JSON.parse(text || "{}")
+          var lightsText = JSON.stringify(data.lights || [])
+          if (lightsText !== root.lightsJson) {
+            root.lightsJson = lightsText
+            root.lights = data.lights || []
+          }
+          if (data.deck) {
+            var pagesText = JSON.stringify(data.deck.pages || [])
+            if (pagesText !== root.deckPagesJson) {
+              root.deckPagesJson = pagesText
+              root.deckPages = data.deck.pages || []
+            }
+            data.deck.pages = []
+            var deckText = JSON.stringify(data.deck)
+            if (deckText !== root.deckJson) {
+              root.deckJson = deckText
+              root.deck = data.deck
+            }
+          }
+          if (data.camera) root.camera = data.camera
+          if (data.record) {
+            root.record = data.record
+            root.recSeconds = data.record.seconds
+            if (!root.recOptionsLoaded && data.record.options) {
+              root.recDesktopAudio = !!data.record.options.desktop_audio
+              root.recMic = !!data.record.options.mic
+              root.recOptionsLoaded = true
+            }
+          }
+          if (data.history) root.history = data.history
+        } catch (e) {
+        }
+      }
+    }
+  }
+
+  Process {
+    id: actionProc
+    onExited: {
+      if (root.actionQueue.length) root.runNextAction()
+      else root.refresh()
+    }
+  }
+
+  Timer {
+    interval: root.opened ? 3000 : 15000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: deckBrightnessTimer
+    interval: 140
+    repeat: false
+    onTriggered: root.sendDeckBrightness()
+  }
+
+  Timer {
+    interval: 1000
+    running: root.record.active
+    repeat: true
+    onTriggered: root.recSeconds += 1
+  }
+
+  onDeckChanged: if (deckBrightnessLocal >= 0 && deck.brightness === deckBrightnessLocal) deckBrightnessLocal = -1
+  onDeckBrightnessLocalChanged: if (deckBrightnessLocal >= 0) deckBrightnessHold.restart()
+
+  // Releases the local value if the device never reports it back, so a failed
+  // command cannot leave the slider showing a level the deck never took.
+  Timer {
+    id: deckBrightnessHold
+    interval: 4000
+    repeat: false
+    onTriggered: root.deckBrightnessLocal = -1
+  }
+
+  onOpenedChanged: if (opened) refresh()
+
+  BarIconButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: root.anyUnreachable ? "󰂑" : (root.anyOn ? "󰌵" : "󰌶")
+    dimmed: !root.anyOn
+    slotSize: Style.bar.statusSlot
+    fontSize: Style.font.caption
+    tooltipText: ""
+    onPressed: function(b) {
+      if (b === Qt.RightButton) root.act(["elgatoctl", "click"])
+      else root.toggle()
+    }
+  }
+
+  KeyboardPanel {
+    id: panel
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    open: root.opened
+    focusTarget: keyCatcher
+    contentWidth: panel.fittedContentWidth(Style.space(380))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight)
+
+    PanelKeyCatcher {
+      id: keyCatcher
+      anchors.fill: parent
+      onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+
+      Column {
+        id: column
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: Style.space(12)
+
+        PanelHero {
+          width: parent.width
+          title: "Elgato"
+          meta: "Lights, camera, action!"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          iconComponent: Component {
+            Rectangle {
+              implicitWidth: Style.font.display * 1.2
+              implicitHeight: implicitWidth
+              radius: Style.space(7)
+              color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
+              Text {
+                anchors.centerIn: parent
+                text: "E"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+              }
+            }
+          }
+          trailingControl: Component {
+            Row {
+              spacing: Style.space(8)
+              Text {
+                text: root.contextLabel
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+              }
+              ToggleSwitch {
+                checked: root.contextChecked
+                foreground: root.foreground
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: root.contextToggle()
+              }
+            }
+          }
+        }
+
+        Row {
+          id: selector
+          width: parent.width
+          visible: root.sections.length > 1
+          spacing: Style.space(6)
+          readonly property real cellWidth: (width - spacing * (root.sections.length - 1)) / Math.max(1, root.sections.length)
+          Repeater {
+            model: root.sections
+            Button {
+              required property var modelData
+              width: selector.cellWidth
+              iconText: modelData.glyph
+              text: modelData.label
+              fontSize: Style.font.bodySmall
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              active: root.view === modelData.id
+              onClicked: root.view = modelData.id
+            }
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground; visible: selector.visible }
+
+        Loader {
+          width: parent.width
+          sourceComponent: root.view === "lights" ? lightsView : (root.view === "deck" ? deckView : cameraView)
+        }
+      }
+    }
+  }
+
+  // ---------- Lights ----------
+  Component {
+    id: lightsView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(12)
+
+      ActionRow {
+        primaryIcon: "󰓡"
+        primaryText: "Sync"
+        canUndo: root.history.can_undo
+        canRedo: root.history.can_redo
+        onPrimary: root.act(["elgato-panel", "sync"])
+        onUndo: root.act(["elgato-panel", "undo"])
+        onRedo: root.act(["elgato-panel", "redo"])
+      }
+
+      Grid {
+        id: lightGrid
+        width: parent.width
+        columns: Math.max(1, Math.min(2, root.lights.length))
+        spacing: Style.space(14)
+        readonly property real cellWidth: columns > 1 ? (width - spacing) / 2 : width
+
+        Repeater {
+          model: root.lights
+
+          Item {
+            id: lightCell
+            required property var modelData
+            required property int index
+            readonly property int cellIndex: index
+            readonly property bool renaming: root.renameIp === modelData.ip
+            readonly property bool handlesVisible: cellHover.hovered || root.dragFrom >= 0
+            readonly property bool dropTarget: root.dragFrom >= 0 && root.dragTo === index && root.dragFrom !== index
+
+            width: lightGrid.cellWidth
+            height: cellBody.implicitHeight
+            opacity: root.dragFrom === index ? 0.45 : 1
+
+            HoverHandler { id: cellHover }
+
+            Rectangle {
+              anchors.fill: parent
+              anchors.margins: -Style.space(5)
+              radius: Style.space(6)
+              color: lightCell.dropTarget ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.10) : "transparent"
+              border.width: lightCell.dropTarget ? 1 : 0
+              border.color: root.foreground
+            }
+
+            Column {
+              id: cellBody
+              width: parent.width
+              spacing: Style.space(8)
+
+              Item {
+                width: parent.width
+                implicitHeight: Style.spacing.controlHeight
+
+                Row {
+                  visible: !lightCell.renaming
+                  anchors.left: parent.left
+                  anchors.right: lightPower.left
+                  anchors.rightMargin: Style.spacing.sm
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
+
+                  Text {
+                    text: lightCell.modelData.display
+                    color: lightCell.modelData.reachable ? root.foreground : root.urgent
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, Math.max(0, parent.width - renameBtn.width - dragBtn.width - parent.spacing * 2))
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  WidgetButton {
+                    id: renameBtn
+                    bar: root.bar
+                    text: "󰏫"
+                    fontSize: Style.font.caption
+                    foreground: root.dim
+                    labelVisible: true
+                    horizontalMargin: 2
+                    opacity: lightCell.handlesVisible ? 1 : 0
+                    enabled: lightCell.handlesVisible
+                    anchors.verticalCenter: parent.verticalCenter
+                    onPressed: root.renameIp = lightCell.modelData.ip
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                  }
+
+                  Item {
+                    id: dragBtn
+                    implicitWidth: dragGlyph.implicitWidth + Style.space(6)
+                    implicitHeight: dragGlyph.implicitHeight
+                    visible: root.lights.length > 1
+                    opacity: lightCell.handlesVisible ? 1 : 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                    Text {
+                      id: dragGlyph
+                      anchors.centerIn: parent
+                      text: "󰇛"
+                      color: root.dragFrom === lightCell.cellIndex ? root.foreground : root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      enabled: lightCell.handlesVisible
+                      cursorShape: Qt.SizeAllCursor
+                      onPressed: { root.interacting = true; root.dragFrom = lightCell.cellIndex; root.dragTo = lightCell.cellIndex }
+                      onPositionChanged: function(mouse) {
+                        var point = mapToItem(lightGrid, mouse.x, mouse.y)
+                        var over = lightGrid.childAt(point.x, point.y)
+                        if (over && over.cellIndex !== undefined) root.dragTo = over.cellIndex
+                      }
+                      onReleased: root.commitOrder()
+                      onCanceled: root.cancelOrder()
+                    }
+                  }
+                }
+
+                EditField {
+                  visible: lightCell.renaming
+                  anchors.left: parent.left
+                  anchors.right: lightPower.left
+                  anchors.rightMargin: Style.spacing.sm
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: lightCell.modelData.display
+                  placeholderText: lightCell.modelData.name
+                  font.pixelSize: Style.font.body
+                  onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
+                  onCommitted: function(v) {
+                    if (v !== lightCell.modelData.display) root.act(["elgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
+                    root.renameIp = ""
+                  }
+                }
+
+                Button {
+                  id: lightPower
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  iconText: lightCell.modelData.on ? "󰌵" : "󰌶"
+                  iconSize: Style.font.title
+                  foreground: lightCell.modelData.on ? root.foreground : root.dim
+                  fontFamily: root.fontFamily
+                  onClicked: root.setLights(lightCell.modelData.name, { on: !lightCell.modelData.on })
+                }
+              }
+
+              SliderRow {
+                title: "Brightness"
+                valueText: lightCell.modelData.brightness + "%"
+                minimum: 0; maximum: 100; step: 1
+                value: lightCell.modelData.brightness
+                enabled: lightCell.modelData.reachable
+                onCommitted: function(v) { root.setLights(lightCell.modelData.name, { brightness: Math.round(v) }) }
+              }
+
+              SliderRow {
+                title: "Temp"
+                unit: " K"
+                swatch: true
+                valueText: lightCell.modelData.kelvin + " K"
+                minimum: 2900; maximum: 7000; step: 50
+                value: lightCell.modelData.kelvin
+                enabled: lightCell.modelData.reachable
+                onCommitted: function(v) { root.setLights(lightCell.modelData.name, { kelvin: Math.round(v / 50) * 50 }) }
+              }
+
+              Text {
+                visible: !lightCell.modelData.reachable
+                text: "unreachable"
+                color: root.urgent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
+          }
+        }
+      }
+
+      Button {
+        width: parent.width
+        text: "Rediscover lights"
+        fontSize: Style.font.caption
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        onClicked: root.act(["elgatoctl", "discover"])
+      }
+    }
+  }
+
+  // ---------- Stream Deck ----------
+  Component {
+    id: deckView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(10)
+
+      ActionRow {
+        primaryIcon: "󰑐"
+        primaryText: "Reload"
+        canUndo: root.deck.history ? root.deck.history.can_undo : false
+        canRedo: root.deck.history ? root.deck.history.can_redo : false
+        onPrimary: root.act(["streamdeck-ctl", "deck", "reload"])
+        onUndo: root.act(["elgato-panel", "deck-undo"])
+        onRedo: root.act(["elgato-panel", "deck-redo"])
+      }
+
+      Row {
+        width: parent.width
+        spacing: Style.space(6)
+        Repeater {
+          model: [ { id: "deck", label: root.deckDevice.kind }, { id: "pedal", label: "Pedal" } ]
+          Button {
+            required property var modelData
+            width: (parent.width - parent.spacing) / 2
+            text: modelData.label
+            fontSize: Style.font.caption
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            active: root.device === modelData.id
+            onClicked: root.device = modelData.id
+          }
+        }
+      }
+
+      Loader {
+        width: parent.width
+        sourceComponent: root.device === "pedal" ? pedalView : gridView
+      }
+    }
+  }
+
+  Component {
+    id: gridView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(10)
+
+      Item {
+        width: parent.width
+        implicitHeight: Style.spacing.controlHeight
+        Button {
+          iconText: "󰅁"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          onClicked: root.stepPage(-1)
+        }
+        Text {
+          text: root.page ? (root.page.name + (root.page.name === root.deck.default_page ? "  ·  default" : "")) : "no pages"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          anchors.centerIn: parent
+        }
+        Button {
+          iconText: "󰅂"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          onClicked: root.stepPage(1)
+        }
+      }
+
+      // The keys are the images the daemon pushes to the device, so the grid
+      // is what the deck actually shows rather than a second guess at it.
+      Grid {
+        id: keyGrid
+        width: parent.width
+        columns: root.deckDevice.cols
+        spacing: Style.space(4)
+        // Mirrors the backlight: the previews are the images on the device, and
+        // dimming them is the only way the level reads here.
+        opacity: root.deck.display_off ? 0.16 : 0.25 + 0.75 * (root.deckBrightness / 100)
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+        readonly property real cell: (width - spacing * (columns - 1)) / columns
+
+        Repeater {
+          model: root.page ? root.page.keys : []
+          Item {
+            id: keyCell
+            required property var modelData
+            width: keyGrid.cell
+            height: keyGrid.cell
+
+            Image {
+              id: keyImage
+              anchors.fill: parent
+              source: keyCell.modelData.preview ? "file://" + keyCell.modelData.preview : ""
+              visible: status === Image.Ready
+              cache: false
+              smooth: true
+              fillMode: Image.PreserveAspectFit
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              visible: !keyImage.visible
+              radius: Style.space(4)
+              color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+              Text {
+                anchors.centerIn: parent
+                text: String(keyCell.modelData.index)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
+
+            Rectangle {
+              anchors.fill: parent
+              color: "transparent"
+              radius: Style.space(5)
+              border.width: root.editIndex === keyCell.modelData.index ? 2 : (keyArea.containsMouse ? 1 : 0)
+              border.color: root.foreground
+            }
+
+            MouseArea {
+              id: keyArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                if (keyCell.modelData.kind === "page") { root.gotoPage(keyCell.modelData.target); return }
+                root.editIndex = root.editIndex === keyCell.modelData.index ? -1 : keyCell.modelData.index
+              }
+            }
+          }
+        }
+      }
+
+      Column {
+        visible: root.editIndex >= 0 && !!root.page
+        width: parent.width
+        spacing: Style.space(6)
+        readonly property var key: root.editKey()
+
+        PanelSectionHeader { text: "KEY " + root.editIndex + " ON " + (root.page ? root.page.name.toUpperCase() : ""); foreground: root.foreground; fontFamily: root.fontFamily }
+
+        EditField { placeholderText: "Label"; text: parent.key.label || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "label", v) } }
+        EditField { placeholderText: "Glyph (Nerd Font)"; text: parent.key.glyph || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "glyph", v) } }
+        EditField { placeholderText: "Action, e.g. exec:obs or key:KEY_F13"; text: parent.key.action || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "action", v) } }
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+          EditField { width: (parent.width - parent.spacing) / 2; placeholderText: "Background #rrggbb"; text: parent.parent.key.bg || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "bg", v) } }
+          EditField { width: (parent.width - parent.spacing) / 2; placeholderText: "Foreground #rrggbb"; text: parent.parent.key.fg || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "fg", v) } }
+        }
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+          Button {
+            width: (parent.width - parent.spacing) / 2
+            text: "Clear key"
+            fontSize: Style.font.caption
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: { root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.editIndex)]); root.act(["streamdeck-ctl", "deck", "reload"]); root.editIndex = -1 }
+          }
+          Button {
+            width: (parent.width - parent.spacing) / 2
+            text: "Done"
+            fontSize: Style.font.caption
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: root.editIndex = -1
+          }
+        }
+      }
+
+      Item {
+        width: parent.width
+        implicitHeight: brightnessHolder.implicitHeight
+
+        Item {
+          id: brightnessHolder
+          anchors.left: parent.left
+          anchors.right: deckPower.left
+          anchors.rightMargin: Style.space(8)
+          implicitHeight: deckBrightnessRow.implicitHeight
+          height: implicitHeight
+
+          SliderRow {
+            id: deckBrightnessRow
+            title: "Deck brightness"
+            valueText: root.deckBrightness + "%"
+            minimum: 0; maximum: 100; step: 1
+            value: root.deckBrightness
+            enabled: !root.deck.display_off
+            onMoved: function(v) { root.queueDeckBrightness(v) }
+            onCommitted: function(v) { root.flushDeckBrightness(v) }
+          }
+        }
+
+        Button {
+          id: deckPower
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+          iconText: root.deck.display_off ? "󰤂" : "󰐥"
+          iconSize: Style.font.title
+          foreground: root.deck.display_off ? root.dim : root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          active: !root.deck.display_off
+          tooltipText: root.deck.display_off ? "Switch the key display on" : "Switch the key display off"
+          onClicked: root.act(["streamdeck-ctl", "deck", "power", root.deck.display_off ? "on" : "off"])
+        }
+      }
+
+      Button {
+        width: parent.width
+        text: root.page && root.page.name === root.deck.default_page ? "Default page" : "Make default"
+        fontSize: Style.font.caption
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        active: root.page && root.page.name === root.deck.default_page
+        onClicked: if (root.page) { root.act(["streamdeck-ctl", "deck", "default", root.page.name]); root.act(["streamdeck-ctl", "deck", "reload"]) }
+      }
+    }
+  }
+
+  // ---------- Pedal ----------
+  Component {
+    id: pedalView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(12)
+
+      // Schematic of the device: one wide centre pedal between two narrower
+      // side pedals that sit higher, as on the hardware.
+      Item {
+        width: parent.width
+        height: Style.space(96)
+
+        Rectangle {
+          id: chassis
+          anchors.fill: parent
+          anchors.topMargin: Style.space(10)
+          radius: Style.space(10)
+          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.07)
+          border.width: 1
+          border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
+        }
+
+        Row {
+          anchors.fill: parent
+          anchors.margins: Style.space(10)
+          spacing: Style.space(8)
+
+          Repeater {
+            model: [
+              { id: "left", label: "Left", wide: false },
+              { id: "center", label: "Centre", wide: true },
+              { id: "right", label: "Right", wide: false }
+            ]
+            Rectangle {
+              id: pedalShape
+              required property var modelData
+              readonly property bool selected: root.pedalPosition === modelData.id
+              readonly property int bound: root.pedalBoundCount(modelData.id)
+
+              width: modelData.wide ? (parent.width - parent.spacing * 2) * 0.42 : (parent.width - parent.spacing * 2) * 0.29
+              height: modelData.wide ? parent.height - Style.space(12) : parent.height
+              anchors.bottom: parent.bottom
+              radius: Style.space(8)
+              color: selected ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20)
+                              : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.11)
+              border.width: selected ? 2 : 1
+              border.color: selected ? root.foreground : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22)
+
+              Column {
+                anchors.centerIn: parent
+                spacing: Style.space(3)
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: pedalShape.modelData.wide ? "E" : ""
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: pedalShape.modelData.wide ? Style.font.title : Style.font.body
+                  font.bold: pedalShape.modelData.wide
+                }
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: pedalShape.modelData.label
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: pedalShape.bound + " of 3"
+                  color: pedalShape.bound ? root.dim : Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.6)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.pedalPosition = pedalShape.modelData.id
+              }
+            }
+          }
+        }
+      }
+
+      PanelSectionHeader {
+        text: root.pedalPosition.toUpperCase() + " PEDAL"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+      }
+
+      Repeater {
+        model: [
+          { id: "tap", label: "Tap", glyph: "󰝁" },
+          { id: "long", label: "Hold", glyph: "󰵷" },
+          { id: "double", label: "Double", glyph: "󰜼" }
+        ]
+        Item {
+          id: gestureRow
+          required property var modelData
+          width: parent.width
+          implicitHeight: Style.spacing.controlHeight
+
+          Text {
+            id: gestureIcon
+            text: gestureRow.modelData.glyph
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          Text {
+            id: gestureLabel
+            text: gestureRow.modelData.label
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            width: Style.space(48)
+            anchors.left: gestureIcon.right
+            anchors.leftMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          EditField {
+            anchors.left: gestureLabel.right
+            anchors.leftMargin: Style.space(4)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.pedalBinding(root.pedalPosition, gestureRow.modelData.id)
+            placeholderText: "Not set"
+            onCommitted: function(v) {
+              root.act(["streamdeck-ctl", "pedal", "set", root.pedalPosition, gestureRow.modelData.id, v.trim() || "noop"])
+              root.act(["streamdeck-ctl", "pedal", "reload"])
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- Cam Link ----------
+  Component {
+    id: cameraView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(10)
+
+      ActionRow {
+        primaryIcon: "󰜉"
+        primaryText: "Reset"
+        canUndo: root.camera.history ? root.camera.history.can_undo : false
+        canRedo: root.camera.history ? root.camera.history.can_redo : false
+        onPrimary: root.act(["camctl", "reset"])
+        onUndo: root.act(["elgato-panel", "cam-undo"])
+        onRedo: root.act(["elgato-panel", "cam-redo"])
+      }
+
+      PanelSectionHeader { text: "RECORD"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Item {
+        width: parent.width
+        implicitHeight: recordIdle.visible ? recordIdle.implicitHeight : stopButton.implicitHeight
+
+        Row {
+          id: recordIdle
+          visible: !root.record.active
+          width: parent.width
+          spacing: Style.space(6)
+          readonly property real cellWidth: (width - spacing) / 2
+
+          Button {
+            width: recordIdle.cellWidth
+            iconText: "󰆟"
+            text: "Pick area"
+            fontSize: Style.font.caption
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: root.startRecording("region")
+          }
+          Button {
+            width: recordIdle.cellWidth
+            iconText: "󰍹"
+            text: "Full screen"
+            fontSize: Style.font.caption
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: root.startRecording("screen")
+          }
+        }
+
+        Button {
+          id: stopButton
+          visible: root.record.active
+          width: parent.width
+          iconText: "󰓛"
+          text: "Stop recording   " + root.recClock()
+          fontSize: Style.font.caption
+          foreground: root.urgent
+          accent: root.urgent
+          fontFamily: root.fontFamily
+          bordered: true
+          active: true
+          onClicked: root.act(["elgato-panel", "record", "--stop"])
+        }
+      }
+
+      Row {
+        id: audioRow
+        visible: !root.record.active
+        width: parent.width
+        spacing: Style.space(6)
+        readonly property real cellWidth: (width - spacing) / 2
+
+        Button {
+          width: audioRow.cellWidth
+          iconText: "󰕾"
+          text: "Desktop audio"
+          fontSize: Style.font.caption
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          active: root.recDesktopAudio
+          onClicked: root.recDesktopAudio = !root.recDesktopAudio
+        }
+        Button {
+          width: audioRow.cellWidth
+          iconText: root.recMic ? "󰍬" : "󰍭"
+          text: "Microphone"
+          fontSize: Style.font.caption
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          active: root.recMic
+          onClicked: root.recMic = !root.recMic
+        }
+      }
+
+      PanelSectionHeader { text: "OVERLAY"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Row {
+        width: parent.width
+        spacing: Style.space(6)
+        Button {
+          width: (parent.width - parent.spacing) / 2
+          iconText: root.camera.overlay ? "󰈉" : "󰈈"
+          text: root.camera.overlay ? "Hide" : "Show"
+          fontSize: Style.font.bodySmall
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          active: !!root.camera.overlay
+          onClicked: root.act(["camctl", "toggle"])
+        }
+        Button {
+          width: (parent.width - parent.spacing) / 2
+          iconText: "󰊓"
+          text: "Fullscreen"
+          fontSize: Style.font.bodySmall
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          onClicked: root.act(["camctl", "full"])
+        }
+      }
+
+      Row {
+        width: parent.width
+        spacing: Style.space(6)
+        Repeater {
+          model: [ { id: "tl", label: "◰" }, { id: "tr", label: "◳" },
+                   { id: "bl", label: "◱" }, { id: "br", label: "◲" } ]
+          Button {
+            required property var modelData
+            width: (parent.width - parent.spacing * 3) / 4
+            text: modelData.label
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            active: root.camera.corner === modelData.id
+            onClicked: root.act(["camctl", "move", modelData.id])
+          }
+        }
+      }
+
+      Button {
+        width: parent.width
+        iconText: "󰩭"
+        text: "Pick where the camera sits"
+        fontSize: Style.font.caption
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        active: root.camera.corner === "area"
+        onClicked: root.act(["camctl", "pick"])
+      }
+
+      InfoPair { label: "Cam Link 4K"; value: String(root.camera.tooltip || root.camera.state || "unknown") }
+    }
+  }
+
+  // ---------- shared pieces ----------
+
+  // One primary action plus undo/redo in equal thirds. Every view uses it so
+  // the panel keeps the same shape whatever is selected.
+  component ActionRow: Row {
+    id: actionRow
+    property string primaryIcon: ""
+    property string primaryText: ""
+    property bool canUndo: false
+    property bool canRedo: false
+    signal primary()
+    signal undo()
+    signal redo()
+
+    width: parent ? parent.width : 0
+    spacing: Style.space(6)
+    readonly property real cellWidth: (width - spacing * 2) / 3
+
+    Button {
+      width: actionRow.cellWidth
+      iconText: actionRow.primaryIcon
+      text: actionRow.primaryText
+      fontSize: Style.font.caption
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      bordered: true
+      onClicked: actionRow.primary()
+    }
+    Button {
+      width: actionRow.cellWidth
+      iconText: "󰕌"
+      text: "Undo"
+      fontSize: Style.font.caption
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      bordered: true
+      opacity: actionRow.canUndo ? 1 : 0.35
+      onClicked: if (actionRow.canUndo) actionRow.undo()
+    }
+    Button {
+      width: actionRow.cellWidth
+      iconText: "󰑎"
+      text: "Redo"
+      fontSize: Style.font.caption
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      bordered: true
+      opacity: actionRow.canRedo ? 1 : 0.35
+      onClicked: if (actionRow.canRedo) actionRow.redo()
+    }
+  }
+
+  component SliderRow: Column {
+    id: sliderRow
+    property string unit: "%"
+    property bool swatch: false
+    property bool enabled: true
+    opacity: enabled ? 1 : 0.4
+    property string title: ""
+    property string valueText: ""
+    property real minimum: 0
+    property real maximum: 1
+    property real step: 1
+    property real value: 0
+    signal committed(real value)
+    signal moved(real value)
+    width: parent ? parent.width : 0
+    spacing: Style.space(4)
+
+    Item {
+      width: parent.width
+      implicitHeight: Math.max(sliderTitle.implicitHeight, sliderValue.implicitHeight)
+      Text { id: sliderTitle; text: sliderRow.title; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+      Row {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(6)
+        Rectangle {
+          visible: sliderRow.swatch && sliderRow.enabled
+          width: Style.font.caption
+          height: width
+          radius: width / 2
+          color: root.kelvinColor(slider.dragging ? slider.liveValue : sliderRow.value)
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text { id: sliderValue; text: slider.dragging ? Math.round(slider.liveValue) + sliderRow.unit : sliderRow.valueText; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
+      }
+    }
+    PanelSlider {
+      id: slider
+      width: parent.width
+      bar: root.bar
+      minimum: sliderRow.minimum
+      maximum: sliderRow.maximum
+      step: sliderRow.step
+      integer: true
+      value: sliderRow.value
+      onMoved: function(v) { sliderRow.moved(v) }
+      onReleased: function(v) { sliderRow.committed(v) }
+
+      // Holds off the status poll for as long as the knob is held, so a refresh
+      // cannot land mid-drag and snap the control out from under the cursor.
+      Binding {
+        target: root
+        property: "interacting"
+        value: true
+        when: slider.dragging
+      }
+    }
+  }
+
+  component EditField: TextField {
+    signal committed(string value)
+    width: parent ? parent.width : 0
+    foreground: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    onAccepted: committed(text)
+  }
+
+  component InfoPair: Item {
+    property string label: ""
+    property string value: ""
+    width: parent ? parent.width : 0
+    implicitHeight: Math.max(pairLabel.implicitHeight, pairValue.implicitHeight)
+    Text { id: pairLabel; text: label; color: root.dim; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+    Text { id: pairValue; text: value; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideLeft; anchors.right: parent.right; anchors.left: pairLabel.right; anchors.leftMargin: Style.spacing.sm; horizontalAlignment: Text.AlignRight; anchors.verticalCenter: parent.verticalCenter }
+  }
+}

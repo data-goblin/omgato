@@ -1,0 +1,3 @@
+# Elgato Stream Deck Pedal (0fd9:0086) — grant active-seat user access to hidraw
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0086", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0086", TAG+="uaccess"

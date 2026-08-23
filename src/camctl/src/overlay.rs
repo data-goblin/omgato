@@ -1,0 +1,188 @@
+use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+use crate::config::Config;
+use crate::{hypr, state};
+
+pub fn find_device(pattern: &str) -> Option<PathBuf> {
+    let dir = PathBuf::from("/dev/v4l/by-id");
+    let entries = std::fs::read_dir(&dir).ok()?;
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if name.contains(pattern) && name.ends_with("video-index0") {
+            return Some(e.path());
+        }
+    }
+    None
+}
+
+pub fn is_running() -> bool {
+    read_pid().map_or(false, pid_alive)
+}
+
+pub fn read_pid() -> Option<u32> {
+    state::read(&state::pid_file()).and_then(|s| s.trim().parse().ok())
+}
+
+pub fn spawn(cfg: &Config) -> Result<u32, String> {
+    let dev = find_device(&cfg.device_pattern)
+        .ok_or_else(|| format!("device matching '{}' not found in /dev/v4l/by-id", cfg.device_pattern))?;
+    let dev_str = dev.to_string_lossy().into_owned();
+
+    let cap_w = cfg.capture_size[0];
+    let cap_h = cfg.capture_size[1];
+    let fps = cfg.framerate;
+    let win_w = cfg.size[0];
+    let win_h = cfg.size[1];
+
+    let log_path = state::run_dir().join("mpv.log");
+    let log = std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&log_path)
+        .map_err(|e| format!("open log: {e}"))?;
+
+    let geometry = format!("--geometry={}x{}", win_w, win_h);
+    let autofit = format!("--autofit={}x{}", win_w, win_h);
+    let title = format!("--title={}", cfg.window_title);
+    let demux_opts = format!(
+        "--demuxer-lavf-o=video_size={}x{},framerate={}",
+        cap_w, cap_h, fps,
+    );
+    let input = format!("av://v4l2:{}", dev_str);
+
+    let child = unsafe {
+        Command::new("mpv")
+            .args([
+                "--no-config",
+                "--no-input-default-bindings",
+                "--no-osc",
+                "--no-osd-bar",
+                "--osd-level=0",
+                "--profile=low-latency",
+                "--untimed",
+                "--force-window=immediate",
+                "--keepaspect-window=no",
+                "--border=no",
+                "--ontop",
+                &geometry,
+                &autofit,
+                &title,
+                &demux_opts,
+                &input,
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::from(log))
+            .pre_exec(|| {
+                nix_setsid();
+                Ok(())
+            })
+            .spawn()
+            .map_err(|e| format!("spawn mpv: {e}"))?
+    };
+    let pid = child.id();
+    std::mem::forget(child);
+    state::write_atomic(&state::pid_file(), &pid.to_string()).ok();
+    Ok(pid)
+}
+
+fn nix_setsid() {
+    unsafe {
+        libc::setsid();
+    }
+}
+
+pub fn kill_running() -> bool {
+    let pid = match read_pid() {
+        Some(p) => p,
+        None => return false,
+    };
+    if !pid_alive(pid) {
+        state::remove(&state::pid_file());
+        return false;
+    }
+    // SIGTERM first - mpv handles it gracefully and closes V4L2 cleanly via
+    // its shutdown path. SIGINT is also fine but SIGTERM is more conventional
+    // for managed processes. Wait up to 3s, then SIGKILL.
+    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline {
+        if !pid_alive(pid) {
+            state::remove(&state::pid_file());
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    unsafe { libc::kill(pid as i32, libc::SIGKILL); }
+    std::thread::sleep(Duration::from_millis(200));
+    state::remove(&state::pid_file());
+    true
+}
+
+pub enum WaitResult {
+    Mapped(String),
+    Died,
+    Timeout,
+}
+
+/// Wait up to `timeout` for the overlay window to appear in Hyprland and
+/// return its address. mpv with `--force-window=immediate` maps a window
+/// before the first frame, so this normally resolves in <500ms. If the
+/// spawned process exits before mapping (e.g. Cam Link receiving no HDMI
+/// signal -> libavformat fails to probe), return `Died` so the caller
+/// can surface a clear error instead of silently waiting out the timeout.
+pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if !pid_alive(pid) {
+            state::remove(&state::pid_file());
+            return WaitResult::Died;
+        }
+        if let Ok(Some(c)) = hypr::find_window(title) {
+            if c.mapped {
+                // mpv with --force-window=immediate can briefly map a window
+                // before libavformat bails on an unrecognized stream. Confirm
+                // the process is still alive after a short settle to avoid
+                // returning Mapped for a window that's about to disappear.
+                std::thread::sleep(Duration::from_millis(200));
+                if pid_alive(pid) {
+                    return WaitResult::Mapped(c.address);
+                }
+                state::remove(&state::pid_file());
+                return WaitResult::Died;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(80));
+    }
+    WaitResult::Timeout
+}
+
+/// True if `pid` is running or sleeping. False for zombies (`Z`), dead (`X`)
+/// or missing /proc entries. mpv becomes a zombie when it exits early because
+/// we `mem::forget` the Child without reaping it, so a plain /proc/PID exists
+/// check would lie. /proc/PID/stat is a single line; field 2 (the comm) may
+/// contain spaces wrapped in parens, so split on the closing paren first.
+fn pid_alive(pid: u32) -> bool {
+    let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let after_comm = match stat.rsplit_once(") ") {
+        Some((_, rest)) => rest,
+        None => return false,
+    };
+    !matches!(after_comm.chars().next(), Some('Z') | Some('X') | None)
+}
+
+#[allow(non_camel_case_types, non_snake_case)]
+mod libc {
+    pub type pid_t = i32;
+    unsafe extern "C" {
+        pub fn setsid() -> pid_t;
+        pub fn kill(pid: pid_t, sig: i32) -> i32;
+    }
+    pub const SIGTERM: i32 = 15;
+    pub const SIGKILL: i32 = 9;
+}

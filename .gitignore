@@ -1,0 +1,21 @@
+# Build output
+target/
+dist/
+
+# Local agent working notes
+.claude/scratchpads/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.*
+secrets/
+
+# Editor and OS noise
+.DS_Store
+*.log
+*.tmp
+*.swp

@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = [
+    "src/camctl",
+    "src/elgatoctl",
+    "src/elgato-panel",
+    "src/streamdeck-ctl",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+repository = "https://github.com/data-goblin/omarchy-elgato"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

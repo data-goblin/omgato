@@ -1,0 +1,13 @@
+[Unit]
+Description=Stream Deck (Mk2/XL/Mini) daemon (streamdeck-ctl deck)
+After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=20
+
+[Service]
+ExecStart=%h/.cargo/bin/streamdeck-ctl deck run
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

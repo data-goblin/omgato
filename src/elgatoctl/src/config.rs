@@ -1,0 +1,58 @@
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Light {
+    pub name: String,
+    pub ip: String,
+    pub port: u16,
+    pub mac: String,
+}
+
+impl Light {
+    pub fn url(&self, path: &str) -> String {
+        format!("http://{}:{}{}", self.ip, self.port, path)
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Cache {
+    #[serde(default)]
+    pub lights: Vec<Light>,
+}
+
+pub fn cache_path() -> PathBuf {
+    dirs::config_dir()
+        .expect("no config dir")
+        .join("elgatoctl/lights.toml")
+}
+
+pub fn load() -> Cache {
+    let path = cache_path();
+    match fs::read_to_string(&path) {
+        Ok(s) => toml::from_str(&s).unwrap_or_default(),
+        Err(_) => Cache::default(),
+    }
+}
+
+pub fn save(cache: &Cache) -> std::io::Result<()> {
+    let path = cache_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let s = toml::to_string_pretty(cache).expect("serialize");
+    fs::write(path, s)
+}
+
+pub fn select<'a>(cache: &'a Cache, target: &str) -> Vec<&'a Light> {
+    if target == "all" {
+        return cache.lights.iter().collect();
+    }
+    let needle = target.to_lowercase();
+    cache
+        .lights
+        .iter()
+        .filter(|l| l.name.to_lowercase().contains(&needle))
+        .collect()
+}

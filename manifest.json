@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.data-goblin.omarchy-elgato",
+  "name": "Omarchy Elgato",
+  "version": "1.0.0",
+  "author": "Kurt Buhler",
+  "license": "MIT",
+  "description": "Key Lights, Stream Deck and Cam Link in one Omarchy panel.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "ui/Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Elgato",
+    "description": "Key Light brightness and temperature, the Stream Deck key grid and pedal, and Cam Link overlay placement with quick recording.",
+    "category": "Hardware",
+    "defaultSection": "right",
+    "allowMultiple": false,
+    "defaults": {
+      "showLights": true,
+      "showDeck": true,
+      "showCamera": true
+    },
+    "schema": [
+      {
+        "key": "showLights",
+        "type": "boolean",
+        "label": "Key Lights",
+        "description": "Brightness, temperature and per-light control for Elgato Key Lights.",
+        "defaultValue": true
+      },
+      {
+        "key": "showDeck",
+        "type": "boolean",
+        "label": "Stream Deck",
+        "description": "Key grid, pages and pedal bindings for a Stream Deck.",
+        "defaultValue": true
+      },
+      {
+        "key": "showCamera",
+        "type": "boolean",
+        "label": "Cam Link",
+        "description": "Camera overlay placement and quick screen recording. Turn off to leave recording to another plugin.",
+        "defaultValue": true
+      }
+    ]
+  }
+}

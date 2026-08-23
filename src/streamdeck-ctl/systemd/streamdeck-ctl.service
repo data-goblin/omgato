@@ -1,0 +1,13 @@
+[Unit]
+Description=Stream Deck Pedal daemon (streamdeck-ctl)
+After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=20
+
+[Service]
+ExecStart=%h/.cargo/bin/streamdeck-ctl pedal run
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

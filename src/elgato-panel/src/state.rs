@@ -1,0 +1,156 @@
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
+
+pub const HISTORY_MAX: usize = 11; // baseline + 10 undoable changes
+
+pub const LIGHTS_HISTORY: &str = "history.json";
+pub const DECK_HISTORY: &str = "deck-history.json";
+pub const CAMERA_HISTORY: &str = "camera-history.json";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Snap {
+    pub name: String,
+    pub on: bool,
+    pub brightness: u8,
+    pub kelvin: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct History<T> {
+    #[serde(default = "Vec::new")]
+    pub stack: Vec<T>,
+    #[serde(default = "empty_pos")]
+    pub pos: i64,
+}
+
+impl<T> Default for History<T> {
+    fn default() -> Self {
+        Self { stack: Vec::new(), pos: -1 }
+    }
+}
+
+fn empty_pos() -> i64 {
+    -1
+}
+
+#[derive(Serialize)]
+pub struct Flags {
+    pub can_undo: bool,
+    pub can_redo: bool,
+}
+
+impl<T: PartialEq + Serialize + DeserializeOwned> History<T> {
+    pub fn load(file: &str) -> Self {
+        let mut h: History<T> = read_json(&path(file)).unwrap_or_default();
+        if h.stack.is_empty() {
+            h.pos = -1;
+        } else {
+            h.pos = h.pos.clamp(0, h.stack.len() as i64 - 1);
+        }
+        h
+    }
+
+    pub fn save(&self, file: &str) {
+        write_json(&path(file), self);
+    }
+
+    pub fn flags(&self) -> Flags {
+        Flags {
+            can_undo: self.pos > 0,
+            can_redo: self.pos >= 0 && self.pos < self.stack.len() as i64 - 1,
+        }
+    }
+
+    pub fn current(&self) -> Option<&T> {
+        usize::try_from(self.pos).ok().and_then(|p| self.stack.get(p))
+    }
+
+    /// Folds a freshly read state into the stack, dropping the redo tail on a
+    /// new change and keeping at most HISTORY_MAX entries.
+    pub fn fold(&mut self, file: &str, value: T) {
+        if self.current() == Some(&value) {
+            return;
+        }
+        let keep = (self.pos + 1).max(0) as usize;
+        self.stack.truncate(keep);
+        self.stack.push(value);
+        if self.stack.len() > HISTORY_MAX {
+            let excess = self.stack.len() - HISTORY_MAX;
+            self.stack.drain(..excess);
+        }
+        self.pos = self.stack.len() as i64 - 1;
+        self.save(file);
+    }
+
+    pub fn seek(&self, step: i64) -> Option<(i64, &T)> {
+        let target = self.pos + step;
+        usize::try_from(target)
+            .ok()
+            .and_then(|t| self.stack.get(t))
+            .map(|value| (target, value))
+    }
+
+    pub fn commit_pos(&self, file: &str, pos: i64) {
+        write_json(&path(file), &serde_json::json!({ "stack": &self.stack, "pos": pos }));
+    }
+}
+
+pub type Aliases = BTreeMap<String, String>;
+
+pub fn load_aliases() -> Aliases {
+    read_json(&path("aliases.json")).unwrap_or_default()
+}
+
+pub fn save_aliases(aliases: &Aliases) {
+    write_json(&path("aliases.json"), aliases);
+}
+
+/// Display order as a list of light addresses; anything absent sorts last.
+pub fn load_order() -> Vec<String> {
+    read_json(&path("order.json")).unwrap_or_default()
+}
+
+pub fn save_order(order: &[String]) {
+    write_json(&path("order.json"), &order.to_vec());
+}
+
+pub fn dir() -> PathBuf {
+    dirs::state_dir()
+        .or_else(dirs::data_local_dir)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("elgato-panel")
+}
+
+fn path(file: &str) -> PathBuf {
+    dir().join(file)
+}
+
+/// Reads and writes an arbitrary small document in the panel's state directory.
+pub fn read_state<T: DeserializeOwned>(file: &str) -> Option<T> {
+    read_json(&path(file))
+}
+
+pub fn write_state<T: Serialize>(file: &str, value: &T) {
+    write_json(&path(file), value);
+}
+
+fn read_json<T: DeserializeOwned>(path: &PathBuf) -> Option<T> {
+    serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
+}
+
+fn write_json<T: Serialize>(path: &PathBuf, value: &T) {
+    let Some(parent) = path.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    let tmp = path.with_extension("tmp");
+    let Ok(text) = serde_json::to_string(value) else {
+        return;
+    };
+    if fs::write(&tmp, text).is_ok() {
+        let _ = fs::rename(&tmp, path);
+    }
+}
