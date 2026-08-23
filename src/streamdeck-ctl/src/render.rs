@@ -40,7 +40,7 @@ impl Renderer {
         let mut img: RgbImage = ImageBuffer::from_pixel(s, s, bg);
 
         if let Some(icon_path) = &btn.icon {
-            self.draw_icon(&mut img, icon_path, bg);
+            self.draw_icon(&mut img, icon_path);
         } else if let Some(glyph) = &btn.glyph {
             self.draw_glyph(&mut img, glyph, fg);
         }
@@ -57,7 +57,7 @@ impl Renderer {
         DynamicImage::ImageRgb8(img)
     }
 
-    fn draw_icon(&self, img: &mut RgbImage, icon_path: &str, _bg: Rgb<u8>) {
+    fn draw_icon(&self, img: &mut RgbImage, icon_path: &str) {
         let Ok(icon) = image::open(icon_path) else {
             eprintln!("streamdeck-ctl: render: failed to open icon {}", icon_path);
             return;
@@ -95,12 +95,10 @@ impl Renderer {
         if let Some(outlined) = self.glyph_font.outline_glyph(g) {
             let b = outlined.px_bounds();
             let visible_w = b.max.x - b.min.x;
-            let visible_h = b.max.y - b.min.y;
             let x = ((s as f32 - visible_w) / 2.0 - b.min.x).round() as i32;
             let target_top = (s as f32 - visible_w) / 2.0;
             let y = (target_top - scale.y - b.min.y).round() as i32;
             draw_text_mut(img, fg, x, y, scale, &self.glyph_font, glyph);
-            let _ = visible_h;
             return;
         }
         let (gw, _) = text_size(scale, &self.glyph_font, glyph);

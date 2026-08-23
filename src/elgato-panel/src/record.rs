@@ -193,12 +193,12 @@ fn timestamp() -> String {
 }
 
 pub fn stop() {
-    if recorder_pid().is_none() {
+    let Some(pid) = recorder_pid() else {
         return;
-    }
+    };
     sh::run(&["pkill", "-SIGINT", "-f", "^gpu-screen-recorder"]);
     for _ in 0..50 {
-        if recorder_pid().is_none() {
+        if !fs::metadata(format!("/proc/{pid}")).is_ok() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(100));

@@ -42,11 +42,11 @@ fn cmd_reset() -> i32 {
     match reset::reset() {
         Ok(p) => {
             state::remove(&state::needs_reset_flag());
-            notify(&format!("Cam Link reset: {}", p.display()), false);
+            notify(&format!("Cam Link reset: {}", p.display()));
             0
         }
         Err(e) => {
-            notify(&format!("Cam Link reset failed: {e}"), true);
+            notify(&format!("Cam Link reset failed: {e}"));
             eprintln!("camctl: reset failed: {e}");
             1
         }
@@ -65,7 +65,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     }
 
     if overlay::find_device(&cfg.device_pattern).is_none() {
-        notify("Cam Link 4K not connected", false);
+        notify("Cam Link 4K not connected");
         return 1;
     }
 
@@ -85,7 +85,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     let pid = match overlay::spawn(cfg) {
         Ok(p) => p,
         Err(e) => {
-            notify(&format!("mpv spawn failed: {e}"), false);
+            notify(&format!("mpv spawn failed: {e}"));
             return 1;
         }
     };
@@ -96,11 +96,11 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
             0
         }
         overlay::WaitResult::Died => {
-            notify("Cam Link 4K receiving no HDMI signal. Power on the source and try again.", false);
+            notify("Cam Link 4K receiving no HDMI signal. Power on the source and try again.");
             1
         }
         overlay::WaitResult::Timeout => {
-            notify("Camera not outputting frames yet. mpv is waiting; overlay will appear when signal arrives.", false);
+            notify("Camera not outputting frames yet. mpv is waiting; overlay will appear when signal arrives.");
             0
         }
     }
@@ -168,26 +168,12 @@ fn cmd_full(cfg: &Config) -> i32 {
 
 fn cmd_status(cfg: &Config) -> i32 {
     let s = status::detect(cfg);
-    let last = state::read(&state::last_state_file()).unwrap_or_default();
     let (alt, class, tooltip) = match &s {
         CamState::On(why)        => ("on", "on", format!("Camera ON ({why})")),
         CamState::Off(_)         => ("off", "off", "Camera connected, idle".to_string()),
         CamState::Disconnected   => ("disconnected", "disconnected", "Cam Link 4K not detected".into()),
         CamState::Disabled       => ("disabled", "disabled", "Camera monitor paused. Click to resume.".into()),
     };
-
-    let new_state = if matches!(s, CamState::On(_)) { "on" } else { "off" };
-    if matches!(s, CamState::On(_)) && last != "on" {
-        state::write_atomic(&state::last_state_file(), new_state).ok();
-        notify_critical(&tooltip);
-    } else if !matches!(s, CamState::On(_)) && last == "on" {
-        state::write_atomic(&state::last_state_file(), new_state).ok();
-        notify_off();
-    } else {
-        if last != new_state {
-            state::write_atomic(&state::last_state_file(), new_state).ok();
-        }
-    }
 
     let json = serde_json::json!({
         "text": "",
@@ -235,24 +221,10 @@ fn persist_position(pos: &str) {
     state::write_atomic(&state::position_file(), pos).ok();
 }
 
-fn notify(msg: &str, _critical: bool) {
+fn notify(msg: &str) {
     let _ = std::process::Command::new("notify-send")
         .args(["-u", "low", "Camera overlay", msg])
         .status();
 }
 
-fn notify_critical(msg: &str) {
-    let _ = std::process::Command::new("notify-send")
-        .args(["-u", "critical", "-t", "0",
-               "-h", "string:synchronous:camctl",
-               "Camera is ON", msg])
-        .status();
-}
 
-fn notify_off() {
-    let _ = std::process::Command::new("notify-send")
-        .args(["-u", "low", "-t", "2000",
-               "-h", "string:synchronous:camctl",
-               "Camera off"])
-        .status();
-}

@@ -360,21 +360,12 @@ pub fn read_config_text() -> String {
 }
 
 pub fn status() -> Status {
-    let probes: Vec<Vec<String>> = std::iter::once(vec![
-        "streamdeck-ctl".to_owned(),
-        "ls".to_owned(),
-        "--json".to_owned(),
-    ])
-        .chain(SERVICES.iter().map(|s| {
-            vec![
-                "systemctl".to_owned(),
-                "--user".to_owned(),
-                "is-active".to_owned(),
-                (*s).to_owned(),
-            ]
-        }))
-        .collect();
-    let out = sh::run_all(&probes);
+    let mut probe = vec!["systemctl".to_owned(), "--user".to_owned(), "is-active".to_owned()];
+    probe.extend(SERVICES.iter().map(|s| (*s).to_owned()));
+    let out = sh::run_all(&[
+        vec!["streamdeck-ctl".to_owned(), "ls".to_owned(), "--json".to_owned()],
+        probe,
+    ]);
     let devices = devices(&out[0]);
     let text = read_config_text();
     let cfg: Config = toml::from_str(&text).unwrap_or_default();
@@ -398,8 +389,8 @@ pub fn status() -> Status {
         pedal: pedal_bindings(&cfg.pedal),
         services: SERVICES
             .iter()
-            .enumerate()
-            .map(|(i, s)| ((*s).to_owned(), out[i + 1].trim().to_owned()))
+            .zip(out[1].lines().chain(std::iter::repeat("")))
+            .map(|(unit, state)| ((*unit).to_owned(), state.trim().to_owned()))
             .collect(),
         history: history.flags(),
         devices,

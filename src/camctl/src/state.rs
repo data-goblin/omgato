@@ -12,7 +12,6 @@ pub fn run_dir() -> PathBuf {
 pub fn position_file() -> PathBuf { run_dir().join("position") }
 pub fn fullscreen_flag() -> PathBuf { run_dir().join("fullscreen") }
 pub fn pid_file() -> PathBuf { run_dir().join("ffplay.pid") }
-pub fn last_state_file() -> PathBuf { run_dir().join("last_state") }
 /// Set after the overlay has been hidden at least once. Triggers an
 /// auto-reset before the next `show` to clear the UVC wedge that the
 /// Cam Link enters when the V4L2 fd closes mid-stream. Lives in
