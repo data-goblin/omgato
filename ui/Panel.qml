@@ -177,7 +177,14 @@ Panel {
 
   function pedalBinding(position, gesture) {
     var table = deck.pedal ? deck.pedal[position] : null
-    return table && table[gesture] ? table[gesture] : ""
+    var entry = table ? table[gesture] : null
+    return entry && entry.action ? entry.action : ""
+  }
+
+  function pedalLabel(position, gesture) {
+    var table = deck.pedal ? deck.pedal[position] : null
+    var entry = table ? table[gesture] : null
+    return entry && entry.label ? entry.label : ""
   }
 
   function pedalBoundCount(position) {
@@ -1149,8 +1156,11 @@ Panel {
                 }
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
-                  text: pedalShape.bound + " of 3"
-                  color: pedalShape.bound ? root.dim : Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.6)
+                  width: pedalShape.width - Style.space(10)
+                  horizontalAlignment: Text.AlignHCenter
+                  elide: Text.ElideRight
+                  text: root.pedalLabel(pedalShape.modelData.id, "tap") || "not set"
+                  color: pedalShape.bound ? root.foreground : Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.7)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                 }
@@ -1210,7 +1220,7 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.pedalBinding(root.pedalPosition, gestureRow.modelData.id)
-            placeholderText: "Not set"
+            placeholderText: root.pedalLabel(root.pedalPosition, gestureRow.modelData.id) || "Not set"
             onCommitted: function(v) {
               root.act(["streamdeck-ctl", "pedal", "set", root.pedalPosition, gestureRow.modelData.id, v.trim() || "noop"])
               root.act(["streamdeck-ctl", "pedal", "reload"])

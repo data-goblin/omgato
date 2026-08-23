@@ -51,6 +51,13 @@ pub struct Key {
 }
 
 #[derive(Serialize)]
+pub struct Binding {
+    pub action: String,
+    /// What the gesture will actually do, in words.
+    pub label: String,
+}
+
+#[derive(Serialize)]
 pub struct Page {
     pub name: String,
     pub keys: Vec<Key>,
@@ -64,7 +71,7 @@ pub struct Status {
     pub brightness: u8,
     pub auto_paginate: bool,
     pub display_off: bool,
-    pub pedal: BTreeMap<String, BTreeMap<String, String>>,
+    pub pedal: BTreeMap<String, BTreeMap<String, Binding>>,
     pub services: BTreeMap<String, String>,
     pub history: state::Flags,
 }
@@ -194,7 +201,45 @@ fn devices(listing: &str) -> Vec<Device> {
     serde_json::from_str(listing).unwrap_or_default()
 }
 
-fn pedal_bindings(pedal: &BTreeMap<String, toml::Value>) -> BTreeMap<String, BTreeMap<String, String>> {
+/// Turns an action into the name of the thing it starts.
+fn describe(action: &str) -> String {
+    let action = action.trim();
+    if action.is_empty() || action == "noop" {
+        return String::new();
+    }
+    if let Some(key) = action.strip_prefix("key:") {
+        return key.trim_start_matches("KEY_").replace('_', " ");
+    }
+    if let Some(page) = action.strip_prefix("page:") {
+        return format!("Page {page}");
+    }
+    let command = action.strip_prefix("exec:").unwrap_or(action).trim();
+    let mut parts = command.split_whitespace();
+    let Some(binary) = parts.next() else {
+        return String::new();
+    };
+    let binary = binary.rsplit('/').next().unwrap_or(binary);
+    if let Some(url) = parts.clone().find(|p| p.starts_with("http")) {
+        return url
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_start_matches("www.")
+            .split('/')
+            .next()
+            .unwrap_or(url)
+            .to_owned();
+    }
+    if let Some(rest) = binary.strip_prefix("omarchy-launch-") {
+        let mut name = rest.replace('-', " ");
+        if let Some(first) = name.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+        return name;
+    }
+    binary.to_owned()
+}
+
+fn pedal_bindings(pedal: &BTreeMap<String, toml::Value>) -> BTreeMap<String, BTreeMap<String, Binding>> {
     POSITIONS
         .iter()
         .map(|pos| {
@@ -207,7 +252,10 @@ fn pedal_bindings(pedal: &BTreeMap<String, toml::Value>) -> BTreeMap<String, BTr
                         .and_then(toml::Value::as_str)
                         .unwrap_or("");
                     let value = if value == "noop" { "" } else { value };
-                    ((*gesture).to_owned(), value.to_owned())
+                    (
+                        (*gesture).to_owned(),
+                        Binding { action: value.to_owned(), label: describe(value) },
+                    )
                 })
                 .collect();
             ((*pos).to_owned(), binds)
