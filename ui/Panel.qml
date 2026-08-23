@@ -86,7 +86,7 @@ Panel {
   }
 
   function refresh() {
-    if (statusProc.running || interacting || renameIp !== "" || editIndex >= 0) return
+    if (statusProc.running || interacting || renameIp !== "") return
     statusProc.command = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
     statusProc.running = true
   }
@@ -120,6 +120,15 @@ Panel {
     if (patch.kelvin !== undefined) cmd.push("--temp", String(patch.kelvin))
     cmd.push(target)
     act(cmd)
+  }
+
+  function hexValid(text) {
+    return /^#?[0-9a-fA-F]{6}$/.test((text || "").trim())
+  }
+
+  function hexColor(text) {
+    var value = (text || "").trim()
+    return value.charAt(0) === "#" ? value : "#" + value
   }
 
   function recClock() {
@@ -767,14 +776,37 @@ Panel {
 
         PanelSectionHeader { text: "KEY " + root.editIndex + " ON " + (root.page ? root.page.name.toUpperCase() : ""); foreground: root.foreground; fontFamily: root.fontFamily }
 
-        EditField { placeholderText: "Label"; text: parent.key.label || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "label", v) } }
-        EditField { placeholderText: "Glyph (Nerd Font)"; text: parent.key.glyph || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "glyph", v) } }
-        EditField { placeholderText: "Action, e.g. exec:obs or key:KEY_F13"; text: parent.key.action || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "action", v) } }
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-          EditField { width: (parent.width - parent.spacing) / 2; placeholderText: "Background #rrggbb"; text: parent.parent.key.bg || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "bg", v) } }
-          EditField { width: (parent.width - parent.spacing) / 2; placeholderText: "Foreground #rrggbb"; text: parent.parent.key.fg || ""; onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "fg", v) } }
+        FieldRow {
+          label: "Label"
+          placeholder: "Shown under the icon"
+          value: parent.key.label || ""
+          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "label", v) }
+        }
+        FieldRow {
+          label: "Glyph"
+          placeholder: "Nerd Font character"
+          value: parent.key.glyph || ""
+          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "glyph", v) }
+        }
+        FieldRow {
+          label: "Action"
+          placeholder: "exec:obs or key:KEY_F13"
+          value: parent.key.action || ""
+          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "action", v) }
+        }
+        FieldRow {
+          label: "Background"
+          placeholder: "#rrggbb"
+          colorPreview: true
+          value: parent.key.bg || ""
+          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "bg", v) }
+        }
+        FieldRow {
+          label: "Foreground"
+          placeholder: "#rrggbb"
+          colorPreview: true
+          value: parent.key.fg || ""
+          onCommitted: function(v) { root.deckSet(root.page.name, root.editIndex, "fg", v) }
         }
         Row {
           width: parent.width
@@ -1263,6 +1295,68 @@ Panel {
         property: "interacting"
         value: true
         when: slider.dragging
+      }
+    }
+  }
+
+  // A named setting: what is being set on the left, the value on the right,
+  // with a colour dot for fields that hold a hex colour.
+  component FieldRow: Item {
+    id: fieldRow
+    property string label: ""
+    property string placeholder: ""
+    property string value: ""
+    property bool colorPreview: false
+    signal committed(string value)
+
+    width: parent ? parent.width : 0
+    implicitHeight: Style.spacing.controlHeight
+    readonly property bool previewVisible: colorPreview && root.hexValid(field.text)
+
+    Text {
+      id: fieldLabel
+      text: fieldRow.label
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      width: Style.space(74)
+      elide: Text.ElideRight
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+    }
+
+    Rectangle {
+      id: fieldSwatch
+      visible: fieldRow.previewVisible
+      width: Style.font.caption
+      height: width
+      radius: width / 2
+      color: fieldRow.previewVisible ? root.hexColor(field.text) : "transparent"
+      // A near-black key colour would otherwise vanish into the panel.
+      border.width: 1
+      border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
+      anchors.left: fieldLabel.right
+      anchors.leftMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+    }
+
+    EditField {
+      id: field
+      readonly property real fieldLeft: (fieldRow.previewVisible ? fieldSwatch.x + fieldSwatch.width : fieldLabel.width) + Style.space(6)
+      x: fieldLeft
+      width: Math.max(0, fieldRow.width - fieldLeft)
+      anchors.verticalCenter: parent.verticalCenter
+      placeholderText: fieldRow.placeholder
+      onCommitted: function(v) { fieldRow.committed(v) }
+
+      // Bound declaratively, a poll landing mid-edit would wipe what is being
+      // typed, so the field only follows the source while it has no focus.
+      Component.onCompleted: text = fieldRow.value
+      Connections {
+        target: fieldRow
+        function onValueChanged() {
+          if (!field.activeFocus) field.text = fieldRow.value
+        }
       }
     }
   }
