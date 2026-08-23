@@ -3,7 +3,7 @@ target/
 dist/
 
 # Local agent working notes
-.claude/scratchpads/
+.claude/
 
 # Secrets and local configuration
 .env
