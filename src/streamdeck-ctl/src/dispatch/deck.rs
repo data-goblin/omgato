@@ -325,7 +325,11 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
         cfg.deck.page_order.clear();
     }
     let mut added = Vec::new();
-    for (page, buttons) in preset.deck.pages {
+    let mut preset = preset.deck;
+    for page in preset.ordered_pages() {
+        let Some(buttons) = preset.pages.remove(&page) else {
+            continue;
+        };
         if !replace && cfg.deck.pages.contains_key(&page) {
             continue;
         }
@@ -335,8 +339,8 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
         }
         added.push(page);
     }
-    if cfg.deck.pages.contains_key("main") {
-        cfg.deck.default_page = "main".into();
+    if !cfg.deck.pages.contains_key(&cfg.deck.default_page) {
+        cfg.deck.default_page = cfg.deck.ordered_pages().first().cloned().unwrap_or_default();
     }
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);

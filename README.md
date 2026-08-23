@@ -10,6 +10,12 @@ with its Pedal, and a Cam Link 4K overlay. The panel is thin. Every device is
 driven by a small command line tool in this repository, so anything the panel
 does can also be scripted, bound to a key, or handed to an agent.
 
+<p align="center">
+  <img src="docs/images/lights.png" alt="Key Lights view" width="300">
+  <img src="docs/images/deck.png" alt="Stream Deck view" width="300">
+  <img src="docs/images/camera.png" alt="Cam Link view" width="300">
+</p>
+
 ## What it does
 
 ```yaml

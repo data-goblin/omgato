@@ -31,18 +31,19 @@ pub struct DeckConfig {
 }
 
 impl DeckConfig {
-    /// Return the canonical ordered page list. Uses page_order if set;
-    /// otherwise falls back to alphabetical (BTreeMap key order).
+    /// Return the canonical ordered page list: the pages named in page_order
+    /// first, then any page it does not mention, so no page can be hidden by an
+    /// incomplete order.
     pub fn ordered_pages(&self) -> Vec<String> {
-        if !self.page_order.is_empty() {
-            self.page_order
-                .iter()
-                .filter(|n| self.pages.contains_key(*n))
-                .cloned()
-                .collect()
-        } else {
-            self.pages.keys().cloned().collect()
-        }
+        let mut names: Vec<String> = self
+            .page_order
+            .iter()
+            .filter(|n| self.pages.contains_key(*n))
+            .cloned()
+            .collect();
+        let rest: Vec<String> = self.pages.keys().filter(|n| !names.contains(n)).cloned().collect();
+        names.extend(rest);
+        names
     }
 
     pub fn neighbours(&self, page: &str) -> (Option<String>, Option<String>) {

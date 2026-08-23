@@ -17,8 +17,8 @@ Panel {
 
   property var lights: []
   property var deck: ({ devices: [], pages: [], pedal: {}, services: {}, brightness: 0, default_page: "", auto_paginate: false, history: { can_undo: false, can_redo: false } })
-  property var camera: ({ history: { can_undo: false, can_redo: false } })
-  property var record: ({ active: false, seconds: 0, directory: "", options: { desktop_audio: false, mic: false } })
+  property var camera: ({ state: "", tooltip: "", paused: false, overlay: false, corner: "", history: { can_undo: false, can_redo: false } })
+  property var record: ({ active: false, seconds: 0, directory: "", scope: "", options: { desktop_audio: false, mic: false }, history: { can_undo: false, can_redo: false } })
   property bool recDesktopAudio: false
   property bool recMic: false
   property bool recOptionsLoaded: false
@@ -1433,7 +1433,7 @@ Panel {
         }
       }
 
-      InfoPair { label: "Cam Link 4K"; value: String(root.camera.tooltip || root.camera.state || "unknown") }
+      InfoPair { label: "Cam Link 4K"; value: String(root.camera.tooltip || root.camera.state || "checking") }
 
       ShortcutList {}
     }

@@ -1,6 +1,7 @@
 # Starter Stream Deck layout for Omarchy, built from its own commands.
 # Applied by: streamdeck-ctl deck preset omarchy
 
+[deck]
 page_order = ["omarchy", "agents", "apps", "windows"]
 
 [[deck.pages.omarchy.buttons]]
