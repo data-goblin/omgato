@@ -57,10 +57,20 @@ Omarchy. Stream Deck access needs the udev rule in
 
 ## Requirements
 
-- Omarchy Quattro (Quickshell shell)
-- Rust 1.89 or newer to build
-- `avahi-browse` for Key Light discovery
-- `ffplay` for the Cam Link overlay
+```yaml
+Omarchy Quattro:  the Quickshell shell this plugin draws into
+Rust 1.89+:       to build the workspace
+avahi-browse:     Key Light discovery over mDNS
+mpv:              the Cam Link overlay window
+pw-dump:          PipeWire state for camera status (pipewire-utils)
+fonts:            a text font and a Nerd Font for rendering deck keys;
+                  set deck.font_label and deck.font_glyph if the defaults
+                  do not exist on your distribution
+systemd --user:   the Stream Deck and Pedal daemons
+```
+
+Screen recording additionally uses `omarchy-capture-screenrecording`, which
+ships with Omarchy and brings its own `gpu-screen-recorder` and `slurp`.
 
 ## Licence
 

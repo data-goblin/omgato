@@ -5,7 +5,7 @@ StartLimitIntervalSec=60
 StartLimitBurst=20
 
 [Service]
-ExecStart=%h/.cargo/bin/streamdeck-ctl deck run
+ExecStart=%h/.local/bin/streamdeck-ctl deck run
 Restart=on-failure
 RestartSec=2
 

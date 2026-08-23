@@ -12,9 +12,10 @@ pub fn fire(action: &Action, synth: &mut Option<Synth>) {
                 }
         }
         Action::Exec(cmd) => {
+            // Backgrounded in the shell so nothing is left to reap here.
             let _ = Command::new("sh")
                 .arg("-c")
-                .arg(cmd)
+                .arg(format!("{cmd} &"))
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

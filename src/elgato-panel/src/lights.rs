@@ -43,17 +43,27 @@ pub fn read() -> Vec<Light> {
     lights
 }
 
-pub fn snapshot(lights: &[Light]) -> Option<Vec<Snap>> {
-    if lights.is_empty() || lights.iter().any(|l| !l.reachable) {
+/// Carries forward the last recorded values for a light that is not answering.
+/// Skipping the snapshot outright used to freeze undo for every light for as
+/// long as one stayed offline.
+pub fn snapshot(lights: &[Light], previous: Option<&Vec<Snap>>) -> Option<Vec<Snap>> {
+    if lights.is_empty() || lights.iter().all(|l| !l.reachable) {
         return None;
     }
     let mut snap: Vec<Snap> = lights
         .iter()
-        .map(|l| Snap {
-            name: l.name.clone(),
-            on: l.on,
-            brightness: l.brightness,
-            kelvin: l.kelvin,
+        .map(|l| {
+            let carried = if l.reachable {
+                None
+            } else {
+                previous.and_then(|p| p.iter().find(|s| s.name == l.name)).cloned()
+            };
+            carried.unwrap_or_else(|| Snap {
+                name: l.name.clone(),
+                on: l.on,
+                brightness: l.brightness,
+                kelvin: l.kelvin,
+            })
         })
         .collect();
     snap.sort_by(|a, b| a.name.cmp(&b.name));

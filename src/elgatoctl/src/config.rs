@@ -49,11 +49,26 @@ pub fn save(cache: &Cache) -> std::io::Result<()> {
     fs::rename(&tmp, &path)
 }
 
+/// Resolves a target to lights. An exact name, address or MAC wins outright, so
+/// a light called "Key" can be addressed even when "Key Light" also exists;
+/// substring matching is only the fallback.
 pub fn select<'a>(cache: &'a Cache, target: &str) -> Vec<&'a Light> {
     if target == "all" {
         return cache.lights.iter().collect();
     }
     let needle = target.to_lowercase();
+    let exact: Vec<&Light> = cache
+        .lights
+        .iter()
+        .filter(|l| {
+            l.name.to_lowercase() == needle
+                || l.ip == target
+                || l.mac.eq_ignore_ascii_case(target)
+        })
+        .collect();
+    if !exact.is_empty() {
+        return exact;
+    }
     cache
         .lights
         .iter()

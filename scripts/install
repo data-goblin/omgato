@@ -1,19 +1,38 @@
 #!/usr/bin/env bash
-# Build the workspace and put the four binaries on PATH.
+# Build the workspace, put the four binaries on PATH, and install the unit files
+# and udev rule the Stream Deck daemons need.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
 
 cargo build --release --manifest-path "$repo/Cargo.toml"
-mkdir -p "$bin_dir"
 
+mkdir -p "$bin_dir" "$unit_dir"
 for tool in camctl elgatoctl elgato-panel streamdeck-ctl; do
     ln -sfn "$repo/target/release/$tool" "$bin_dir/$tool"
-    echo "  $bin_dir/$tool -> $repo/target/release/$tool"
+    echo "  bin    $bin_dir/$tool"
 done
+
+for unit in "$repo"/src/streamdeck-ctl/systemd/*.service; do
+    install -m 0644 "$unit" "$unit_dir/$(basename "$unit")"
+    echo "  unit   $unit_dir/$(basename "$unit")"
+done
+systemctl --user daemon-reload 2>/dev/null || true
+
+if [ ! -f "$udev_rule" ]; then
+    echo
+    echo "Stream Deck access needs a udev rule. Install it with:"
+    echo "  sudo install -m 0644 $repo/src/streamdeck-ctl/udev/70-streamdeck-ctl.rules $udev_rule"
+    echo "  sudo udevadm control --reload-rules && sudo udevadm trigger"
+fi
 
 case ":$PATH:" in
     *":$bin_dir:"*) ;;
     *) echo "note: $bin_dir is not on PATH" ;;
 esac
+
+echo
+echo "Enable the daemons with: streamdeck-ctl enable"

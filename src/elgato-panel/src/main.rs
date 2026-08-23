@@ -91,7 +91,7 @@ fn status(lights_only: bool) {
     });
 
     let mut history: state::History<Vec<state::Snap>> = state::History::load(state::LIGHTS_HISTORY);
-    if let Some(snap) = lights::snapshot(&lights) {
+    if let Some(snap) = lights::snapshot(&lights, history.current()) {
         history.fold(state::LIGHTS_HISTORY, snap);
     }
 

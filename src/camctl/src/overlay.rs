@@ -172,7 +172,14 @@ fn pid_alive(pid: u32) -> bool {
         Some((_, rest)) => rest,
         None => return false,
     };
-    !matches!(after_comm.chars().next(), Some('Z') | Some('X') | None)
+    if matches!(after_comm.chars().next(), Some('Z') | Some('X') | None) {
+        return false;
+    }
+    // The pid file outlives an unobserved crash, and pids get reused, so the
+    // process is confirmed to still be the player before it is signalled.
+    std::fs::read_to_string(format!("/proc/{pid}/comm"))
+        .map(|comm| comm.trim() == "mpv")
+        .unwrap_or(false)
 }
 
 #[allow(non_camel_case_types, non_snake_case)]

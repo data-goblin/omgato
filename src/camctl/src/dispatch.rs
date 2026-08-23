@@ -23,8 +23,9 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Status => cmd_status(&cfg),
         Cmd::Pause => {
             state::write_atomic(&state::pause_flag(), "1").ok();
-            let _ = std::process::Command::new("makoctl")
-                .args(["dismiss", "--all", "--no-history"]).status();
+            // Omarchy Quattro dismisses through the shell; mako is gone.
+            let _ = std::process::Command::new("omarchy-shell")
+                .args(["notifications", "dismissAll"]).status();
             0
         }
         Cmd::Resume => {

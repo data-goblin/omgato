@@ -5,7 +5,7 @@ StartLimitIntervalSec=60
 StartLimitBurst=20
 
 [Service]
-ExecStart=%h/.cargo/bin/streamdeck-ctl pedal run
+ExecStart=%h/.local/bin/streamdeck-ctl pedal run
 Restart=on-failure
 RestartSec=2
 
