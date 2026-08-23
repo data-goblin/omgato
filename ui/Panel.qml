@@ -1242,7 +1242,7 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             bordered: true
-            onClicked: root.startRecording("region")
+            onClicked: root.startRecording("pick")
           }
           Button {
             width: recordIdle.cellWidth
@@ -1270,6 +1270,69 @@ Panel {
           active: true
           onClicked: root.act(["elgato-panel", "record", "--stop"])
         }
+      }
+
+      Item {
+        width: parent.width
+        visible: !root.record.active && root.record.scope !== ""
+        implicitHeight: Style.spacing.controlHeight
+
+        Text {
+          text: "Area"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          text: root.record.scope
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(46)
+          anchors.right: scopeSteps.left
+          anchors.rightMargin: Style.space(6)
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Row {
+          id: scopeSteps
+          spacing: Style.space(4)
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          WidgetButton {
+            bar: root.bar
+            text: "◀"
+            fontSize: Style.font.caption
+            foreground: root.record.history && root.record.history.can_undo ? root.foreground : root.dim
+            labelVisible: true
+            horizontalMargin: Style.space(4)
+            onPressed: if (root.record.history && root.record.history.can_undo) root.act(["elgato-panel", "scope-undo"])
+          }
+          WidgetButton {
+            bar: root.bar
+            text: "▶"
+            fontSize: Style.font.caption
+            foreground: root.record.history && root.record.history.can_redo ? root.foreground : root.dim
+            labelVisible: true
+            horizontalMargin: Style.space(4)
+            onPressed: if (root.record.history && root.record.history.can_redo) root.act(["elgato-panel", "scope-redo"])
+          }
+        }
+      }
+
+      Button {
+        width: parent.width
+        visible: !root.record.active && root.record.scope !== ""
+        iconText: "󰑊"
+        text: "Record " + root.record.scope + " again"
+        fontSize: Style.font.caption
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        onClicked: root.startRecording("last")
       }
 
       Row {
