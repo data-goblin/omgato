@@ -1636,6 +1636,8 @@ Panel {
     property bool colorPreview: false
     signal committed(string value)
 
+    readonly property bool rejected: colorPreview && field.text.trim() !== "" && !root.hexValid(field.text)
+
     width: parent ? parent.width : 0
     implicitHeight: Style.spacing.controlHeight
     readonly property bool previewVisible: colorPreview && root.hexValid(field.text)
@@ -1654,13 +1656,14 @@ Panel {
 
     Rectangle {
       id: fieldSwatch
-      visible: fieldRow.previewVisible
       width: Style.font.caption
       height: width
       radius: width / 2
+      visible: fieldRow.previewVisible || fieldRow.rejected
       color: fieldRow.previewVisible ? root.hexColor(field.text) : "transparent"
       border.width: 1
-      border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
+      border.color: fieldRow.rejected ? root.urgent
+                  : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
       anchors.left: fieldLabel.right
       anchors.leftMargin: Style.space(4)
       anchors.verticalCenter: parent.verticalCenter
@@ -1668,12 +1671,18 @@ Panel {
 
     EditField {
       id: field
-      readonly property real fieldLeft: (fieldRow.previewVisible ? fieldSwatch.x + fieldSwatch.width : fieldLabel.width) + Style.space(6)
+      readonly property real fieldLeft: (fieldSwatch.visible ? fieldSwatch.x + fieldSwatch.width : fieldLabel.width) + Style.space(6)
       x: fieldLeft
       width: Math.max(0, fieldRow.width - fieldLeft)
       anchors.verticalCenter: parent.verticalCenter
       placeholderText: fieldRow.placeholder
-      onCommitted: function(v) { fieldRow.committed(v) }
+      onCommitted: function(v) {
+        if (fieldRow.colorPreview && v.trim() !== "" && !root.hexValid(v)) {
+          root.lastError = "Not a colour: " + v.trim() + " (expected #rrggbb)"
+          return
+        }
+        fieldRow.committed(v)
+      }
 
       Component.onCompleted: text = fieldRow.value
       Connections {

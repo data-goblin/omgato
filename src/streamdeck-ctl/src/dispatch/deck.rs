@@ -224,6 +224,8 @@ fn set_button(
     action_spec: Option<String>,
 ) -> Result<()> {
     validate_page_name(&page)?;
+    validate_colour("bg", bg.as_deref())?;
+    validate_colour("fg", fg.as_deref())?;
     if let Some(a) = &action_spec {
         let _ = action::parse(a)?;
     }
@@ -286,6 +288,17 @@ fn unset_button(page: String, index: u8) -> Result<()> {
 
 /// Page names end up as directory names when previews are exported, so they may
 /// not be empty or reach outside the directory they are written into.
+fn validate_colour(field: &str, value: Option<&str>) -> Result<()> {
+    let Some(value) = value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(());
+    };
+    let digits = value.strip_prefix('#').unwrap_or(value);
+    if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        anyhow::bail!("--{field}: expected #rrggbb, got {value}");
+    }
+    Ok(())
+}
+
 fn validate_page_name(name: &str) -> Result<()> {
     if name.trim().is_empty() {
         anyhow::bail!("page name cannot be empty");

@@ -34,8 +34,8 @@ impl Renderer {
 
     pub fn render_button(&self, btn: &Button) -> Result<DynamicImage> {
         let s = self.size;
-        let bg = btn.bg.as_deref().map(parse_hex).transpose()?.unwrap_or(self.default_bg);
-        let fg = btn.fg.as_deref().map(parse_hex).transpose()?.unwrap_or(self.default_fg);
+        let bg = colour_or(btn.bg.as_deref(), self.default_bg);
+        let fg = colour_or(btn.fg.as_deref(), self.default_fg);
 
         let mut img: RgbImage = ImageBuffer::from_pixel(s, s, bg);
 
@@ -198,6 +198,16 @@ fn read_font(path: &str, fallback_family: &str) -> Result<Vec<u8>> {
         .ok_or_else(|| anyhow::anyhow!("no font at {path} and fontconfig found no {fallback_family}"))?;
     eprintln!("streamdeck-ctl: {path} missing, using {matched}");
     Ok(fs::read(&matched)?)
+}
+
+fn colour_or(value: Option<&str>, fallback: Rgb<u8>) -> Rgb<u8> {
+    match value {
+        None => fallback,
+        Some(raw) => parse_hex(raw).unwrap_or_else(|_| {
+            eprintln!("streamdeck-ctl: ignoring colour {raw:?}");
+            fallback
+        }),
+    }
 }
 
 fn parse_hex(s: &str) -> Result<Rgb<u8>> {
