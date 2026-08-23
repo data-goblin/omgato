@@ -1389,7 +1389,8 @@ Panel {
       Button {
         width: parent.width
         iconText: "󰩭"
-        text: "Pick where the camera sits"
+        text: "PiP position"
+        tooltipText: "Drag out exactly where the camera overlay sits"
         fontSize: Style.font.caption
         foreground: root.foreground
         fontFamily: root.fontFamily

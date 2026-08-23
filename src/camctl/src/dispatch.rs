@@ -141,11 +141,13 @@ fn cmd_pick(cfg: &Config) -> i32 {
         .arg("region")
         .output();
     match picked {
-        Ok(out) if out.status.success() => {
+        Ok(out) => {
             let geometry = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if geometry.is_empty() {
+                return 0;
+            }
             cmd_place(cfg, &geometry)
         }
-        Ok(_) => 1,
         Err(e) => {
             eprintln!("camctl: region picker: {e}");
             1
