@@ -226,9 +226,10 @@ Panel {
     act(["elgato-panel", "order", "--ips", addresses.join(",")])
   }
 
+  // deck set/unset/default reload the daemon themselves; queueing a second
+  // reload re-rendered every key on the device for nothing.
   function deckSet(pageName, index, field, value) {
     act(["streamdeck-ctl", "deck", "set", pageName, String(index), "--" + field, value])
-    act(["streamdeck-ctl", "deck", "reload"])
   }
 
   implicitWidth: button.implicitWidth
@@ -881,7 +882,7 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             bordered: true
-            onClicked: { root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.editIndex)]); root.act(["streamdeck-ctl", "deck", "reload"]); root.editIndex = -1 }
+            onClicked: { root.act(["streamdeck-ctl", "deck", "unset", root.page.name, String(root.editIndex)]); root.editIndex = -1 }
           }
           Button {
             width: (parent.width - parent.spacing) / 2
@@ -943,7 +944,7 @@ Panel {
         fontFamily: root.fontFamily
         bordered: true
         active: root.page && root.page.name === root.deck.default_page
-        onClicked: if (root.page) { root.act(["streamdeck-ctl", "deck", "default", root.page.name]); root.act(["streamdeck-ctl", "deck", "reload"]) }
+        onClicked: if (root.page) root.act(["streamdeck-ctl", "deck", "default", root.page.name])
       }
     }
   }

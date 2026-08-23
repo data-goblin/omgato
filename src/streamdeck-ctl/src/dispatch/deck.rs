@@ -222,6 +222,7 @@ fn set_button(
     fg: Option<String>,
     action_spec: Option<String>,
 ) -> Result<()> {
+    validate_page_name(&page)?;
     if let Some(a) = &action_spec {
         let _ = action::parse(a)?;
     }
@@ -282,7 +283,20 @@ fn unset_button(page: String, index: u8) -> Result<()> {
     Ok(())
 }
 
+/// Page names end up as directory names when previews are exported, so they may
+/// not be empty or reach outside the directory they are written into.
+fn validate_page_name(name: &str) -> Result<()> {
+    if name.trim().is_empty() {
+        anyhow::bail!("page name cannot be empty");
+    }
+    if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
+        anyhow::bail!("page name cannot contain a path separator: {name}");
+    }
+    Ok(())
+}
+
 fn page_add(name: String) -> Result<()> {
+    validate_page_name(&name)?;
     let mut cfg = config::load()?;
     cfg.deck.pages.entry(name).or_insert_with(Page::default);
     config::save(&cfg)?;

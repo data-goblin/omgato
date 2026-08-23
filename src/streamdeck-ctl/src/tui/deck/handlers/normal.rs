@@ -1,6 +1,6 @@
 use super::persist;
 use crate::config::Page;
-use crate::tui::deck::{page_select, Field, Mode, ROWS_PER_PAGE};
+use crate::tui::deck::{Field, Mode, page_select};
 use crate::tui::state::App;
 use crate::waybar;
 use anyhow::Result;
@@ -30,7 +30,7 @@ pub fn handle(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool>
 
 fn move_sel(app: &mut App, delta: i32) {
     let cur = app.deck.table.selected().unwrap_or(0) as i32;
-    let next = (cur + delta).rem_euclid(ROWS_PER_PAGE as i32);
+    let next = (cur + delta).rem_euclid(crate::tui::deck::rows_per_page() as i32);
     app.deck.table.select(Some(next as usize));
 }
 

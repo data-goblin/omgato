@@ -22,7 +22,9 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             .fg(Color::Yellow),
     );
 
-    let rows: Vec<Row> = (0..ROWS_PER_PAGE).map(|i| build_row(i, app)).collect();
+    let rows: Vec<Row> = (0..crate::tui::deck::rows_per_page())
+        .map(|i| build_row(i, app))
+        .collect();
     let widths = [
         Constraint::Length(4),
         Constraint::Length(14),

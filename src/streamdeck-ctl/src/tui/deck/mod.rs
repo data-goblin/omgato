@@ -43,7 +43,17 @@ impl Field {
     }
 }
 
+/// Fallback when no deck is attached to ask; a Mk2's fifteen keys.
 pub const ROWS_PER_PAGE: u8 = 15;
+
+/// Key count of the attached deck, so the table neither hides keys on an XL nor
+/// offers keys a Mini does not have.
+pub fn rows_per_page() -> u8 {
+    crate::device::list_decks()
+        .ok()
+        .and_then(|d| d.first().map(|(kind, _)| kind.key_count()))
+        .unwrap_or(ROWS_PER_PAGE)
+}
 
 pub struct DeckView {
     pub current_page: String,

@@ -15,9 +15,9 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(cfg: &DeckConfig, size: u32) -> Result<Self> {
-        let label_bytes = fs::read(&cfg.font_label)
+        let label_bytes = read_font(&cfg.font_label, "sans-serif")
             .with_context(|| format!("read label font: {}", cfg.font_label))?;
-        let glyph_bytes = fs::read(&cfg.font_glyph)
+        let glyph_bytes = read_font(&cfg.font_glyph, "Symbols Nerd Font")
             .with_context(|| format!("read glyph font: {}", cfg.font_glyph))?;
         let label_font =
             FontVec::try_from_vec(label_bytes).map_err(|e| anyhow::anyhow!("label font: {e}"))?;
@@ -189,6 +189,24 @@ fn split_label(label: &str) -> Option<(String, String)> {
         return None;
     }
     Some((head, tail))
+}
+
+/// Reads a configured font, asking fontconfig for a stand-in when the path does
+/// not exist. The defaults name Arch paths, which no other distribution has.
+fn read_font(path: &str, fallback_family: &str) -> Result<Vec<u8>> {
+    if let Ok(bytes) = fs::read(path) {
+        return Ok(bytes);
+    }
+    let matched = std::process::Command::new("fc-match")
+        .args(["-f", "%{file}", fallback_family])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        .filter(|found| !found.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("no font at {path} and fontconfig found no {fallback_family}"))?;
+    eprintln!("streamdeck-ctl: {path} missing, using {matched}");
+    Ok(fs::read(&matched)?)
 }
 
 fn parse_hex(s: &str) -> Result<Rgb<u8>> {
