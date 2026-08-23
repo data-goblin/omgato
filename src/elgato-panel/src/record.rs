@@ -95,9 +95,9 @@ pub fn start(target: &str, options: Options) {
     if options.mic {
         cmd.push("--with-microphone-audio".to_owned());
     }
-    sh::run_owned(&cmd);
+    sh::spawn_detached(&cmd);
 }
 
 pub fn stop() {
-    sh::run(&[RECORDER, "--stop-recording"]);
+    sh::spawn_detached(&[RECORDER.to_owned(), "--stop-recording".to_owned()]);
 }

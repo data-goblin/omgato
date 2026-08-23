@@ -37,6 +37,8 @@ Panel {
   property int pendingDeckBrightness: -1
   property int deckBrightnessLocal: -1
   readonly property int deckBrightness: deckBrightnessLocal >= 0 ? deckBrightnessLocal : deck.brightness
+  property double statusStartedAt: 0
+  property string lastError: ""
   property int dragFrom: -1
   property int dragTo: -1
 
@@ -86,12 +88,19 @@ Panel {
   }
 
   function refresh() {
-    if (statusProc.running || interacting || renameIp !== "") return
+    if (statusProc.running) {
+      // A backend that never returns would otherwise stall every later poll.
+      if (Date.now() - statusStartedAt > 8000) statusProc.signal(15)
+      return
+    }
+    if (interacting || renameIp !== "") return
     statusProc.command = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
+    statusStartedAt = Date.now()
     statusProc.running = true
   }
 
   function act(cmd) {
+    lastError = ""
     actionQueue.push(cmd)
     runNextAction()
   }
@@ -267,7 +276,11 @@ Panel {
 
   Process {
     id: actionProc
-    onExited: {
+    stderr: StdioCollector {
+      onStreamFinished: if (text.trim() !== "") root.lastError = text.trim().split("\n").pop()
+    }
+    onExited: function(code) {
+      if (code !== 0 && root.lastError === "") root.lastError = "command failed (" + code + ")"
       if (root.actionQueue.length) root.runNextAction()
       else root.refresh()
     }
@@ -290,7 +303,7 @@ Panel {
 
   Timer {
     interval: 1000
-    running: root.record.active
+    running: root.record.active && root.opened
     repeat: true
     onTriggered: root.recSeconds += 1
   }
@@ -307,7 +320,15 @@ Panel {
     onTriggered: root.deckBrightnessLocal = -1
   }
 
-  onOpenedChanged: if (opened) refresh()
+  onOpenedChanged: {
+    if (!opened) {
+      renameIp = ""
+      editIndex = -1
+      interacting = false
+      cancelOrder()
+    }
+    refresh()
+  }
 
   BarIconButton {
     id: button
@@ -414,6 +435,44 @@ Panel {
         }
 
         PanelSeparator { foreground: root.foreground; visible: selector.visible }
+
+        // The last command that failed. Silence used to be the only report.
+        Item {
+          width: parent.width
+          visible: root.lastError !== ""
+          implicitHeight: visible ? errorText.implicitHeight + Style.space(8) : 0
+
+          Rectangle {
+            anchors.fill: parent
+            radius: Style.space(5)
+            color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.12)
+          }
+          Text {
+            id: errorText
+            anchors.left: parent.left
+            anchors.right: dismissError.left
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(4)
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.lastError
+            color: root.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+          WidgetButton {
+            id: dismissError
+            bar: root.bar
+            text: "×"
+            fontSize: Style.font.body
+            foreground: root.urgent
+            labelVisible: true
+            horizontalMargin: Style.space(6)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            onPressed: root.lastError = ""
+          }
+        }
 
         Loader {
           width: parent.width
@@ -560,6 +619,7 @@ Panel {
                   placeholderText: lightCell.modelData.name
                   font.pixelSize: Style.font.body
                   onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
+                onActiveFocusChanged: if (!activeFocus && root.renameIp === lightCell.modelData.ip) root.renameIp = ""
                   onCommitted: function(v) {
                     if (v !== lightCell.modelData.display) root.act(["elgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
                     root.renameIp = ""

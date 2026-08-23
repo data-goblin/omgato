@@ -71,13 +71,11 @@ struct Config {
     pedal: BTreeMap<String, toml::Value>,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
+#[serde(default)]
 struct DeckConfig {
-    #[serde(default)]
     brightness: u8,
-    #[serde(default)]
     default_page: String,
-    #[serde(default)]
     auto_paginate: bool,
     #[serde(default)]
     display_off: bool,
@@ -113,6 +111,21 @@ struct ButtonConfig {
 
 fn no_index() -> i64 {
     -1
+}
+
+// Mirrors streamdeck-ctl's own defaults; diverging here made the panel draw
+// blank keys where the device drew page arrows.
+impl Default for DeckConfig {
+    fn default() -> Self {
+        Self {
+            brightness: 70,
+            default_page: "main".to_owned(),
+            auto_paginate: true,
+            display_off: false,
+            page_order: Vec::new(),
+            pages: BTreeMap::new(),
+        }
+    }
 }
 
 pub fn config_path() -> PathBuf {
@@ -311,6 +324,35 @@ fn pages(cfg: &DeckConfig, count: u8) -> Vec<Page> {
     pages
 }
 
+/// A remembered configuration. Brightness and display power are left out of the
+/// comparison so dragging the brightness slider cannot evict real key edits from
+/// the eleven slots, while the stored text still restores them.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Snapshot {
+    pub text: String,
+    key: String,
+}
+
+impl Snapshot {
+    pub fn new(text: String) -> Self {
+        let key = text
+            .lines()
+            .filter(|line| {
+                let trimmed = line.trim_start();
+                !trimmed.starts_with("brightness") && !trimmed.starts_with("display_off")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        Self { text, key }
+    }
+}
+
+impl PartialEq for Snapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
 pub fn read_config_text() -> String {
     fs::read_to_string(config_path()).unwrap_or_default()
 }
@@ -338,9 +380,9 @@ pub fn status() -> Status {
         .unwrap_or((5, 3));
     refresh_previews(cols, rows);
 
-    let mut history: History<String> = History::load(DECK_HISTORY);
+    let mut history: History<Snapshot> = History::load(DECK_HISTORY);
     if !text.is_empty() {
-        history.fold(DECK_HISTORY, text);
+        history.fold(DECK_HISTORY, Snapshot::new(text));
     }
 
     Status {
@@ -362,11 +404,14 @@ pub fn status() -> Status {
 
 /// Restores a remembered config and restarts both daemons so the device follows.
 pub fn travel(step: i64) {
-    let history: History<String> = History::load(DECK_HISTORY);
-    let Some((pos, text)) = history.seek(step) else {
+    let history: History<Snapshot> = History::load(DECK_HISTORY);
+    let Some((pos, snapshot)) = history.seek(step) else {
         return;
     };
-    if fs::write(config_path(), text).is_err() {
+    let text = &snapshot.text;
+    let path = config_path();
+    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    if fs::write(&tmp, text).is_err() || fs::rename(&tmp, &path).is_err() {
         return;
     }
     history.commit_pos(DECK_HISTORY, pos);

@@ -24,7 +24,7 @@ pub fn run() -> Result<()> {
     let backend = ratatui::backend::CrosstermBackend::new(stdout);
     let mut term = Terminal::new(backend)?;
 
-    let mut app = App::new();
+    let mut app = App::new()?;
     app.refresh();
 
     let result = run_loop(&mut term, &mut app);

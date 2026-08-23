@@ -57,23 +57,33 @@ fn corner_of(position: &str) -> String {
     .to_owned()
 }
 
-fn apply(placement: &Placement) {
+/// Returns false when the step could not be carried out, so the caller can
+/// leave the history pointer where it was rather than losing a step to nothing.
+fn apply(placement: &Placement) -> bool {
     if !placement.overlay {
         sh::run(&["camctl", "hide"]);
-        return;
+        return true;
     }
     match placement.position.strip_prefix("rect:") {
         Some(rect) => {
             let parts: Vec<&str> = rect.split(',').collect();
-            if let [x, y, w, h] = parts[..] {
-                sh::run(&["camctl", "place", &format!("{x},{y} {w}x{h}")]);
-            }
+            let [x, y, w, h] = parts[..] else {
+                return false;
+            };
+            sh::run(&["camctl", "place", &format!("{x},{y} {w}x{h}")]);
+            true
         }
         None if placement.position.is_empty() => {
             sh::run(&["camctl", "show"]);
+            true
         }
         None => {
-            sh::run(&["camctl", "move", &corner_of(&placement.position)]);
+            let corner = corner_of(&placement.position);
+            if corner.is_empty() || corner == "area" {
+                return false;
+            }
+            sh::run(&["camctl", "move", &corner]);
+            true
         }
     }
 }
@@ -119,6 +129,8 @@ pub fn travel(step: i64) {
     let Some((pos, placement)) = history.seek(step) else {
         return;
     };
-    apply(placement);
+    if !apply(placement) {
+        return;
+    }
     history.commit_pos(CAMERA_HISTORY, pos);
 }

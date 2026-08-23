@@ -193,7 +193,10 @@ fn split_label(label: &str) -> Option<(String, String)> {
 
 fn parse_hex(s: &str) -> Result<Rgb<u8>> {
     let h = s.trim().trim_start_matches('#');
-    if h.len() != 6 {
+    // Checked before slicing: a six-byte value like "#aééb" has no char
+    // boundary at index 2 and would panic the daemon on a config value the
+    // panel and TUI both accept.
+    if h.len() != 6 || !h.chars().all(|c| c.is_ascii_hexdigit()) {
         anyhow::bail!("expected #RRGGBB, got {}", s);
     }
     let r = u8::from_str_radix(&h[0..2], 16)?;

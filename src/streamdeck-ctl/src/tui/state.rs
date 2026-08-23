@@ -40,9 +40,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
-        let cfg = config::load().unwrap_or_default();
-        Self {
+    pub fn new() -> anyhow::Result<Self> {
+        let cfg = config::load()?;
+        Ok(Self {
             tab: Tab::Pedal,
             pedal: super::pedal::PedalView::new(),
             deck: super::deck::DeckView::new(&cfg),
@@ -54,11 +54,11 @@ impl App {
                 deck_active: false,
             },
             msg: None,
-        }
+        })
     }
 
     pub fn refresh(&mut self) {
-        self.cfg = config::load().unwrap_or_default();
+        self.cfg = config::load().unwrap_or_else(|_| self.cfg.clone());
         self.conn = Connectivity {
             pedal_connected: device::list_pedals().map(|v| !v.is_empty()).unwrap_or(false),
             deck_connected: device::list_decks().map(|v| !v.is_empty()).unwrap_or(false),
