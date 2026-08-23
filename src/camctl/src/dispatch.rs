@@ -169,7 +169,7 @@ fn cmd_status(cfg: &Config) -> i32 {
     let last = state::read(&state::last_state_file()).unwrap_or_default();
     let (alt, class, tooltip) = match &s {
         CamState::On(why)        => ("on", "on", format!("Camera ON ({why})")),
-        CamState::Off(pw)        => ("off", "off", format!("Camera idle ({pw})")),
+        CamState::Off(_)         => ("off", "off", "Camera connected, idle".to_string()),
         CamState::Disconnected   => ("disconnected", "disconnected", "Cam Link 4K not detected".into()),
         CamState::Disabled       => ("disabled", "disabled", "Camera monitor paused. Click to resume.".into()),
     };

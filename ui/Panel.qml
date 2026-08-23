@@ -1425,19 +1425,31 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
       }
       Button {
+        visible: !root.shortcuts.installed
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        iconText: root.shortcuts.installed ? "󰄬" : "󰐕"
-        text: root.shortcuts.installed ? "Installed" : "Install"
+        iconText: "󰐕"
+        text: "Install"
         fontSize: Style.font.caption
         foreground: root.foreground
         fontFamily: root.fontFamily
         bordered: true
-        active: root.shortcuts.installed
-        tooltipText: root.shortcuts.installed
-          ? "Remove the plugin's shortcuts from your hypr config"
-          : "Write the plugin's shortcuts and source them from your hypr config"
-        onClicked: root.act(["elgato-panel", root.shortcuts.installed ? "uninstall-shortcuts" : "install-shortcuts"])
+        tooltipText: "Write these shortcuts and source them from your hypr config"
+        onClicked: root.act(["elgato-panel", "install-shortcuts"])
+      }
+
+      WidgetButton {
+        visible: root.shortcuts.installed
+        bar: root.bar
+        text: "󰩺"
+        fontSize: Style.font.caption
+        foreground: root.dim
+        labelVisible: true
+        horizontalMargin: Style.space(4)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        tooltipText: "Remove these shortcuts from your hypr config"
+        onPressed: root.act(["elgato-panel", "uninstall-shortcuts"])
       }
     }
 

@@ -35,6 +35,11 @@ pub const ACTIONS: &[Action] = &[
     Action { id: "deck.reload", view: "deck", label: "Reload the deck", command: "streamdeck-ctl deck reload", default_keys: "" },
     Action { id: "camera.toggle", view: "camera", label: "Toggle camera overlay", command: "camctl toggle", default_keys: "SUPER + ALT + C" },
     Action { id: "camera.pick", view: "camera", label: "Place the camera", command: "camctl pick", default_keys: "SUPER + ALT + P" },
+    Action { id: "camera.full", view: "camera", label: "Camera fullscreen", command: "camctl full", default_keys: "SUPER + SHIFT + C" },
+    Action { id: "camera.tl", view: "camera", label: "Camera top-left", command: "camctl move tl", default_keys: "SUPER + ALT + 1" },
+    Action { id: "camera.tr", view: "camera", label: "Camera top-right", command: "camctl move tr", default_keys: "SUPER + ALT + 2" },
+    Action { id: "camera.bl", view: "camera", label: "Camera bottom-left", command: "camctl move bl", default_keys: "SUPER + ALT + 3" },
+    Action { id: "camera.br", view: "camera", label: "Camera bottom-right", command: "camctl move br", default_keys: "SUPER + ALT + 4" },
     Action { id: "record.region", view: "camera", label: "Record an area", command: "elgato-panel record --target region", default_keys: "SUPER + ALT + R" },
     Action { id: "record.stop", view: "camera", label: "Stop recording", command: "elgato-panel record --stop", default_keys: "SUPER + ALT + SHIFT + R" },
 ];
