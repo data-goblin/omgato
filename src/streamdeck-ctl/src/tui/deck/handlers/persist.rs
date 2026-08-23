@@ -7,7 +7,6 @@ use std::process::Command;
 pub fn save_and_restart(app: &mut App, msg: &str) -> bool {
     if let Err(e) = config::save(&app.cfg) {
         app.flash(format!("save failed: {e}"), Color::Red);
-        // roll the in-memory copy back to whatever survived on disk
         if let Ok(prev) = config::load() {
             app.cfg = prev;
         }

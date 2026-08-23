@@ -64,8 +64,6 @@ fn elapsed_seconds(pid: u32) -> u64 {
     let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
         return 0;
     };
-    // Field 22 is starttime; the executable name can hold spaces, so counting
-    // starts after the closing parenthesis.
     let Some((_, rest)) = stat.rsplit_once(')') else {
         return 0;
     };
@@ -107,7 +105,6 @@ fn pick_scope() -> Option<String> {
     let scope = if let Some(name) = picked.strip_prefix("monitor:") {
         format!("monitor:{name}")
     } else {
-        // slurp reports "X,Y WxH"; gpu-screen-recorder wants "WxH+X+Y".
         let (origin, size) = picked.split_once(char::is_whitespace)?;
         let (x, y) = origin.split_once(',')?;
         format!("region:{size}+{x}+{y}")
@@ -199,7 +196,6 @@ pub fn stop() {
     if recorder_pid().is_none() {
         return;
     }
-    // SIGINT is what makes gpu-screen-recorder write a playable file.
     sh::run(&["pkill", "-SIGINT", "-f", "^gpu-screen-recorder"]);
     for _ in 0..50 {
         if recorder_pid().is_none() {

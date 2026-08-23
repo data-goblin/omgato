@@ -158,7 +158,6 @@ fn apply_reload(
             return;
         }
     };
-    // If the new config doesn't have our current page, fall back to default_page.
     if !new_pages.contains_key(current) {
         history.clear();
         *current = new_cfg.deck.default_page.clone();
@@ -167,7 +166,6 @@ fn apply_reload(
                 *current = first.clone();
             }
     }
-    // Rebuild the renderer if any rendering input changed (fonts, default colors).
     if renderer_inputs_changed(&cfg.deck, &new_cfg.deck) {
         match Renderer::new(&new_cfg.deck, img_w) {
             Ok(r) => *renderer = r,

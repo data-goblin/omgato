@@ -59,9 +59,6 @@ pub fn dispatch(action: &Action, synth: &mut Option<Synth>) -> Result<Outcome> {
 }
 
 fn spawn_shell(cmd: &str) -> Result<()> {
-    // Backgrounded inside the shell so the shell exits at once and is reaped
-    // here; the real command is reparented to init instead of becoming a
-    // zombie in a daemon that never waits.
     Command::new("sh")
         .arg("-c")
         .arg(format!("{cmd} &"))

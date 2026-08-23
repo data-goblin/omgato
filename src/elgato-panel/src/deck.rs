@@ -150,9 +150,6 @@ fn preview_dir() -> PathBuf {
 fn refresh_previews(key_count: u8, cols: u8) {
     let dir = preview_dir();
     let stamp = dir.join(".stamp");
-    // The stamp records which config produced the previews, rather than merely
-    // when they were written: an edit landing while the export runs then still
-    // invalidates them on the next pass.
     let want = format!(
         "keys={key_count} cols={cols} radius={PREVIEW_RADIUS} config={}",
         config_revision()
@@ -172,8 +169,6 @@ fn refresh_previews(key_count: u8, cols: u8) {
         "--radius",
         PREVIEW_RADIUS,
     ]);
-    // Only claim the previews are current when the render worked; a missing
-    // font would otherwise freeze them until the config changed again.
     if exported {
         let _ = fs::write(&stamp, &want);
     }

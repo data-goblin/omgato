@@ -69,7 +69,6 @@ fn begin_page_add(app: &mut App) {
 fn begin_page_remove(app: &mut App) {
     if app.deck.page_names.len() <= 1 {
         app.flash("can't remove the last page", Color::Yellow);
-        // ensure at least one page exists
         if app.cfg.deck.pages.is_empty() {
             app.cfg.deck.pages.insert("main".into(), Page::default());
         }

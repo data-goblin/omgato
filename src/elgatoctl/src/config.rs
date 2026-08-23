@@ -42,8 +42,6 @@ pub fn save(cache: &Cache) -> std::io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let s = toml::to_string_pretty(cache).expect("serialize");
-    // Written through a temporary so a reader mid-write cannot see a short file
-    // and conclude a light has disappeared.
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     fs::write(&tmp, s)?;
     fs::rename(&tmp, &path)

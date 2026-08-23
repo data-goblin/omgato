@@ -67,8 +67,6 @@ fn build_row(idx: usize, app: &App) -> Row<'static> {
         ActionKind::Page | ActionKind::Back => Style::default().fg(Color::Green),
         ActionKind::Noop => Style::default().fg(Color::DarkGray),
     };
-    // dim the position label except on the first gesture row of each pedal,
-    // so the table reads like a grouped list
     let is_first_of_pedal = idx.is_multiple_of(3);
     let pos_label = if is_first_of_pedal {
         pos.label().to_string()

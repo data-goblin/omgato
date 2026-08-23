@@ -176,7 +176,6 @@ fn set_brightness(value: u8) -> Result<()> {
     let v = value.min(100);
     let mut cfg = config::load()?;
     cfg.deck.brightness = v;
-    // Reaching for the brightness means wanting the display lit.
     cfg.deck.display_off = false;
     config::save(&cfg)?;
     apply_brightness(&cfg)

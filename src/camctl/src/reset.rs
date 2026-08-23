@@ -35,7 +35,6 @@ pub fn reset() -> Result<PathBuf, String> {
     write_via_sudo(&auth, "0")?;
     std::thread::sleep(Duration::from_millis(800));
     write_via_sudo(&auth, "1")?;
-    // Give udev time to recreate /dev/v4l/by-id symlinks.
     std::thread::sleep(Duration::from_millis(1500));
     Ok(path)
 }

@@ -47,7 +47,6 @@ pub fn parse_key(name: &str) -> Result<KeyCode> {
 
 fn keycode_from_str(s: &str) -> Option<KeyCode> {
     Some(match s {
-        // function keys
         "KEY_F1" => KeyCode::KEY_F1,
         "KEY_F2" => KeyCode::KEY_F2,
         "KEY_F3" => KeyCode::KEY_F3,
@@ -72,7 +71,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_F22" => KeyCode::KEY_F22,
         "KEY_F23" => KeyCode::KEY_F23,
         "KEY_F24" => KeyCode::KEY_F24,
-        // letters
         "KEY_A" => KeyCode::KEY_A,
         "KEY_B" => KeyCode::KEY_B,
         "KEY_C" => KeyCode::KEY_C,
@@ -99,7 +97,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_X" => KeyCode::KEY_X,
         "KEY_Y" => KeyCode::KEY_Y,
         "KEY_Z" => KeyCode::KEY_Z,
-        // digits
         "KEY_0" => KeyCode::KEY_0,
         "KEY_1" => KeyCode::KEY_1,
         "KEY_2" => KeyCode::KEY_2,
@@ -110,7 +107,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_7" => KeyCode::KEY_7,
         "KEY_8" => KeyCode::KEY_8,
         "KEY_9" => KeyCode::KEY_9,
-        // navigation / misc
         "KEY_ESC" => KeyCode::KEY_ESC,
         "KEY_ENTER" => KeyCode::KEY_ENTER,
         "KEY_TAB" => KeyCode::KEY_TAB,
@@ -126,7 +122,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_RIGHT" => KeyCode::KEY_RIGHT,
         "KEY_UP" => KeyCode::KEY_UP,
         "KEY_DOWN" => KeyCode::KEY_DOWN,
-        // modifiers
         "KEY_LEFTSHIFT" => KeyCode::KEY_LEFTSHIFT,
         "KEY_RIGHTSHIFT" => KeyCode::KEY_RIGHTSHIFT,
         "KEY_LEFTCTRL" => KeyCode::KEY_LEFTCTRL,
@@ -136,7 +131,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_LEFTMETA" => KeyCode::KEY_LEFTMETA,
         "KEY_RIGHTMETA" => KeyCode::KEY_RIGHTMETA,
         "KEY_CAPSLOCK" => KeyCode::KEY_CAPSLOCK,
-        // media / system
         "KEY_PLAYPAUSE" => KeyCode::KEY_PLAYPAUSE,
         "KEY_NEXTSONG" => KeyCode::KEY_NEXTSONG,
         "KEY_PREVIOUSSONG" => KeyCode::KEY_PREVIOUSSONG,
@@ -149,7 +143,6 @@ fn keycode_from_str(s: &str) -> Option<KeyCode> {
         "KEY_VOLUMEDOWN" => KeyCode::KEY_VOLUMEDOWN,
         "KEY_BRIGHTNESSUP" => KeyCode::KEY_BRIGHTNESSUP,
         "KEY_BRIGHTNESSDOWN" => KeyCode::KEY_BRIGHTNESSDOWN,
-        // punctuation
         "KEY_MINUS" => KeyCode::KEY_MINUS,
         "KEY_EQUAL" => KeyCode::KEY_EQUAL,
         "KEY_LEFTBRACE" => KeyCode::KEY_LEFTBRACE,

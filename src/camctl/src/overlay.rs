@@ -103,9 +103,6 @@ pub fn kill_running() -> bool {
         state::remove(&state::pid_file());
         return false;
     }
-    // SIGTERM first - mpv handles it gracefully and closes V4L2 cleanly via
-    // its shutdown path. SIGINT is also fine but SIGTERM is more conventional
-    // for managed processes. Wait up to 3s, then SIGKILL.
     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
     let deadline = Instant::now() + Duration::from_secs(3);
     while Instant::now() < deadline {
@@ -142,10 +139,6 @@ pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
         }
         if let Ok(Some(c)) = hypr::find_window(title)
             && c.mapped {
-                // mpv with --force-window=immediate can briefly map a window
-                // before libavformat bails on an unrecognized stream. Confirm
-                // the process is still alive after a short settle to avoid
-                // returning Mapped for a window that's about to disappear.
                 std::thread::sleep(Duration::from_millis(200));
                 if pid_alive(pid) {
                     return WaitResult::Mapped(c.address);
@@ -175,8 +168,6 @@ fn pid_alive(pid: u32) -> bool {
     if matches!(after_comm.chars().next(), Some('Z') | Some('X') | None) {
         return false;
     }
-    // The pid file outlives an unobserved crash, and pids get reused, so the
-    // process is confirmed to still be the player before it is signalled.
     std::fs::read_to_string(format!("/proc/{pid}/comm"))
         .map(|comm| comm.trim() == "mpv")
         .unwrap_or(false)

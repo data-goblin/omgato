@@ -65,8 +65,6 @@ impl Renderer {
         let s = self.size;
         let target = (s as f32 * 0.55) as u32;
         let x_off = (s - target) / 2 ;
-        // Pull up so the icon sits in the upper-third like glyphs do, leaving
-        // clearer space for the label band at the bottom.
         let y_off = (s as f32 * 0.10) as u32;
         let resized = icon
             .resize_exact(target, target, image::imageops::FilterType::Lanczos3)
@@ -93,23 +91,18 @@ impl Renderer {
         let s = self.size;
         let scale = PxScale::from(s as f32 * 0.55);
         let Some(c) = glyph.chars().next() else { return };
-        // Visible bounding box of just this glyph (accounts for left side bearing).
         let g = self.glyph_font.glyph_id(c).with_scale_and_position(scale, point(0.0, 0.0));
         if let Some(outlined) = self.glyph_font.outline_glyph(g) {
             let b = outlined.px_bounds();
             let visible_w = b.max.x - b.min.x;
             let visible_h = b.max.y - b.min.y;
-            // x: center the visible glyph horizontally
             let x = ((s as f32 - visible_w) / 2.0 - b.min.x).round() as i32;
-            // y: visible top inset equals horizontal inset, so the glyph reads
-            // as visually padded equally from top/left/right.
             let target_top = (s as f32 - visible_w) / 2.0;
             let y = (target_top - scale.y - b.min.y).round() as i32;
             draw_text_mut(img, fg, x, y, scale, &self.glyph_font, glyph);
             let _ = visible_h;
             return;
         }
-        // Glyph has no outline (e.g. space, missing). Centered fallback via text_size.
         let (gw, _) = text_size(scale, &self.glyph_font, glyph);
         let x = ((s as i32 - gw as i32) / 2).max(0);
         let y = ((s as f32 * 0.08) as i32).max(0);
@@ -211,9 +204,6 @@ fn read_font(path: &str, fallback_family: &str) -> Result<Vec<u8>> {
 
 fn parse_hex(s: &str) -> Result<Rgb<u8>> {
     let h = s.trim().trim_start_matches('#');
-    // Checked before slicing: a six-byte value like "#aééb" has no char
-    // boundary at index 2 and would panic the daemon on a config value the
-    // panel and TUI both accept.
     if h.len() != 6 || !h.chars().all(|c| c.is_ascii_hexdigit()) {
         anyhow::bail!("expected #RRGGBB, got {}", s);
     }

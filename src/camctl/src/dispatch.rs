@@ -23,7 +23,6 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Status => cmd_status(&cfg),
         Cmd::Pause => {
             state::write_atomic(&state::pause_flag(), "1").ok();
-            // Omarchy Quattro dismisses through the shell; mako is gone.
             let _ = std::process::Command::new("omarchy-shell")
                 .args(["notifications", "dismissAll"]).status();
             0
@@ -37,8 +36,6 @@ pub fn run(cmd: Cmd) -> i32 {
 }
 
 fn cmd_reset() -> i32 {
-    // Kill any running overlay first - the device must be free before we
-    // de-authorize it, otherwise the kernel may not release UVC cleanly.
     if overlay::is_running() {
         overlay::kill_running();
     }
@@ -77,9 +74,6 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
         state::remove(&state::fullscreen_flag());
     }
 
-    // The UVC driver wedges after the first V4L2 close: a second mpv opens
-    // the device but no frames flow (black window). Auto-reset clears it.
-    // Skipped on the first show after boot since the flag isn't set yet.
     if state::exists(&state::needs_reset_flag()) {
         if let Err(e) = reset::reset() {
             eprintln!("camctl: pre-show reset failed: {e}");
@@ -115,7 +109,6 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
 fn cmd_hide() -> i32 {
     overlay::kill_running();
     state::remove(&state::fullscreen_flag());
-    // Mark the UVC state as dirty so the next `show` resets the device.
     state::write_atomic(&state::needs_reset_flag(), "1").ok();
     0
 }
@@ -161,10 +154,8 @@ fn cmd_pick(cfg: &Config) -> i32 {
 }
 
 fn cmd_full(cfg: &Config) -> i32 {
-    if !overlay::is_running() {
-        // Start, then enable fullscreen
-        if cmd_show(cfg, None) != 0 { return 1; }
-    }
+    if !overlay::is_running()
+        && cmd_show(cfg, None) != 0 { return 1; }
     if state::exists(&state::fullscreen_flag()) {
         state::remove(&state::fullscreen_flag());
     } else {
@@ -183,8 +174,6 @@ fn cmd_status(cfg: &Config) -> i32 {
         CamState::Disabled       => ("disabled", "disabled", "Camera monitor paused. Click to resume.".into()),
     };
 
-    // Notification on transition (atomic state write BEFORE notify-send so a
-    // dropped notify doesn't cause a respawn-loop on the next poll).
     let new_state = if matches!(s, CamState::On(_)) { "on" } else { "off" };
     if matches!(s, CamState::On(_)) && last != "on" {
         state::write_atomic(&state::last_state_file(), new_state).ok();
@@ -193,7 +182,6 @@ fn cmd_status(cfg: &Config) -> i32 {
         state::write_atomic(&state::last_state_file(), new_state).ok();
         notify_off();
     } else {
-        // No transition; refresh last_state if changed nature (disabled, etc).
         if last != new_state {
             state::write_atomic(&state::last_state_file(), new_state).ok();
         }
@@ -210,7 +198,6 @@ fn cmd_status(cfg: &Config) -> i32 {
 }
 
 fn place_now(cfg: &Config) -> i32 {
-    // Read current position; default from cfg if no override saved.
     let pos = state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone());
     let full = state::exists(&state::fullscreen_flag());
 
@@ -220,8 +207,6 @@ fn place_now(cfg: &Config) -> i32 {
         Err(e) => { eprintln!("camctl: {e}"); return 1; }
     };
 
-    // Always position on the FOCUSED monitor so SUPER+ALT+1/2/3/4 always
-    // moves the PiP to whichever screen the user is actively working on.
     let mon = match hypr::focused_monitor() {
         Ok(m) => m,
         Err(_) => match hypr::monitor_for_address(&win.address) {
@@ -240,8 +225,6 @@ fn place_now(cfg: &Config) -> i32 {
     let p = placement(cfg, &mon, &pos, full, obs_region);
     let _ = hypr::resize_window_pixel(&win.address, p.w, p.h);
     let _ = hypr::move_window_pixel(&win.address, p.x, p.y);
-    // Quattro dropped the window rules that used to pin the overlay, so it is
-    // pinned here instead and stays put across workspace switches.
     let _ = hypr::pin_window(&win.address);
     0
 }

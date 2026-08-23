@@ -111,7 +111,6 @@ pub fn find_region_for_monitor(scene_file: &Path, mon: &Monitor) -> Option<Regio
     let right = src_w - item.crop_right;
     let bottom = src_h - item.crop_bottom;
 
-    // Source pixels -> logical desktop pixels.
     let to_log = |p: i32| (p as f32 / scale) as i32;
     let x0 = mon.x + to_log(left);
     let y0 = mon.y + to_log(top);

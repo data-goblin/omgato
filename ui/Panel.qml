@@ -77,8 +77,6 @@ Panel {
     : view === "deck" ? (deck.services[deckDaemonKey] === "active")
     : !camera.paused
 
-  // Blackbody approximation so the temperature reads as a colour: amber at the
-  // warm end, blue-white at the cool end.
   function kelvinColor(kelvin) {
     var t = Math.max(1000, Math.min(40000, kelvin)) / 100
     var r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592)
@@ -97,7 +95,6 @@ Panel {
 
   function refresh() {
     if (statusProc.running) {
-      // A backend that never returns would otherwise stall every later poll.
       if (Date.now() - statusStartedAt > 8000) statusProc.signal(15)
       return
     }
@@ -120,8 +117,6 @@ Panel {
     actionProc.running = true
   }
 
-  // Paints the expected result locally so the controls answer the click at
-  // once, then hands the change straight to elgatoctl.
   function setLights(target, patch) {
     root.lights = lights.map(function(l) {
       if (target !== "all" && l.name !== target) return l
@@ -187,8 +182,6 @@ Panel {
     }
   }
 
-  // Brightness follows the drag, coalesced so the device gets at most one
-  // update per interval instead of one per pixel.
   function queueDeckBrightness(value) {
     deckBrightnessLocal = Math.round(value)
     pendingDeckBrightness = Math.round(value)
@@ -208,8 +201,6 @@ Panel {
     pendingDeckBrightness = -1
   }
 
-  // Plain click selects one, ctrl adds or removes, shift takes the run between
-  // the anchor and the key clicked, in reading order.
   function selectKey(index, modifiers) {
     if ((modifiers & Qt.ShiftModifier) && selectionAnchor >= 0) {
       var low = Math.min(selectionAnchor, index)
@@ -235,7 +226,6 @@ Panel {
 
   readonly property var viewShortcuts: (shortcuts.shortcuts || []).filter(function(s) { return s.view === root.view })
 
-  // Turns a key event into the form hypr and the backend both use.
   function comboFromEvent(event) {
     if (event.key === Qt.Key_Escape) return ""
     var parts = []
@@ -279,7 +269,6 @@ Panel {
     return selection.indexOf(index) >= 0
   }
 
-  // Applies one field to every selected key.
   function applyToSelection(field, value) {
     if (!page) return
     for (var i = 0; i < selection.length; i++) {
@@ -299,7 +288,6 @@ Panel {
     interacting = false
   }
 
-  // Moves the dragged light to where it was dropped and persists the new order.
   function commitOrder() {
     var from = dragFrom
     var to = dragTo
@@ -311,8 +299,6 @@ Panel {
     act(["elgato-panel", "order", "--ips", addresses.join(",")])
   }
 
-  // deck set/unset/default reload the daemon themselves; queueing a second
-  // reload re-rendered every key on the device for nothing.
   function deckSet(pageName, index, field, value) {
     act(["streamdeck-ctl", "deck", "set", pageName, String(index), "--" + field, value])
   }
@@ -400,8 +386,6 @@ Panel {
   onDeckChanged: if (deckBrightnessLocal >= 0 && deck.brightness === deckBrightnessLocal) deckBrightnessLocal = -1
   onDeckBrightnessLocalChanged: if (deckBrightnessLocal >= 0) deckBrightnessHold.restart()
 
-  // Releases the local value if the device never reports it back, so a failed
-  // command cannot leave the slider showing a level the deck never took.
   Timer {
     id: deckBrightnessHold
     interval: 4000
@@ -526,7 +510,6 @@ Panel {
 
         PanelSeparator { foreground: root.foreground; visible: selector.visible }
 
-        // The last command that failed. Silence used to be the only report.
         Item {
           width: parent.width
           visible: root.lastError !== ""
@@ -572,7 +555,6 @@ Panel {
     }
   }
 
-  // ---------- Lights ----------
   Component {
     id: lightsView
     Column {
@@ -774,7 +756,6 @@ Panel {
     }
   }
 
-  // ---------- Stream Deck ----------
   Component {
     id: deckView
     Column {
@@ -854,15 +835,11 @@ Panel {
         }
       }
 
-      // The keys are the images the daemon pushes to the device, so the grid
-      // is what the deck actually shows rather than a second guess at it.
       Grid {
         id: keyGrid
         width: parent.width
         columns: root.deckDevice.cols
         spacing: Style.space(4)
-        // Mirrors the backlight: the previews are the images on the device, and
-        // dimming them is the only way the level reads here.
         opacity: root.deck.display_off ? 0.16 : 0.25 + 0.75 * (root.deckBrightness / 100)
         Behavior on opacity { NumberAnimation { duration: 120 } }
         readonly property real cell: (width - spacing * (columns - 1)) / columns
@@ -1063,15 +1040,12 @@ Panel {
     }
   }
 
-  // ---------- Pedal ----------
   Component {
     id: pedalView
     Column {
       width: parent ? parent.width : 0
       spacing: Style.space(12)
 
-      // Schematic of the device: one wide centre pedal between two narrower
-      // side pedals that sit higher, as on the hardware.
       Item {
         width: parent.width
         height: Style.space(96)
@@ -1204,7 +1178,6 @@ Panel {
     }
   }
 
-  // ---------- Cam Link ----------
   Component {
     id: cameraView
     Column {
@@ -1431,8 +1404,6 @@ Panel {
     }
   }
 
-  // Shortcuts belonging to the selected view: what they run, what they are
-  // bound to, and whether something else already owns that combination.
   component ShortcutList: Column {
     width: parent ? parent.width : 0
     spacing: Style.space(4)
@@ -1531,10 +1502,6 @@ Panel {
     }
   }
 
-  // ---------- shared pieces ----------
-
-  // One primary action plus undo/redo in equal thirds. Every view uses it so
-  // the panel keeps the same shape whatever is selected.
   component ActionRow: Row {
     id: actionRow
     property string primaryIcon: ""
@@ -1631,8 +1598,6 @@ Panel {
       onMoved: function(v) { sliderRow.moved(v) }
       onReleased: function(v) { sliderRow.committed(v) }
 
-      // Holds off the status poll for as long as the knob is held, so a refresh
-      // cannot land mid-drag and snap the control out from under the cursor.
       Binding {
         target: root
         property: "interacting"
@@ -1642,8 +1607,6 @@ Panel {
     }
   }
 
-  // A named setting: what is being set on the left, the value on the right,
-  // with a colour dot for fields that hold a hex colour.
   component FieldRow: Item {
     id: fieldRow
     property string label: ""
@@ -1675,7 +1638,6 @@ Panel {
       height: width
       radius: width / 2
       color: fieldRow.previewVisible ? root.hexColor(field.text) : "transparent"
-      // A near-black key colour would otherwise vanish into the panel.
       border.width: 1
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
       anchors.left: fieldLabel.right
@@ -1692,8 +1654,6 @@ Panel {
       placeholderText: fieldRow.placeholder
       onCommitted: function(v) { fieldRow.committed(v) }
 
-      // Bound declaratively, a poll landing mid-edit would wipe what is being
-      // typed, so the field only follows the source while it has no focus.
       Component.onCompleted: text = fieldRow.value
       Connections {
         target: fieldRow

@@ -18,12 +18,10 @@ pub fn detect(cfg: &Config) -> CamState {
         return CamState::Disabled;
     }
 
-    // 1. Direct V4L2 holders via /proc walk on the Elgato by-id paths.
     if let Some(holder) = direct_holder(cfg) {
         return CamState::On(holder);
     }
 
-    // 2. PipeWire node state for the Cam Link.
     match pw_state(&cfg.device_pattern) {
         Some(s) if s == "running" => CamState::On("PipeWire client".into()),
         Some(s) => CamState::Off(s),
@@ -32,7 +30,6 @@ pub fn detect(cfg: &Config) -> CamState {
 }
 
 fn direct_holder(cfg: &Config) -> Option<String> {
-    // Find Elgato by-id symlinks and resolve to /dev/video* device paths.
     let by_id = PathBuf::from("/dev/v4l/by-id");
     let mut dev_targets: Vec<PathBuf> = Vec::new();
     if let Ok(entries) = fs::read_dir(&by_id) {
@@ -48,7 +45,6 @@ fn direct_holder(cfg: &Config) -> Option<String> {
         return None;
     }
 
-    // Walk /proc/*/fd/* and find any pid with one of these device paths open.
     for proc_e in fs::read_dir("/proc").ok()?.flatten() {
         let pid_str = proc_e.file_name().to_string_lossy().to_string();
         if !pid_str.chars().all(|c| c.is_ascii_digit()) { continue; }
@@ -82,8 +78,6 @@ fn pw_state(pattern: &str) -> Option<String> {
     let arr = json.as_array()?;
     let needle_spaced = pattern.replace('_', " ");
     for item in arr {
-        // Most pipewire objects lack info/props - skip them rather than
-        // bailing out of the entire function.
         let info = match item.get("info") { Some(v) => v, None => continue };
         let props = match info.get("props") { Some(v) => v, None => continue };
         let media_class = props.get("media.class").and_then(|v| v.as_str()).unwrap_or("");

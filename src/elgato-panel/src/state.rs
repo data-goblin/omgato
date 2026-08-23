@@ -147,8 +147,6 @@ fn write_json<T: Serialize>(path: &PathBuf, value: &T) {
     if fs::create_dir_all(parent).is_err() {
         return;
     }
-    // Unique per process: two panels on two monitors would otherwise share one
-    // scratch file and publish a torn merge of both writes.
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     let Ok(text) = serde_json::to_string(value) else {
         return;

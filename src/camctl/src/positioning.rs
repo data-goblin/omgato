@@ -61,7 +61,6 @@ fn usable_from_monitor(mon: &Monitor) -> Rect {
     let scale = if mon.scale > 0.0 { mon.scale } else { 1.0 };
     let mw = (mon.width as f32 / scale) as i32;
     let mh = (mon.height as f32 / scale) as i32;
-    // reserved = [left, top, right, bottom] from Hyprland layer shell.
     Rect {
         left:   mon.x + mon.reserved[0],
         top:    mon.y + mon.reserved[1],
