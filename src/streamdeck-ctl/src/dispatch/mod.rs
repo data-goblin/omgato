@@ -10,7 +10,7 @@ use anyhow::Result;
 
 pub fn run(cmd: Cmd) -> Result<()> {
     match cmd {
-        Cmd::Ls => ls::run(),
+        Cmd::Ls { json } => ls::run(json),
         Cmd::Pedal { cmd } => pedal::dispatch(cmd),
         Cmd::Deck { cmd } => deck::dispatch(cmd),
         Cmd::Tui => tui::run(),

@@ -9,6 +9,7 @@ use std::path::Path;
 
 const FALLBACK_SIZE: u32 = 72;
 const FALLBACK_KEYS: u8 = 15;
+const FALLBACK_COLS: u8 = 5;
 
 /// Writes every key of every page as `<out>/<page>/<index>.png`, using the same
 /// renderer the daemon pushes to the device.
@@ -28,6 +29,10 @@ pub fn run(
         .or_else(|| device.as_ref().map(|d| d.kind.key_count()))
         .unwrap_or(FALLBACK_KEYS);
 
+    let cols = device
+        .as_ref()
+        .map(|d| d.kind.column_count())
+        .unwrap_or(FALLBACK_COLS);
     let renderer = Renderer::new(&cfg.deck, size)?;
     let pages: Vec<String> = match page {
         Some(name) => vec![name],
@@ -44,7 +49,7 @@ pub fn run(
         for index in 0..key_count {
             let image = match by_index.get(&index) {
                 Some(btn) => renderer.render_button(btn)?,
-                None => match cfg.deck.synthetic_button(&name, index) {
+                None => match cfg.deck.synthetic_button(&name, index, key_count, cols) {
                     Some(synth) => renderer.render_button(&synth)?,
                     None => renderer.blank(),
                 },

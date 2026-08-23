@@ -22,6 +22,7 @@ pub fn run(cfg: &Config) -> Result<()> {
     );
 
     let key_count = deck.kind.key_count();
+    let cols = deck.kind.column_count();
     let (img_w, _) = deck.kind.key_image_format().size;
     let mut renderer = Renderer::new(&cfg.deck, img_w as u32)?;
     deck.deck.set_brightness(cfg.deck.active_brightness())?;
@@ -39,7 +40,7 @@ pub fn run(cfg: &Config) -> Result<()> {
     let mut synth = synth::build_optional(&parsed_pages);
     let mut history: Vec<String> = Vec::new();
     let mut current = start_page;
-    render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count);
+    render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count, cols);
 
     let reload_flag = reload::install()?;
     let brightness_flag = reload::install_brightness()?;
@@ -62,6 +63,7 @@ pub fn run(cfg: &Config) -> Result<()> {
                 &mut history,
                 img_w as u32,
                 key_count,
+                cols,
             );
         }
 
@@ -75,7 +77,7 @@ pub fn run(cfg: &Config) -> Result<()> {
                 deck = reconnect::open_with_retry()?;
                 deck.deck.set_brightness(cfg.deck.active_brightness())?;
                 reader = deck.deck.get_reader();
-                render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count);
+                render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count, cols);
                 continue;
             }
         };
@@ -84,7 +86,7 @@ pub fn run(cfg: &Config) -> Result<()> {
                 continue;
             };
 
-            let Some(action) = resolve_action(&cfg.deck, &current, idx, &parsed_pages) else {
+            let Some(action) = resolve_action(&cfg.deck, &current, idx, &parsed_pages, key_count, cols) else {
                 continue;
             };
             eprintln!(
@@ -108,13 +110,13 @@ pub fn run(cfg: &Config) -> Result<()> {
                     }
                     history.push(current.clone());
                     current = p;
-                    render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count);
+                    render_or_log(&deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count, cols);
                 }
                 Outcome::Back => {
                     if let Some(p) = history.pop() {
                         current = p;
                         render_or_log(
-                            &deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count,
+                            &deck, &renderer, &cfg.deck, &current, &parsed_pages, key_count, cols,
                         );
                     }
                 }
@@ -139,6 +141,7 @@ fn apply_reload(
     history: &mut Vec<String>,
     img_w: u32,
     key_count: u8,
+    cols: u8,
 ) {
     eprintln!("streamdeck-ctl: deck reloading config (SIGHUP)");
     let new_cfg = match config::load() {
@@ -178,7 +181,7 @@ fn apply_reload(
     *parsed_pages = new_pages;
     *synth = synth::build_optional(parsed_pages);
     let _ = deck.deck.set_brightness(cfg.deck.active_brightness());
-    render_or_log(deck, renderer, &cfg.deck, current, parsed_pages, key_count);
+    render_or_log(deck, renderer, &cfg.deck, current, parsed_pages, key_count, cols);
     eprintln!("streamdeck-ctl: deck config reloaded");
 }
 
@@ -197,12 +200,14 @@ fn resolve_action(
     page_name: &str,
     idx: u8,
     parsed_pages: &HashMap<String, parsed::ParsedPage>,
+    key_count: u8,
+    cols: u8,
 ) -> Option<Action> {
     if let Some(page) = parsed_pages.get(page_name)
         && let Some(b) = page.buttons.iter().find(|b| b.btn.index == idx) {
             return Some(b.action.clone());
         }
-    let synth_btn = deck_cfg.synthetic_button(page_name, idx)?;
+    let synth_btn = deck_cfg.synthetic_button(page_name, idx, key_count, cols)?;
     action::parse(&synth_btn.action).ok()
 }
 
@@ -213,12 +218,13 @@ fn render_or_log(
     current: &str,
     parsed_pages: &HashMap<String, parsed::ParsedPage>,
     key_count: u8,
+    cols: u8,
 ) {
     let Some(page) = parsed_pages.get(current) else {
         eprintln!("streamdeck-ctl: render: unknown page '{current}'");
         return;
     };
-    if let Err(e) = render::render_page(deck, renderer, deck_cfg, current, page, key_count) {
+    if let Err(e) = render::render_page(deck, renderer, deck_cfg, current, page, key_count, cols) {
         eprintln!("streamdeck-ctl: render error: {e}");
     }
 }

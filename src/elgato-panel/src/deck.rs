@@ -8,25 +8,31 @@ use std::path::{Path, PathBuf};
 pub const SERVICES: [&str; 2] = ["streamdeck-ctl.service", "streamdeck-ctl-deck.service"];
 const GESTURES: [&str; 3] = ["tap", "long", "double"];
 const POSITIONS: [&str; 3] = ["left", "center", "right"];
-const PREV_INDEX: u8 = 10;
-const NEXT_INDEX: u8 = 14;
-
-fn layout(kind: &str) -> (u8, u8) {
-    match kind {
-        "XL" => (8, 4),
-        "Mini" => (3, 2),
-        "Plus" => (4, 2),
-        _ => (5, 3),
-    }
-}
-
-#[derive(Serialize)]
+/// Reported by `streamdeck-ctl ls --json`, which reads it from the device
+/// library, so every model lays out correctly without a table here.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Device {
     pub kind: String,
+    #[serde(default)]
+    pub name: String,
     pub serial: String,
+    #[serde(default)]
+    pub keys: u8,
     pub cols: u8,
     pub rows: u8,
+    #[serde(default)]
+    pub encoders: u8,
+    #[serde(default)]
+    pub visual: bool,
     pub pedal: bool,
+}
+
+/// The two ends of the bottom row, matching streamdeck-ctl's own placement.
+fn pagination_indices(keys: u8, cols: u8) -> Option<(u8, u8)> {
+    if keys == 0 || cols == 0 || keys < cols {
+        return None;
+    }
+    Some((keys - cols, keys - 1))
 }
 
 #[derive(Serialize)]
@@ -141,56 +147,56 @@ fn preview_dir() -> PathBuf {
 }
 
 /// Re-renders the key previews when the config or the export settings changed.
-fn refresh_previews(cols: u8, rows: u8) {
+fn refresh_previews(key_count: u8, cols: u8) {
     let dir = preview_dir();
     let stamp = dir.join(".stamp");
-    let keys = (cols * rows).to_string();
-    let settings = format!("keys={keys} radius={PREVIEW_RADIUS}");
-    let config_time = fs::metadata(config_path()).and_then(|m| m.modified()).ok();
-    let stamp_time = fs::metadata(&stamp).and_then(|m| m.modified()).ok();
-    let unchanged = fs::read_to_string(&stamp).is_ok_and(|s| s == settings);
-    if let (Some(config_time), Some(stamp_time)) = (config_time, stamp_time)
-        && stamp_time >= config_time
-        && unchanged
-    {
+    // The stamp records which config produced the previews, rather than merely
+    // when they were written: an edit landing while the export runs then still
+    // invalidates them on the next pass.
+    let want = format!(
+        "keys={key_count} cols={cols} radius={PREVIEW_RADIUS} config={}",
+        config_revision()
+    );
+    if fs::read_to_string(&stamp).is_ok_and(|have| have == want) {
         return;
     }
     let _ = fs::create_dir_all(&dir);
-    sh::run(&[
+    let exported = sh::succeeded(&[
         "streamdeck-ctl",
         "deck",
         "export",
         "--out",
         &dir.to_string_lossy(),
         "--keys",
-        &keys,
+        &key_count.to_string(),
         "--radius",
         PREVIEW_RADIUS,
     ]);
-    let _ = fs::write(&stamp, &settings);
+    // Only claim the previews are current when the render worked; a missing
+    // font would otherwise freeze them until the config changed again.
+    if exported {
+        let _ = fs::write(&stamp, &want);
+    }
+}
+
+/// Identifies the configuration the previews were built from.
+fn config_revision() -> String {
+    let Ok(meta) = fs::metadata(config_path()) else {
+        return "none".to_owned();
+    };
+    let stamp = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{stamp}-{}", meta.len())
 }
 
 const PREVIEW_RADIUS: &str = "9";
 
 fn devices(listing: &str) -> Vec<Device> {
-    listing
-        .lines()
-        .filter_map(|line| {
-            let (kind, serial) = line.split_once("  serial=").unwrap_or((line, ""));
-            let kind = kind.trim();
-            if kind.is_empty() {
-                return None;
-            }
-            let (cols, rows) = layout(kind);
-            Some(Device {
-                pedal: kind == "Pedal",
-                kind: kind.to_owned(),
-                serial: serial.trim().to_owned(),
-                cols,
-                rows,
-            })
-        })
-        .collect()
+    serde_json::from_str(listing).unwrap_or_default()
 }
 
 fn pedal_bindings(pedal: &BTreeMap<String, toml::Value>) -> BTreeMap<String, BTreeMap<String, String>> {
@@ -240,9 +246,10 @@ fn neighbours(cfg: &DeckConfig, page: &str) -> (Option<String>, Option<String>) 
     (prev, next)
 }
 
-fn keys(cfg: &DeckConfig, name: &str, page: &PageConfig, count: u8, dir: &Path) -> Vec<Key> {
+fn keys(cfg: &DeckConfig, name: &str, page: &PageConfig, count: u8, cols: u8, dir: &Path) -> Vec<Key> {
     let configured: BTreeMap<i64, &ButtonConfig> = page.buttons.iter().map(|b| (b.index, b)).collect();
     let (prev, next) = neighbours(cfg, name);
+    let pagination = pagination_indices(count, cols);
     (0..count)
         .map(|index| {
             let preview = dir.join(name).join(format!("{index}.png"));
@@ -269,9 +276,9 @@ fn keys(cfg: &DeckConfig, name: &str, page: &PageConfig, count: u8, dir: &Path) 
                     target: String::new(),
                 };
             }
-            let target = match index {
-                PREV_INDEX => prev.clone(),
-                NEXT_INDEX => next.clone(),
+            let target = match pagination {
+                Some((prev_index, _)) if index == prev_index => prev.clone(),
+                Some((_, next_index)) if index == next_index => next.clone(),
                 _ => None,
             };
             match target {
@@ -304,14 +311,14 @@ fn keys(cfg: &DeckConfig, name: &str, page: &PageConfig, count: u8, dir: &Path) 
         .collect()
 }
 
-fn pages(cfg: &DeckConfig, count: u8) -> Vec<Page> {
+fn pages(cfg: &DeckConfig, count: u8, cols: u8) -> Vec<Page> {
     let dir = preview_dir();
     let mut pages: Vec<Page> = cfg
         .pages
         .iter()
         .map(|(name, page)| Page {
             name: name.clone(),
-            keys: keys(cfg, name, page, count, &dir),
+            keys: keys(cfg, name, page, count, cols, &dir),
         })
         .collect();
     let rank = |name: &String| {
@@ -358,7 +365,11 @@ pub fn read_config_text() -> String {
 }
 
 pub fn status() -> Status {
-    let probes: Vec<Vec<String>> = std::iter::once(vec!["streamdeck-ctl".to_owned(), "ls".to_owned()])
+    let probes: Vec<Vec<String>> = std::iter::once(vec![
+        "streamdeck-ctl".to_owned(),
+        "ls".to_owned(),
+        "--json".to_owned(),
+    ])
         .chain(SERVICES.iter().map(|s| {
             vec![
                 "systemctl".to_owned(),
@@ -373,12 +384,10 @@ pub fn status() -> Status {
     let text = read_config_text();
     let cfg: Config = toml::from_str(&text).unwrap_or_default();
 
-    let (cols, rows) = devices
-        .iter()
-        .find(|d| !d.pedal)
-        .map(|d| (d.cols, d.rows))
-        .unwrap_or((5, 3));
-    refresh_previews(cols, rows);
+    let deck_device = devices.iter().find(|d| !d.pedal);
+    let cols = deck_device.map(|d| d.cols).unwrap_or(5);
+    let keys = deck_device.map(|d| d.keys).unwrap_or(15);
+    refresh_previews(keys, cols);
 
     let mut history: History<Snapshot> = History::load(DECK_HISTORY);
     if !text.is_empty() {
@@ -386,7 +395,7 @@ pub fn status() -> Status {
     }
 
     Status {
-        pages: pages(&cfg.deck, cols * rows),
+        pages: pages(&cfg.deck, keys, cols),
         default_page: cfg.deck.default_page.clone(),
         brightness: cfg.deck.brightness,
         auto_paginate: cfg.deck.auto_paginate,

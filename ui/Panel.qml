@@ -45,7 +45,9 @@ Panel {
   readonly property bool anyOn: lights.some(function(l) { return l.on })
   readonly property bool anyUnreachable: lights.some(function(l) { return !l.reachable })
   readonly property var page: deckPages.length ? deckPages[Math.min(pageIndex, deckPages.length - 1)] : null
-  readonly property var deckDevice: deck.devices.find(function(d) { return !d.pedal }) || ({ cols: 5, rows: 3, kind: "Deck" })
+  readonly property var deckDevice: deck.devices.find(function(d) { return !d.pedal })
+    || ({ cols: 5, rows: 3, keys: 15, kind: "Deck", name: "No Stream Deck", encoders: 0 })
+  readonly property var pedalDevice: deck.devices.find(function(d) { return d.pedal }) || null
   readonly property var sections: {
     var out = []
     if (settings.showLights !== false) out.push({ id: "lights", label: "Lights", glyph: "󰌵" })
@@ -703,7 +705,8 @@ Panel {
         width: parent.width
         spacing: Style.space(6)
         Repeater {
-          model: [ { id: "deck", label: root.deckDevice.kind }, { id: "pedal", label: "Pedal" } ]
+          model: [ { id: "deck", label: root.deckDevice.name || root.deckDevice.kind },
+                   { id: "pedal", label: root.pedalDevice ? "Pedal" : "Pedal (none)" } ]
           Button {
             required property var modelData
             width: (parent.width - parent.spacing) / 2

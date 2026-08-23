@@ -24,6 +24,19 @@ pub fn spawn_detached(cmd: &[String]) {
         .spawn();
 }
 
+/// Runs a command and reports whether it succeeded, for callers that must not
+/// treat a failure as an empty result.
+pub fn succeeded(cmd: &[&str]) -> bool {
+    let Some((bin, args)) = cmd.split_first() else {
+        return false;
+    };
+    Command::new(bin)
+        .args(args)
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
 pub fn run_owned(cmd: &[String]) -> String {
     let borrowed: Vec<&str> = cmd.iter().map(String::as_str).collect();
     run(&borrowed)

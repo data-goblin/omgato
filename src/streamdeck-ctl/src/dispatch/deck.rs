@@ -162,7 +162,7 @@ fn render_once(cfg: &Config) -> Result<()> {
     for i in 0..key_count {
         if let Some(btn) = by_idx.get(&i) {
             d.deck.set_button_image(i, renderer.render_button(btn)?)?;
-        } else if let Some(synth) = cfg.deck.synthetic_button(&cfg.deck.default_page, i) {
+        } else if let Some(synth) = cfg.deck.synthetic_button(&cfg.deck.default_page, i, key_count, d.kind.column_count()) {
             d.deck.set_button_image(i, renderer.render_button(&synth)?)?;
         } else {
             d.deck.set_button_image(i, renderer.blank())?;

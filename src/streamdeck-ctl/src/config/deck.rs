@@ -60,18 +60,27 @@ impl DeckConfig {
 
     /// Auto-paginated synthetic button for a slot, when no user button claims it.
     /// idx 10 = previous-page arrow (or None on first/missing); idx 14 = next-page arrow.
-    pub fn synthetic_button(&self, page: &str, idx: u8) -> Option<Button> {
+    pub fn synthetic_button(&self, page: &str, idx: u8, key_count: u8, cols: u8) -> Option<Button> {
+        let (prev_idx, next_idx) = pagination_indices(key_count, cols)?;
         let (prev, next) = self.neighbours(page);
-        match idx {
-            PREV_IDX => prev.map(|p| synth(idx, &self.prev_glyph, &p)),
-            NEXT_IDX => next.map(|n| synth(idx, &self.next_glyph, &n)),
-            _ => None,
+        if idx == prev_idx {
+            return prev.map(|p| synth(idx, &self.prev_glyph, &p));
         }
+        if idx == next_idx {
+            return next.map(|n| synth(idx, &self.next_glyph, &n));
+        }
+        None
     }
 }
 
-pub const PREV_IDX: u8 = 10;
-pub const NEXT_IDX: u8 = 14;
+/// The two ends of the bottom row. On a 5x3 that is 10 and 14, which is where
+/// these used to be pinned; on any other grid it is wherever the bottom row is.
+pub fn pagination_indices(key_count: u8, cols: u8) -> Option<(u8, u8)> {
+    if key_count == 0 || cols == 0 || key_count < cols {
+        return None;
+    }
+    Some((key_count - cols, key_count - 1))
+}
 
 fn synth(index: u8, glyph: &str, target_page: &str) -> Button {
     Button {

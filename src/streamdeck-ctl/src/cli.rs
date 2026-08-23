@@ -10,7 +10,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Cmd {
     /// List all connected Stream Deck devices
-    Ls,
+    Ls {
+        /// Emit one JSON object per device, with grid size and key count
+        #[arg(long)]
+        json: bool,
+    },
     /// Pedal-specific commands
     Pedal {
         #[command(subcommand)]
