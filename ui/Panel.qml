@@ -1432,9 +1432,11 @@ Panel {
 
         Text {
           id: shortcutKeys
-          text: shortcutRow.capturing ? "press a combination" : shortcutRow.modelData.keys
+          text: shortcutRow.capturing ? "press a combination"
+              : (shortcutRow.modelData.display || "not set")
           color: shortcutRow.capturing ? root.foreground
-               : (shortcutRow.modelData.conflict ? root.urgent : root.foreground)
+               : shortcutRow.modelData.conflict ? root.urgent
+               : shortcutRow.modelData.display ? root.foreground : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           anchors.right: editShortcut.left

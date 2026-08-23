@@ -22,19 +22,56 @@ pub struct Action {
     pub default_keys: &'static str,
 }
 
+/// An empty default leaves the action unbound: it is offered in the panel but
+/// claims no combination until the user gives it one.
 pub const ACTIONS: &[Action] = &[
     Action { id: "lights.toggle", view: "lights", label: "Toggle all lights", command: "elgatoctl click", default_keys: "SUPER + ALT + L" },
-    Action { id: "lights.brighter", view: "lights", label: "Lights brighter", command: "elgatoctl brightness +10", default_keys: "SUPER + ALT + bracketright" },
-    Action { id: "lights.dimmer", view: "lights", label: "Lights dimmer", command: "elgatoctl brightness -10", default_keys: "SUPER + ALT + bracketleft" },
-    Action { id: "lights.warmer", view: "lights", label: "Lights warmer", command: "elgatoctl temperature -300", default_keys: "SUPER + ALT + semicolon" },
-    Action { id: "lights.cooler", view: "lights", label: "Lights cooler", command: "elgatoctl temperature +300", default_keys: "SUPER + ALT + apostrophe" },
-    Action { id: "lights.sync", view: "lights", label: "Match all lights", command: "elgato-panel sync", default_keys: "SUPER + ALT + backslash" },
-    Action { id: "deck.power", view: "deck", label: "Toggle deck display", command: "streamdeck-ctl deck power toggle", default_keys: "SUPER + ALT + D" },
+    Action { id: "lights.brighter", view: "lights", label: "Lights brighter", command: "elgatoctl brightness +10", default_keys: "" },
+    Action { id: "lights.dimmer", view: "lights", label: "Lights dimmer", command: "elgatoctl brightness -10", default_keys: "" },
+    Action { id: "lights.warmer", view: "lights", label: "Lights warmer", command: "elgatoctl temperature -300", default_keys: "" },
+    Action { id: "lights.cooler", view: "lights", label: "Lights cooler", command: "elgatoctl temperature +300", default_keys: "" },
+    Action { id: "lights.sync", view: "lights", label: "Match all lights", command: "elgato-panel sync", default_keys: "" },
+    Action { id: "deck.power", view: "deck", label: "Toggle deck display", command: "streamdeck-ctl deck power toggle", default_keys: "" },
+    Action { id: "deck.reload", view: "deck", label: "Reload the deck", command: "streamdeck-ctl deck reload", default_keys: "" },
     Action { id: "camera.toggle", view: "camera", label: "Toggle camera overlay", command: "camctl toggle", default_keys: "SUPER + ALT + C" },
     Action { id: "camera.pick", view: "camera", label: "Place the camera", command: "camctl pick", default_keys: "SUPER + ALT + P" },
     Action { id: "record.region", view: "camera", label: "Record an area", command: "elgato-panel record --target region", default_keys: "SUPER + ALT + R" },
     Action { id: "record.stop", view: "camera", label: "Stop recording", command: "elgato-panel record --stop", default_keys: "SUPER + ALT + SHIFT + R" },
 ];
+
+/// Hypr spells punctuation out; a shortcut list should show the key on the cap.
+fn symbol(key: &str) -> &str {
+    match key {
+        "semicolon" => ";",
+        "apostrophe" => "'",
+        "bracketleft" => "[",
+        "bracketright" => "]",
+        "backslash" => "\\",
+        "comma" => ",",
+        "period" => ".",
+        "slash" => "/",
+        "minus" => "-",
+        "equal" => "=",
+        "grave" => "`",
+        "space" => "Space",
+        "Return" => "Enter",
+        "BackSpace" => "Backspace",
+        other => other,
+    }
+}
+
+/// The same combination written for a person to read.
+fn pretty(keys: &str) -> String {
+    if keys.trim().is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = keys
+        .split('+')
+        .map(str::trim)
+        .map(|part| if modmask(part) == 0 { symbol(part).to_owned() } else { part.to_owned() })
+        .collect();
+    parts.join(" + ")
+}
 
 #[derive(Serialize)]
 pub struct Shortcut {
@@ -42,6 +79,8 @@ pub struct Shortcut {
     pub view: String,
     pub label: String,
     pub keys: String,
+    /// The same combination with punctuation shown as the key it is printed on.
+    pub display: String,
     /// Description of the binding that already owns this combination, if any.
     pub conflict: String,
 }
@@ -147,6 +186,7 @@ pub fn status() -> Status {
                 let keys = keys_for(action, &configured);
                 Shortcut {
                     conflict: conflict_for(&keys, &binds),
+                    display: pretty(&keys),
                     id: action.id.to_owned(),
                     view: action.view.to_owned(),
                     label: action.label.to_owned(),
@@ -167,9 +207,13 @@ fn render(configured: &Bindings) -> String {
          -- panel rather than here; this file is rewritten when they change.\n\n",
     );
     for action in ACTIONS {
+        let keys = keys_for(action, configured);
+        if keys.trim().is_empty() {
+            continue;
+        }
         out.push_str(&format!(
             "o.bind({:?}, {:?}, {:?})\n",
-            keys_for(action, configured),
+            keys,
             format!("{MARKER} {}", action.label),
             action.command
         ));

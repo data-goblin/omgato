@@ -9,6 +9,7 @@ pub const HISTORY_MAX: usize = 11; // baseline + 10 undoable changes
 pub const LIGHTS_HISTORY: &str = "history.json";
 pub const DECK_HISTORY: &str = "deck-history.json";
 pub const CAMERA_HISTORY: &str = "camera-history.json";
+pub const SCOPE_HISTORY: &str = "scope-history.json";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snap {

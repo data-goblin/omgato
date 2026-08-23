@@ -1,11 +1,14 @@
+//! Screen recording. The area being recorded is remembered as a "scope", so a
+//! second recording can reuse the last one, and the scopes can be stepped
+//! through like any other history in the panel.
 use crate::sh;
-use crate::state;
+use crate::state::{self, History, SCOPE_HISTORY};
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-const RECORDER: &str = "omarchy-capture-screenrecording";
 const OPTIONS_FILE: &str = "record.json";
 const USER_HZ: u64 = 100; // fixed for /proc regardless of kernel HZ
+const PICKER: &str = "omarchy-capture-region";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Options {
@@ -21,6 +24,9 @@ pub struct Status {
     pub seconds: u64,
     pub options: Options,
     pub directory: String,
+    /// What the next recording will capture, in a form a person can read.
+    pub scope: String,
+    pub history: state::Flags,
 }
 
 pub fn load_options() -> Options {
@@ -39,8 +45,8 @@ fn output_dir() -> String {
         })
 }
 
-/// The omarchy script decides "am I recording" with this exact pattern, so the
-/// panel asks the same question rather than guessing at a process name.
+/// The same question the omarchy script asks, so both agree on what "recording"
+/// means.
 fn recorder_pid() -> Option<u32> {
     sh::run(&["pgrep", "-f", "^gpu-screen-recorder"])
         .lines()
@@ -71,33 +77,170 @@ fn elapsed_seconds(pid: u32) -> u64 {
     (uptime as u64).saturating_sub(started / USER_HZ)
 }
 
+fn scopes() -> History<String> {
+    History::load(SCOPE_HISTORY)
+}
+
+/// "monitor:DP-1" and "region:1920x1080+0+0" as gpu-screen-recorder wants them.
+fn current_scope() -> Option<String> {
+    scopes().current().cloned()
+}
+
+fn readable(scope: &str) -> String {
+    match scope.split_once(':') {
+        Some(("monitor", name)) => format!("screen {name}"),
+        Some(("region", geometry)) => geometry
+            .split_once('+')
+            .map(|(size, at)| format!("area {size} at {}", at.replace('+', ",")))
+            .unwrap_or_else(|| format!("area {geometry}")),
+        _ => scope.to_owned(),
+    }
+}
+
+/// Runs the shared picker and folds what it returns into the scope history.
+fn pick_scope() -> Option<String> {
+    let picked = sh::run(&[PICKER, "smart", "--match-monitor"]);
+    let picked = picked.trim();
+    if picked.is_empty() {
+        return None;
+    }
+    let scope = if let Some(name) = picked.strip_prefix("monitor:") {
+        format!("monitor:{name}")
+    } else {
+        // slurp reports "X,Y WxH"; gpu-screen-recorder wants "WxH+X+Y".
+        let (origin, size) = picked.split_once(char::is_whitespace)?;
+        let (x, y) = origin.split_once(',')?;
+        format!("region:{size}+{x}+{y}")
+    };
+    remember(scope.clone());
+    Some(scope)
+}
+
+fn remember(scope: String) {
+    let mut history = scopes();
+    history.fold(SCOPE_HISTORY, scope);
+}
+
+fn focused_monitor() -> String {
+    let name = sh::run(&["omarchy-hyprland-monitor-focused"]).trim().to_owned();
+    format!("monitor:{name}")
+}
+
 pub fn status() -> Status {
     let pid = recorder_pid();
+    let history = scopes();
     Status {
         active: pid.is_some(),
         seconds: pid.map(elapsed_seconds).unwrap_or(0),
         options: load_options(),
         directory: output_dir(),
+        scope: history.current().map(|s| readable(s)).unwrap_or_default(),
+        history: history.flags(),
     }
 }
 
-/// Starts a recording of a picked region or the focused screen, remembering the
-/// audio choices so the panel comes back with the same switches set.
+/// Steps the remembered scopes without starting anything.
+pub fn travel(step: i64) {
+    let history = scopes();
+    if let Some((pos, _)) = history.seek(step) {
+        history.commit_pos(SCOPE_HISTORY, pos);
+    }
+}
+
+/// `pick` chooses an area, `last` reuses the remembered one, `screen` takes the
+/// focused monitor. Each choice is remembered so the next recording can repeat it.
 pub fn start(target: &str, options: Options) {
     state::write_state(OPTIONS_FILE, &options);
-    let mut cmd = vec![RECORDER.to_owned()];
-    if target == "screen" {
-        cmd.push("--fullscreen".to_owned());
-    }
+    let scope = match target {
+        "screen" => {
+            let scope = focused_monitor();
+            remember(scope.clone());
+            Some(scope)
+        }
+        "last" => current_scope(),
+        _ => pick_scope(),
+    };
+    let Some(scope) = scope.filter(|s| !s.ends_with(':')) else {
+        return;
+    };
+
+    let filename = format!("{}/screenrecording-{}.mp4", output_dir(), timestamp());
+    let mut cmd: Vec<String> = ["gpu-screen-recorder", "-w"].iter().map(|s| s.to_string()).collect();
+    cmd.push(scope.split_once(':').map(|(_, v)| v.to_owned()).unwrap_or(scope));
+    cmd.extend(
+        ["-k", "auto", "-f", "60", "-fm", "cfr", "-fallback-cpu-encoding", "yes", "-o"]
+            .iter()
+            .map(|s| s.to_string()),
+    );
+    cmd.push(filename.clone());
+
+    let mut sources = Vec::new();
     if options.desktop_audio {
-        cmd.push("--with-desktop-audio".to_owned());
+        sources.push("default_output");
     }
     if options.mic {
-        cmd.push("--with-microphone-audio".to_owned());
+        sources.push("default_input");
     }
+    if !sources.is_empty() {
+        cmd.push("-a".to_owned());
+        cmd.push(sources.join("|"));
+        cmd.push("-ac".to_owned());
+        cmd.push("aac".to_owned());
+    }
+    state::write_state("recording.json", &filename);
     sh::spawn_detached(&cmd);
 }
 
+fn timestamp() -> String {
+    sh::run(&["date", "+%Y-%m-%d_%H-%M-%S"]).trim().to_owned()
+}
+
 pub fn stop() {
-    sh::spawn_detached(&[RECORDER.to_owned(), "--stop-recording".to_owned()]);
+    if recorder_pid().is_none() {
+        return;
+    }
+    // SIGINT is what makes gpu-screen-recorder write a playable file.
+    sh::run(&["pkill", "-SIGINT", "-f", "^gpu-screen-recorder"]);
+    for _ in 0..50 {
+        if recorder_pid().is_none() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    if let Some(file) = state::read_state::<String>("recording.json") {
+        finalize(&file);
+    }
+}
+
+/// Trims the warm-up frame and levels the audio, matching what omarchy's own
+/// capture does on the way out.
+fn finalize(file: &str) {
+    if !std::path::Path::new(file).exists() {
+        return;
+    }
+    let has_audio = !sh::run(&[
+        "ffprobe", "-v", "error", "-select_streams", "a",
+        "-show_entries", "stream=codec_type", "-of", "csv=p=0", file,
+    ])
+    .trim()
+    .is_empty();
+
+    let processed = file.replace(".mp4", "-processed.mp4");
+    let mut cmd: Vec<String> = ["ffmpeg", "-y", "-ss", "0.1", "-i", file, "-c:v", "copy"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    if has_audio {
+        cmd.push("-af".to_owned());
+        cmd.push(
+            "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11"
+                .to_owned(),
+        );
+    }
+    cmd.extend(["-loglevel", "quiet"].iter().map(|s| s.to_string()));
+    cmd.push(processed.clone());
+    sh::run_owned(&cmd);
+    if std::path::Path::new(&processed).exists() {
+        let _ = fs::rename(&processed, file);
+    }
 }

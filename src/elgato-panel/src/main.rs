@@ -58,6 +58,10 @@ enum Cmd {
     InstallShortcuts,
     /// Remove the plugin's keyboard shortcuts
     UninstallShortcuts,
+    /// Step back one remembered recording area
+    ScopeUndo,
+    /// Step forward one remembered recording area
+    ScopeRedo,
     /// Rebind one shortcut; an empty value restores its default
     SetShortcut {
         #[arg(long)]
@@ -166,6 +170,8 @@ fn main() {
         Some(Cmd::DeckRedo) => deck::travel(1),
         Some(Cmd::CamUndo) => camera::travel(-1),
         Some(Cmd::CamRedo) => camera::travel(1),
+        Some(Cmd::ScopeUndo) => record::travel(-1),
+        Some(Cmd::ScopeRedo) => record::travel(1),
         Some(Cmd::InstallShortcuts) => report(shortcuts::install()),
         Some(Cmd::UninstallShortcuts) => report(shortcuts::uninstall()),
         Some(Cmd::SetShortcut { id, keys }) => report(shortcuts::set(&id, &keys)),
