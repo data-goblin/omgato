@@ -7,6 +7,19 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
+with_preset=1
+with_skill=1
+
+for arg in "$@"; do
+    case "$arg" in
+        --no-preset) with_preset=0 ;;
+        --no-skill) with_skill=0 ;;
+        -h|--help)
+            echo "Usage: scripts/install [--no-preset] [--no-skill]"
+            exit 0
+            ;;
+    esac
+done
 
 cargo build --release --manifest-path "$repo/Cargo.toml"
 
@@ -33,6 +46,17 @@ case ":$PATH:" in
     *":$bin_dir:"*) ;;
     *) echo "note: $bin_dir is not on PATH" ;;
 esac
+
+if [ "$with_preset" = 1 ] && ! "$bin_dir/streamdeck-ctl" deck pages 2>/dev/null | grep -q .; then
+    echo
+    echo "No Stream Deck pages configured; applying the omarchy starter layout."
+    "$bin_dir/streamdeck-ctl" deck preset omarchy || true
+fi
+
+if [ "$with_skill" = 1 ]; then
+    echo
+    "$repo/scripts/install-skill"
+fi
 
 echo
 echo "Enable the daemons with: streamdeck-ctl enable"

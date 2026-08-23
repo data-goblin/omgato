@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Link the plugin's agent skill into the user-level agent directories.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+name="omarchy-elgato"
+source_dir="$repo/src/skill/$name"
+home_dir="${HOME:?HOME is required}"
+remove=0
+
+[ "${1:-}" = "--remove" ] && remove=1
+
+targets=(
+    "$home_dir/.agents/skills/$name"
+    "$home_dir/.claude/skills/$name"
+    "$home_dir/.codex/skills/$name"
+    "$home_dir/.pi/agent/skills/$name"
+    "$home_dir/.gemini/config/skills/$name"
+)
+
+for target in "${targets[@]}"; do
+    parent="$(dirname "$target")"
+    if [ "$remove" = 1 ]; then
+        [ -L "$target" ] && rm -f "$target" && echo "  removed  $target"
+        continue
+    fi
+    [ -d "$parent" ] || continue
+    ln -sfn "$source_dir" "$target"
+    echo "  linked   $target"
+done

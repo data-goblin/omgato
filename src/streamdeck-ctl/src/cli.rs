@@ -118,6 +118,14 @@ pub enum DeckCmd {
     OrderSet { names: Vec<String> },
     /// Toggle auto-pagination on/off
     AutoPaginate { enabled: bool },
+    /// Apply a bundled starter layout; existing pages of the same name are replaced
+    Preset {
+        #[arg(default_value = "omarchy")]
+        name: String,
+        /// Replace the whole page set rather than merging
+        #[arg(long)]
+        replace: bool,
+    },
     /// Render every key to PNG files at <out>/<page>/<index>.png
     Export {
         #[arg(long)]

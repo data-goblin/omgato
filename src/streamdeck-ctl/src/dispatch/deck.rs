@@ -35,6 +35,7 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Order => show_order(&config::load()?),
         DeckCmd::OrderSet { names } => set_order(names),
         DeckCmd::AutoPaginate { enabled } => set_auto_paginate(enabled),
+        DeckCmd::Preset { name, replace } => apply_preset(&name, replace),
         DeckCmd::Export { out, page, size, keys, radius } => {
             crate::export::run(&config::load()?, &out, page, size, keys, radius)
         }
@@ -291,6 +292,36 @@ fn validate_page_name(name: &str) -> Result<()> {
     if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
         anyhow::bail!("page name cannot contain a path separator: {name}");
     }
+    Ok(())
+}
+
+const PRESETS: &[(&str, &str)] = &[("omarchy", include_str!("../../preset/omarchy.toml"))];
+
+fn apply_preset(name: &str, replace: bool) -> Result<()> {
+    let Some((_, body)) = PRESETS.iter().find(|(id, _)| *id == name) else {
+        anyhow::bail!(
+            "unknown preset: {name} (have {})",
+            PRESETS.iter().map(|(id, _)| *id).collect::<Vec<_>>().join(", ")
+        );
+    };
+    let preset: Config = toml::from_str(body)?;
+    let mut cfg = config::load()?;
+    if replace {
+        cfg.deck.pages.clear();
+        cfg.deck.page_order.clear();
+    }
+    for (page, buttons) in preset.deck.pages {
+        cfg.deck.pages.insert(page.clone(), buttons);
+        if !cfg.deck.page_order.contains(&page) {
+            cfg.deck.page_order.push(page);
+        }
+    }
+    if cfg.deck.pages.contains_key("main") {
+        cfg.deck.default_page = "main".into();
+    }
+    config::save(&cfg)?;
+    let _ = service::reload(waybar::DECK_SERVICE);
+    println!("applied preset '{name}' ({} pages)", cfg.deck.pages.len());
     Ok(())
 }
 

@@ -1,0 +1,256 @@
+# Suggested Stream Deck pages for Omarchy, mirroring its own bindings.
+# Applied by: streamdeck-ctl deck preset omarchy
+
+page_order = ["main", "windows", "media", "elgato"]
+
+[[deck.pages.main.buttons]]
+index = 0
+label = "Terminal"
+glyph = ""
+action = "exec:omarchy-launch-terminal"
+
+[[deck.pages.main.buttons]]
+index = 1
+label = "Browser"
+glyph = "󰂬"
+action = "exec:omarchy-launch-browser"
+
+[[deck.pages.main.buttons]]
+index = 2
+label = "Files"
+glyph = "󰁰"
+action = "exec:nautilus"
+
+[[deck.pages.main.buttons]]
+index = 3
+label = "Editor"
+glyph = ""
+action = "exec:omarchy-launch-editor"
+
+[[deck.pages.main.buttons]]
+index = 4
+label = "Menu"
+glyph = "󰅊"
+action = "exec:omarchy-menu toggle"
+
+[[deck.pages.main.buttons]]
+index = 5
+label = "Capture"
+glyph = "󰑏"
+action = "exec:omarchy-menu toggle capture"
+
+[[deck.pages.main.buttons]]
+index = 6
+label = "Emoji"
+glyph = "󰘡"
+action = "exec:omarchy-shell shell toggle omarchy.emojis"
+
+[[deck.pages.main.buttons]]
+index = 7
+label = "Clipboard"
+glyph = "󰀍"
+action = "exec:omarchy-shell shell toggle omarchy.clipboard"
+
+[[deck.pages.main.buttons]]
+index = 8
+label = "Keys"
+glyph = "󰌌"
+action = "exec:omarchy-menu-keybindings"
+
+[[deck.pages.main.buttons]]
+index = 9
+label = "Calc"
+glyph = "󱂚"
+action = "exec:omacalc"
+
+[[deck.pages.main.buttons]]
+index = 11
+label = "Theme"
+glyph = "󰽀"
+action = "exec:omarchy-menu toggle theme"
+
+[[deck.pages.main.buttons]]
+index = 12
+label = "Lock"
+glyph = "󰃼"
+action = "exec:omarchy-lock-screen"
+
+[[deck.pages.main.buttons]]
+index = 13
+label = "Power"
+glyph = "󰅂"
+action = "exec:omarchy-menu toggle system"
+
+[[deck.pages.windows.buttons]]
+index = 0
+label = "Close"
+glyph = "󰒛"
+action = "exec:hyprctl dispatch hl.dsp.window.close({})"
+
+[[deck.pages.windows.buttons]]
+index = 1
+label = "Full"
+glyph = "󰆓"
+action = "exec:hyprctl dispatch hl.dsp.window.fullscreen({ mode = "fullscreen" })"
+
+[[deck.pages.windows.buttons]]
+index = 2
+label = "Float"
+glyph = "󱒶"
+action = "exec:hyprctl dispatch hl.dsp.window.float({ action = "toggle" })"
+
+[[deck.pages.windows.buttons]]
+index = 3
+label = "Gaps"
+glyph = "󰎟"
+action = "exec:omarchy-hyprland-window-gaps-toggle"
+
+[[deck.pages.windows.buttons]]
+index = 4
+label = "Clear"
+glyph = "󰅙"
+action = "exec:omarchy-hyprland-window-transparency-toggle"
+
+[[deck.pages.windows.buttons]]
+index = 5
+label = "1"
+glyph = "󰶍"
+action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "1" })"
+
+[[deck.pages.windows.buttons]]
+index = 6
+label = "2"
+glyph = "󰶐"
+action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "2" })"
+
+[[deck.pages.windows.buttons]]
+index = 7
+label = "3"
+glyph = "󰶓"
+action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "3" })"
+
+[[deck.pages.windows.buttons]]
+index = 8
+label = "4"
+glyph = "󰶖"
+action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "4" })"
+
+[[deck.pages.windows.buttons]]
+index = 9
+label = "5"
+glyph = "󰶙"
+action = "exec:hyprctl dispatch hl.dsp.workspace.move({ workspace = "5" })"
+
+[[deck.pages.media.buttons]]
+index = 0
+label = "Prev"
+glyph = "󰒮"
+action = "exec:omarchy-shell media previous"
+
+[[deck.pages.media.buttons]]
+index = 1
+label = "Play"
+glyph = "󰐍"
+action = "exec:omarchy-shell media playPause"
+
+[[deck.pages.media.buttons]]
+index = 2
+label = "Next"
+glyph = "󰒭"
+action = "exec:omarchy-shell media next"
+
+[[deck.pages.media.buttons]]
+index = 3
+label = "Vol -"
+glyph = "󰖀"
+action = "exec:omarchy-audio-output-volume lower"
+
+[[deck.pages.media.buttons]]
+index = 4
+label = "Vol +"
+glyph = "󰕾"
+action = "exec:omarchy-audio-output-volume raise"
+
+[[deck.pages.media.buttons]]
+index = 5
+label = "Mute"
+glyph = "󰖁"
+action = "exec:omarchy-audio-output-volume mute-toggle"
+
+[[deck.pages.media.buttons]]
+index = 6
+label = "Mic"
+glyph = "󰍭"
+action = "exec:omarchy-audio-input-mute"
+
+[[deck.pages.media.buttons]]
+index = 7
+label = "Dim"
+glyph = "󰃝"
+action = "exec:omarchy-brightness-display 5%-"
+
+[[deck.pages.media.buttons]]
+index = 8
+label = "Bright"
+glyph = "󰃞"
+action = "exec:omarchy-brightness-display +5%"
+
+[[deck.pages.elgato.buttons]]
+index = 0
+label = "Lights"
+glyph = "󰌵"
+action = "exec:elgatoctl click"
+
+[[deck.pages.elgato.buttons]]
+index = 1
+label = "Dim"
+glyph = "󰃝"
+action = "exec:elgatoctl brightness -10"
+
+[[deck.pages.elgato.buttons]]
+index = 2
+label = "Bright"
+glyph = "󰃞"
+action = "exec:elgatoctl brightness +10"
+
+[[deck.pages.elgato.buttons]]
+index = 3
+label = "Warm"
+glyph = "󰌵"
+action = "exec:elgatoctl temperature -300"
+
+[[deck.pages.elgato.buttons]]
+index = 4
+label = "Cool"
+glyph = "󰌵"
+action = "exec:elgatoctl temperature +300"
+
+[[deck.pages.elgato.buttons]]
+index = 5
+label = "Camera"
+glyph = "󰄀"
+action = "exec:camctl toggle"
+
+[[deck.pages.elgato.buttons]]
+index = 6
+label = "Place"
+glyph = "󰪦"
+action = "exec:camctl pick"
+
+[[deck.pages.elgato.buttons]]
+index = 7
+label = "Record"
+glyph = "󰑊"
+action = "exec:elgato-panel record --target last"
+
+[[deck.pages.elgato.buttons]]
+index = 8
+label = "Stop"
+glyph = "󰓛"
+action = "exec:elgato-panel record --stop"
+
+[[deck.pages.elgato.buttons]]
+index = 9
+label = "Deck"
+glyph = "󰐥"
+action = "exec:streamdeck-ctl deck power toggle"
