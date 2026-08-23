@@ -6,8 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.1.0] - 2026-08-23
 
-First release. Pre-1.0: the command line surfaces may still change. Brings four previously separate tools together as one Omarchy
+First release. Brings four previously separate tools together as one Omarchy
 Quattro plugin.
+
+While the version stays below 1.0 the command line surfaces and the
+configuration format may still change between minor versions. Device support
+beyond the hardware listed in the README is untested; reports and pull requests
+for other models are welcome.
 
 ### Added
 
@@ -32,3 +37,9 @@ Quattro plugin.
   parse error
 - Discovery replaced the light cache rather than merging, so a light that was
   briefly offline was forgotten
+- A single dropped request marked a Key Light unreachable, which on wifi showed
+  as a light flickering in and out of the panel
+- The starter layout never applied on a first install, because reading the
+  configuration created a default page and made the machine look configured
+- The starter layout ignored its own page order, so pages landed alphabetically
+  and the default page could name a page that did not exist
