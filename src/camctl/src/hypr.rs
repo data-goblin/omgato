@@ -78,10 +78,27 @@ pub fn monitor_for_address(addr: &str) -> Result<Option<Monitor>, String> {
 }
 
 
+// Hyprland 0.56 replaced the flat dispatcher strings with a Lua API, and the
+// old "movewindowpixel exact ..." form now fails to parse, silently leaving the
+// overlay wherever it was mapped.
 pub fn move_window_pixel(addr: &str, x: i32, y: i32) -> Result<(), String> {
-    dispatch(&format!("/dispatch movewindowpixel exact {x} {y},address:{addr}")).map(|_| ())
+    dispatch(&format!(
+        "/dispatch hl.dsp.window.move({{ x = {x}, y = {y}, exact = true, window = \"address:{addr}\" }})"
+    ))
+    .map(|_| ())
 }
 
 pub fn resize_window_pixel(addr: &str, w: i32, h: i32) -> Result<(), String> {
-    dispatch(&format!("/dispatch resizewindowpixel exact {w} {h},address:{addr}")).map(|_| ())
+    dispatch(&format!(
+        "/dispatch hl.dsp.window.resize({{ x = {w}, y = {h}, exact = true, window = \"address:{addr}\" }})"
+    ))
+    .map(|_| ())
+}
+
+/// Keeps the overlay visible across workspace switches.
+pub fn pin_window(addr: &str) -> Result<(), String> {
+    dispatch(&format!(
+        "/dispatch hl.dsp.window.pin({{ window = \"address:{addr}\" }})"
+    ))
+    .map(|_| ())
 }

@@ -240,6 +240,9 @@ fn place_now(cfg: &Config) -> i32 {
     let p = placement(cfg, &mon, &pos, full, obs_region);
     let _ = hypr::resize_window_pixel(&win.address, p.w, p.h);
     let _ = hypr::move_window_pixel(&win.address, p.x, p.y);
+    // Quattro dropped the window rules that used to pin the overlay, so it is
+    // pinned here instead and stays put across workspace switches.
+    let _ = hypr::pin_window(&win.address);
     0
 }
 
