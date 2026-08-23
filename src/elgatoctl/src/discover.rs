@@ -39,11 +39,10 @@ fn arp_table() -> HashMap<String, String> {
             Some(s) if !s.contains(':') => s.to_string(),
             _ => continue,
         };
-        if let Some(idx) = toks.iter().position(|t| *t == "lladdr") {
-            if let Some(mac) = toks.get(idx + 1) {
+        if let Some(idx) = toks.iter().position(|t| *t == "lladdr")
+            && let Some(mac) = toks.get(idx + 1) {
                 map.insert(mac.to_uppercase(), ip);
             }
-        }
     }
     map
 }
@@ -103,13 +102,11 @@ pub fn run() -> Result<Cache, String> {
         if let Some(ip) = &e.ipv4 {
             candidates.push(ip.clone());
         }
-        if let Some(mac) = &e.mac {
-            if let Some(ip) = arp.get(mac) {
-                if !candidates.contains(ip) {
+        if let Some(mac) = &e.mac
+            && let Some(ip) = arp.get(mac)
+                && !candidates.contains(ip) {
                     candidates.push(ip.clone());
                 }
-            }
-        }
         let mut found: Option<(AccessoryInfo, String)> = None;
         for ip in candidates {
             let url = format!("http://{}:{}/elgato/accessory-info", ip, e.port);

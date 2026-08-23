@@ -38,11 +38,10 @@ fn direct_holder(cfg: &Config) -> Option<String> {
     if let Ok(entries) = fs::read_dir(&by_id) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.contains(&cfg.device_pattern) {
-                if let Ok(t) = fs::canonicalize(e.path()) {
+            if name.contains(&cfg.device_pattern)
+                && let Ok(t) = fs::canonicalize(e.path()) {
                     dev_targets.push(t);
                 }
-            }
         }
     }
     if dev_targets.is_empty() {

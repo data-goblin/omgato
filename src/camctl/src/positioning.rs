@@ -31,11 +31,10 @@ pub fn placement(
         usable_from_monitor(mon)
     };
 
-    if let Some(rect) = parse_rect(position) {
-        if !fullscreen {
+    if let Some(rect) = parse_rect(position)
+        && !fullscreen {
             return rect;
         }
-    }
 
     if fullscreen {
         return Placement {

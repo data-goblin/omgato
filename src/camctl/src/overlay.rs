@@ -19,7 +19,7 @@ pub fn find_device(pattern: &str) -> Option<PathBuf> {
 }
 
 pub fn is_running() -> bool {
-    read_pid().map_or(false, pid_alive)
+    read_pid().is_some_and(pid_alive)
 }
 
 pub fn read_pid() -> Option<u32> {
@@ -140,8 +140,8 @@ pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
             state::remove(&state::pid_file());
             return WaitResult::Died;
         }
-        if let Ok(Some(c)) = hypr::find_window(title) {
-            if c.mapped {
+        if let Ok(Some(c)) = hypr::find_window(title)
+            && c.mapped {
                 // mpv with --force-window=immediate can briefly map a window
                 // before libavformat bails on an unrecognized stream. Confirm
                 // the process is still alive after a short settle to avoid
@@ -153,7 +153,6 @@ pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
                 state::remove(&state::pid_file());
                 return WaitResult::Died;
             }
-        }
         std::thread::sleep(Duration::from_millis(80));
     }
     WaitResult::Timeout

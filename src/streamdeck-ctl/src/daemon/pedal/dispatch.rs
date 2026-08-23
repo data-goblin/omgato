@@ -6,11 +6,10 @@ pub fn fire(action: &Action, synth: &mut Option<Synth>) {
     match action {
         Action::Noop => {}
         Action::Key(k) => {
-            if let Some(s) = synth.as_mut() {
-                if let Err(e) = s.tap(*k) {
+            if let Some(s) = synth.as_mut()
+                && let Err(e) = s.tap(*k) {
                     eprintln!("streamdeck-ctl: pedal key emit failed: {e}");
                 }
-            }
         }
         Action::Exec(cmd) => {
             let _ = Command::new("sh")

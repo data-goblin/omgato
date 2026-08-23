@@ -69,7 +69,7 @@ fn build_row(idx: usize, app: &App) -> Row<'static> {
     };
     // dim the position label except on the first gesture row of each pedal,
     // so the table reads like a grouped list
-    let is_first_of_pedal = idx % 3 == 0;
+    let is_first_of_pedal = idx.is_multiple_of(3);
     let pos_label = if is_first_of_pedal {
         pos.label().to_string()
     } else {

@@ -1,5 +1,4 @@
 use super::persist;
-use crate::config::Page;
 use crate::tui::deck::Mode;
 use crate::tui::state::App;
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -26,7 +25,7 @@ fn commit_add(app: &mut App) {
         app.flash("empty name", Color::Yellow);
         return;
     }
-    app.cfg.deck.pages.entry(name.clone()).or_insert_with(Page::default);
+    app.cfg.deck.pages.entry(name.clone()).or_default();
     if persist::save_and_restart(app, &format!("added page '{}'", name)) {
         app.deck.current_page = name;
         app.deck.mode = Mode::Normal;
@@ -43,11 +42,10 @@ pub fn remove(app: &mut App, code: KeyCode) {
 fn commit_remove(app: &mut App) {
     let name = app.deck.current_page.clone();
     app.cfg.deck.pages.remove(&name);
-    if app.cfg.deck.default_page == name {
-        if let Some(first) = app.cfg.deck.pages.keys().next().cloned() {
+    if app.cfg.deck.default_page == name
+        && let Some(first) = app.cfg.deck.pages.keys().next().cloned() {
             app.cfg.deck.default_page = first;
         }
-    }
     if persist::save_and_restart(app, &format!("removed page '{}'", name)) {
         app.deck.mode = Mode::Normal;
     }

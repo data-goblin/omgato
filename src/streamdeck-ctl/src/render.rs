@@ -64,7 +64,7 @@ impl Renderer {
         };
         let s = self.size;
         let target = (s as f32 * 0.55) as u32;
-        let x_off = ((s - target) / 2) as u32;
+        let x_off = (s - target) / 2 ;
         // Pull up so the icon sits in the upper-third like glyphs do, leaving
         // clearer space for the label band at the bottom.
         let y_off = (s as f32 * 0.10) as u32;
@@ -127,11 +127,10 @@ impl Renderer {
             if self.line_width(scale, label) <= budget {
                 break vec![(scale, label.to_string())];
             }
-            if let Some((head, tail)) = split_label(label) {
-                if self.line_width(scale, &head).max(self.line_width(scale, &tail)) <= budget {
+            if let Some((head, tail)) = split_label(label)
+                && self.line_width(scale, &head).max(self.line_width(scale, &tail)) <= budget {
                     break vec![(scale, head), (scale, tail)];
                 }
-            }
             steps += 1;
             if s * (LABEL_SCALE_MAX - steps as f32 * LABEL_SCALE_STEP) < s * LABEL_SCALE_MIN {
                 let scale = PxScale::from(s * LABEL_SCALE_MIN);

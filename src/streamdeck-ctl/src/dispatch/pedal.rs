@@ -20,7 +20,7 @@ fn show() -> Result<()> {
     let cfg = config::load()?;
     println!("long_ms={}  double_ms={}", cfg.pedal.long_ms, cfg.pedal.double_ms);
     println!();
-    println!("{:<7}  {:<7}  {}", "pedal", "gesture", "action");
+    println!("{:<7}  {:<7}  action", "pedal", "gesture");
     for pos in PedalPos::ALL {
         for g in Gesture::ALL {
             println!(

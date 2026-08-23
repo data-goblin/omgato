@@ -28,10 +28,7 @@ pub fn dispatch_j(cmd: &str) -> Result<String, String> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Client {
     pub address: String,
-    pub class: String,
     pub title: String,
-    pub at: [i32; 2],
-    pub size: [i32; 2],
     #[serde(default)]
     pub mapped: bool,
     pub monitor: i32,
@@ -80,9 +77,6 @@ pub fn monitor_for_address(addr: &str) -> Result<Option<Monitor>, String> {
     Ok(monitors()?.into_iter().find(|m| m.id == c.monitor))
 }
 
-pub fn dispatch_keyword(keyword: &str, args: &str) -> Result<(), String> {
-    dispatch(&format!("/keyword {keyword} {args}")).map(|_| ())
-}
 
 pub fn move_window_pixel(addr: &str, x: i32, y: i32) -> Result<(), String> {
     dispatch(&format!("/dispatch movewindowpixel exact {x} {y},address:{addr}")).map(|_| ())

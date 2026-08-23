@@ -6,8 +6,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "kurt.elgato"
-  ipcTarget: "kurt.elgato"
+  moduleName: "io.github.data-goblin.omarchy-elgato"
+  ipcTarget: "io.github.data-goblin.omarchy-elgato"
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent

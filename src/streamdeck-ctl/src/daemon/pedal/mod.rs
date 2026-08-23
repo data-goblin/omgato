@@ -152,11 +152,11 @@ fn run_ticks(
     synth: &mut Option<crate::synth::Synth>,
 ) {
     let now = Instant::now();
-    for i in 0..3 {
+    for (i, state) in states.iter_mut().enumerate() {
         let Some(pos) = PedalPos::from_index(i) else {
             continue;
         };
-        if let Some(g) = detector.tick(&mut states[i], now) {
+        if let Some(g) = detector.tick(state, now) {
             fire(pos, g, actions, emit_keys, synth);
         }
     }

@@ -16,11 +16,10 @@ pub fn find_usb_path() -> Option<PathBuf> {
         let p = e.path();
         let v = fs::read_to_string(p.join("idVendor")).ok();
         let pr = fs::read_to_string(p.join("idProduct")).ok();
-        if let (Some(v), Some(pr)) = (v, pr) {
-            if v.trim() == VENDOR && pr.trim() == PRODUCT {
+        if let (Some(v), Some(pr)) = (v, pr)
+            && v.trim() == VENDOR && pr.trim() == PRODUCT {
                 return Some(p);
             }
-        }
     }
     None
 }

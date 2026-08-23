@@ -1,4 +1,4 @@
-use crate::config::{Button, Page};
+use crate::config::Button;
 use crate::tui::state::App;
 
 pub fn ensure_button<'a>(app: &'a mut App, page_name: &str, idx: u8) -> &'a mut Button {
@@ -7,7 +7,7 @@ pub fn ensure_button<'a>(app: &'a mut App, page_name: &str, idx: u8) -> &'a mut 
         .deck
         .pages
         .entry(page_name.to_string())
-        .or_insert_with(Page::default);
+        .or_default();
     let pos = entry.buttons.iter().position(|b| b.index == idx);
     match pos {
         Some(p) => &mut entry.buttons[p],

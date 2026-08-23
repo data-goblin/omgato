@@ -45,13 +45,12 @@ pub fn run(cfg: &Config) -> Result<()> {
     let brightness_flag = reload::install_brightness()?;
     let mut reader = deck.deck.get_reader();
     loop {
-        if reload::take(&brightness_flag) {
-            if let Ok(fresh) = config::load() {
+        if reload::take(&brightness_flag)
+            && let Ok(fresh) = config::load() {
                 cfg.deck.brightness = fresh.deck.brightness;
                 cfg.deck.display_off = fresh.deck.display_off;
                 let _ = deck.deck.set_brightness(cfg.deck.active_brightness());
             }
-        }
         if reload::take(&reload_flag) {
             apply_reload(
                 &deck,
@@ -160,11 +159,10 @@ fn apply_reload(
     if !new_pages.contains_key(current) {
         history.clear();
         *current = new_cfg.deck.default_page.clone();
-        if !new_pages.contains_key(current) {
-            if let Some(first) = new_pages.keys().next() {
+        if !new_pages.contains_key(current)
+            && let Some(first) = new_pages.keys().next() {
                 *current = first.clone();
             }
-        }
     }
     // Rebuild the renderer if any rendering input changed (fonts, default colors).
     if renderer_inputs_changed(&cfg.deck, &new_cfg.deck) {
@@ -200,11 +198,10 @@ fn resolve_action(
     idx: u8,
     parsed_pages: &HashMap<String, parsed::ParsedPage>,
 ) -> Option<Action> {
-    if let Some(page) = parsed_pages.get(page_name) {
-        if let Some(b) = page.buttons.iter().find(|b| b.btn.index == idx) {
+    if let Some(page) = parsed_pages.get(page_name)
+        && let Some(b) = page.buttons.iter().find(|b| b.btn.index == idx) {
             return Some(b.action.clone());
         }
-    }
     let synth_btn = deck_cfg.synthetic_button(page_name, idx)?;
     action::parse(&synth_btn.action).ok()
 }

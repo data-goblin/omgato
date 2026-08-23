@@ -74,7 +74,7 @@ pub fn scene_path(override_path: Option<&str>) -> Option<PathBuf> {
         let p = e.path();
         if p.extension().and_then(|s| s.to_str()) != Some("json") { continue; }
         let mt = e.metadata().ok()?.modified().ok()?;
-        if best.as_ref().map_or(true, |(_, t)| mt > *t) {
+        if best.as_ref().is_none_or(|(_, t)| mt > *t) {
             best = Some((p, mt));
         }
     }
@@ -82,11 +82,10 @@ pub fn scene_path(override_path: Option<&str>) -> Option<PathBuf> {
 }
 
 fn expand(s: &str) -> PathBuf {
-    if let Some(rest) = s.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
+    if let Some(rest) = s.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir() {
             return home.join(rest);
         }
-    }
     PathBuf::from(s)
 }
 

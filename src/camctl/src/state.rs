@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn run_dir() -> PathBuf {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
@@ -44,6 +44,6 @@ pub fn remove(path: &PathBuf) {
     let _ = fs::remove_file(path);
 }
 
-pub fn exists(path: &PathBuf) -> bool {
+pub fn exists(path: &Path) -> bool {
     path.exists()
 }
