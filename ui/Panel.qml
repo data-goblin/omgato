@@ -740,14 +740,14 @@ Panel {
         }
       }
 
-      ShortcutList {}
-
       PanelButton {
         width: parent.width
         text: "Rediscover lights"
         bordered: true
         onClicked: root.act(["elgatoctl", "discover"])
       }
+
+      ShortcutList {}
     }
   }
 
@@ -1044,8 +1044,6 @@ Panel {
         }
       }
 
-      ShortcutList {}
-
       PanelButton {
         width: parent.width
         text: root.page && root.page.name === root.deck.default_page ? "Default page" : "Make default"
@@ -1053,6 +1051,8 @@ Panel {
         active: root.page && root.page.name === root.deck.default_page
         onClicked: if (root.page) root.act(["streamdeck-ctl", "deck", "default", root.page.name])
       }
+
+      ShortcutList {}
     }
   }
 
