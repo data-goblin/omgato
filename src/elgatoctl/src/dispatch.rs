@@ -81,16 +81,8 @@ pub fn run(cmd: Cmd, out: Out) -> i32 {
             &out,
         ),
         Cmd::Toggle { target } => cmd_toggle(&target, &out),
-        Cmd::Brightness { value, target } => apply_each(
-            &target,
-            LightPatch { brightness: Some(value.min(100)), ..Default::default() },
-            &out,
-        ),
-        Cmd::Temperature { kelvin, target } => apply_each(
-            &target,
-            LightPatch { temperature: Some(light::kelvin_to_mired(kelvin)), ..Default::default() },
-            &out,
-        ),
+        Cmd::Brightness { value, target } => cmd_brightness(&value, &target, &out),
+        Cmd::Temperature { kelvin, target } => cmd_temperature(&kelvin, &target, &out),
         Cmd::Set { on, off, brightness, temp, target } => {
             let patch = LightPatch {
                 on: if on {
@@ -196,6 +188,76 @@ fn cmd_discover(prune: bool) -> i32 {
         eprintln!("scan found nothing; kept {} cached light(s)", kept.len());
     }
     0
+}
+
+/// Parses an absolute value, or an offset written as +N or -N.
+fn offset_or_absolute(value: &str) -> Option<(bool, i32)> {
+    let trimmed = value.trim();
+    let relative = trimmed.starts_with('+') || trimmed.starts_with('-');
+    trimmed.parse::<i32>().ok().map(|n| (relative, n))
+}
+
+/// Applies a level per light, so an offset moves each from where it actually is
+/// rather than forcing them all to one value.
+fn apply_levels(target: &str, out: &Out, level: impl Fn(&LightState) -> LightPatch + Sync) -> i32 {
+    let lights = match select_or_die(target) {
+        Ok(v) => v,
+        Err(c) => {
+            if out.json {
+                println!("[]");
+            }
+            return c;
+        }
+    };
+    let states = light::each(&lights, |l| {
+        let current = light::get_state(l)?;
+        light::apply(l, &level(&current))
+    });
+    let failed = states.iter().filter(|r| r.is_err()).count();
+    out.emit(&lights, &states);
+    if failed == lights.len() { 1 } else { 0 }
+}
+
+fn cmd_brightness(value: &str, target: &str, out: &Out) -> i32 {
+    let Some((relative, amount)) = offset_or_absolute(value) else {
+        eprintln!("brightness: expected 0-100 or an offset like +10");
+        return 2;
+    };
+    if !relative {
+        return apply_each(
+            target,
+            LightPatch { brightness: Some(amount.clamp(0, 100) as u8), ..Default::default() },
+            out,
+        );
+    }
+    apply_levels(target, out, move |state| LightPatch {
+        brightness: Some((state.brightness as i32 + amount).clamp(0, 100) as u8),
+        ..Default::default()
+    })
+}
+
+fn cmd_temperature(value: &str, target: &str, out: &Out) -> i32 {
+    let Some((relative, amount)) = offset_or_absolute(value) else {
+        eprintln!("temperature: expected kelvin or an offset like +250");
+        return 2;
+    };
+    if !relative {
+        return apply_each(
+            target,
+            LightPatch {
+                temperature: Some(light::kelvin_to_mired(amount.max(0) as u32)),
+                ..Default::default()
+            },
+            out,
+        );
+    }
+    apply_levels(target, out, move |state| {
+        let kelvin = light::mired_to_kelvin(state.temperature) as i32 + amount;
+        LightPatch {
+            temperature: Some(light::kelvin_to_mired(kelvin.clamp(2900, 7000) as u32)),
+            ..Default::default()
+        }
+    })
 }
 
 fn cmd_ls(out: &Out) -> i32 {

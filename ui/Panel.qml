@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -42,6 +43,8 @@ Panel {
   readonly property int deckBrightness: deckBrightnessLocal >= 0 ? deckBrightnessLocal : deck.brightness
   property double statusStartedAt: 0
   property string lastError: ""
+  property var shortcuts: ({ installed: false, shortcuts: [] })
+  property string capturingShortcut: ""
   property int dragFrom: -1
   property int dragTo: -1
 
@@ -230,6 +233,48 @@ Panel {
     selectionAnchor = index
   }
 
+  readonly property var viewShortcuts: (shortcuts.shortcuts || []).filter(function(s) { return s.view === root.view })
+
+  // Turns a key event into the form hypr and the backend both use.
+  function comboFromEvent(event) {
+    if (event.key === Qt.Key_Escape) return ""
+    var parts = []
+    if (event.modifiers & Qt.MetaModifier) parts.push("SUPER")
+    if (event.modifiers & Qt.ControlModifier) parts.push("CTRL")
+    if (event.modifiers & Qt.AltModifier) parts.push("ALT")
+    if (event.modifiers & Qt.ShiftModifier) parts.push("SHIFT")
+    var name = keyName(event)
+    if (!name) return ""
+    parts.push(name)
+    return parts.join(" + ")
+  }
+
+  function keyName(event) {
+    var named = {}
+    named[Qt.Key_Space] = "space"; named[Qt.Key_Return] = "Return"; named[Qt.Key_Enter] = "Return"
+    named[Qt.Key_Tab] = "Tab"; named[Qt.Key_Backspace] = "BackSpace"; named[Qt.Key_Delete] = "Delete"
+    named[Qt.Key_Left] = "Left"; named[Qt.Key_Right] = "Right"; named[Qt.Key_Up] = "Up"; named[Qt.Key_Down] = "Down"
+    named[Qt.Key_BracketLeft] = "bracketleft"; named[Qt.Key_BracketRight] = "bracketright"
+    named[Qt.Key_Semicolon] = "semicolon"; named[Qt.Key_Apostrophe] = "apostrophe"
+    named[Qt.Key_Backslash] = "backslash"; named[Qt.Key_Comma] = "comma"; named[Qt.Key_Period] = "period"
+    named[Qt.Key_Slash] = "slash"; named[Qt.Key_Minus] = "minus"; named[Qt.Key_Equal] = "equal"
+    if (named[event.key]) return named[event.key]
+    if (event.key >= Qt.Key_F1 && event.key <= Qt.Key_F12) return "F" + (event.key - Qt.Key_F1 + 1)
+    if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z) return String.fromCharCode(event.key)
+    if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) return String.fromCharCode(event.key)
+    return ""
+  }
+
+  function captureShortcut(event) {
+    if (capturingShortcut === "") return false
+    if (event.key === Qt.Key_Shift || event.key === Qt.Key_Control
+        || event.key === Qt.Key_Alt || event.key === Qt.Key_Meta) return true
+    var combo = comboFromEvent(event)
+    if (combo !== "") act(["elgato-panel", "set-shortcut", "--id", capturingShortcut, "--keys", combo])
+    capturingShortcut = ""
+    return true
+  }
+
   function selectionContains(index) {
     return selection.indexOf(index) >= 0
   }
@@ -301,6 +346,7 @@ Panel {
             }
           }
           if (data.camera) root.camera = data.camera
+          if (data.shortcuts) root.shortcuts = data.shortcuts
           if (data.record) {
             root.record = data.record
             root.recSeconds = data.record.seconds
@@ -401,7 +447,8 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      onCloseRequested: root.close()
+      Keys.onPressed: function(event) { if (root.captureShortcut(event)) event.accepted = true }
+      onCloseRequested: if (root.capturingShortcut !== "") root.capturingShortcut = ""; else root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
       Column {
@@ -713,6 +760,8 @@ Panel {
         }
       }
 
+      ShortcutList {}
+
       Button {
         width: parent.width
         text: "Rediscover lights"
@@ -998,6 +1047,8 @@ Panel {
           onClicked: root.act(["streamdeck-ctl", "deck", "power", root.deck.display_off ? "on" : "off"])
         }
       }
+
+      ShortcutList {}
 
       Button {
         width: parent.width
@@ -1312,6 +1363,106 @@ Panel {
       }
 
       InfoPair { label: "Cam Link 4K"; value: String(root.camera.tooltip || root.camera.state || "unknown") }
+
+      ShortcutList {}
+    }
+  }
+
+  // Shortcuts belonging to the selected view: what they run, what they are
+  // bound to, and whether something else already owns that combination.
+  component ShortcutList: Column {
+    width: parent ? parent.width : 0
+    spacing: Style.space(4)
+    visible: root.viewShortcuts.length > 0
+
+    PanelSeparator { foreground: root.foreground }
+
+    Item {
+      width: parent.width
+      implicitHeight: Style.spacing.controlHeight
+      Text {
+        text: "SHORTCUTS"
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+      }
+      Button {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: root.shortcuts.installed ? "󰄬" : "󰐕"
+        text: root.shortcuts.installed ? "Installed" : "Install"
+        fontSize: Style.font.caption
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        active: root.shortcuts.installed
+        tooltipText: root.shortcuts.installed
+          ? "Remove the plugin's shortcuts from your hypr config"
+          : "Write the plugin's shortcuts and source them from your hypr config"
+        onClicked: root.act(["elgato-panel", root.shortcuts.installed ? "uninstall-shortcuts" : "install-shortcuts"])
+      }
+    }
+
+    Repeater {
+      model: root.viewShortcuts
+      Item {
+        id: shortcutRow
+        required property var modelData
+        readonly property bool capturing: root.capturingShortcut === modelData.id
+        width: parent.width
+        implicitHeight: Style.spacing.controlHeight
+
+        HoverHandler { id: shortcutHover }
+
+        Text {
+          id: shortcutLabel
+          text: shortcutRow.modelData.label
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: Math.max(0, parent.width - shortcutKeys.width - editShortcut.width - Style.space(16))
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+          id: shortcutKeys
+          text: shortcutRow.capturing ? "press a combination" : shortcutRow.modelData.keys
+          color: shortcutRow.capturing ? root.foreground
+               : (shortcutRow.modelData.conflict ? root.urgent : root.foreground)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          anchors.right: editShortcut.left
+          anchors.rightMargin: Style.space(6)
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        WidgetButton {
+          id: editShortcut
+          bar: root.bar
+          text: "󰏫"
+          fontSize: Style.font.caption
+          foreground: root.dim
+          labelVisible: true
+          horizontalMargin: 2
+          opacity: shortcutHover.hovered || shortcutRow.capturing ? 1 : 0
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          onPressed: root.capturingShortcut = shortcutRow.capturing ? "" : shortcutRow.modelData.id
+          Behavior on opacity { NumberAnimation { duration: 120 } }
+        }
+
+        ToolTip {
+          visible: shortcutHover.hovered && shortcutRow.modelData.conflict !== ""
+          text: "Already used by: " + shortcutRow.modelData.conflict
+          delay: 300
+        }
+      }
     }
   }
 

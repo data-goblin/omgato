@@ -38,15 +38,17 @@ pub enum Cmd {
         #[arg(default_value = "all")]
         target: String,
     },
-    /// Set brightness 0-100
+    /// Set brightness 0-100, or offset it with +N / -N
     Brightness {
-        value: u8,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
         #[arg(default_value = "all")]
         target: String,
     },
-    /// Set color temperature in kelvin (2900-7000)
+    /// Set colour temperature in kelvin (2900-7000), or offset it with +N / -N
     Temperature {
-        kelvin: u32,
+        #[arg(allow_hyphen_values = true)]
+        kelvin: String,
         #[arg(default_value = "all")]
         target: String,
     },

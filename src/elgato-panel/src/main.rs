@@ -9,6 +9,7 @@ mod camera;
 mod deck;
 mod lights;
 mod record;
+mod shortcuts;
 mod sh;
 mod state;
 
@@ -53,6 +54,17 @@ enum Cmd {
     CamUndo,
     /// Step forward one Cam Link overlay placement
     CamRedo,
+    /// Write the plugin's keyboard shortcuts and source them from hypr
+    InstallShortcuts,
+    /// Remove the plugin's keyboard shortcuts
+    UninstallShortcuts,
+    /// Rebind one shortcut; an empty value restores its default
+    SetShortcut {
+        #[arg(long)]
+        id: String,
+        #[arg(long, allow_hyphen_values = true)]
+        keys: String,
+    },
     /// Start a screen recording of a picked region or the whole screen
     Record {
         /// "region" opens the picker, "screen" records the focused monitor
@@ -78,6 +90,8 @@ struct Document {
     camera: Option<camera::Status>,
     #[serde(skip_serializing_if = "Option::is_none")]
     record: Option<record::Status>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shortcuts: Option<shortcuts::Status>,
 }
 
 fn status(lights_only: bool) {
@@ -101,6 +115,7 @@ fn status(lights_only: bool) {
         deck,
         camera,
         record: (!lights_only).then(record::status),
+        shortcuts: (!lights_only).then(shortcuts::status),
     };
     println!("{}", serde_json::to_string(&doc).unwrap_or_default());
 }
@@ -112,6 +127,13 @@ fn travel_lights(step: i64) {
     };
     lights::restore(snap);
     history.commit_pos(state::LIGHTS_HISTORY, pos);
+}
+
+fn report(result: Result<(), String>) {
+    if let Err(e) = result {
+        eprintln!("elgato-panel: {e}");
+        std::process::exit(1);
+    }
 }
 
 fn main() {
@@ -144,6 +166,9 @@ fn main() {
         Some(Cmd::DeckRedo) => deck::travel(1),
         Some(Cmd::CamUndo) => camera::travel(-1),
         Some(Cmd::CamRedo) => camera::travel(1),
+        Some(Cmd::InstallShortcuts) => report(shortcuts::install()),
+        Some(Cmd::UninstallShortcuts) => report(shortcuts::uninstall()),
+        Some(Cmd::SetShortcut { id, keys }) => report(shortcuts::set(&id, &keys)),
         Some(Cmd::Record { target, desktop_audio, mic, stop }) => {
             if stop {
                 record::stop();
