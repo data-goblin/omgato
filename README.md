@@ -33,10 +33,14 @@ Lights shows only Key Lights.
 ## Install
 
 ```bash
-./scripts/install
+omarchy plugin add https://github.com/data-goblin/omarchy-elgato.git
+~/.config/omarchy/plugins/io.github.data-goblin.omarchy-elgato/scripts/install
 omarchy plugin enable io.github.data-goblin.omarchy-elgato
 streamdeck-ctl enable
 ```
+
+To remove it: `scripts/uninstall`, then `omarchy plugin remove
+io.github.data-goblin.omarchy-elgato`.
 
 The installer builds the workspace, links the four binaries onto PATH, installs
 the systemd user units, links the agent skill, and applies a starter Stream Deck
@@ -111,6 +115,44 @@ elgato-panel uninstall-shortcuts
 Only a handful are bound out of the box: one for the lights, none for the deck,
 and the camera and recording ones. Everything else is listed unbound in the
 panel, ready to be given a combination.
+
+## What it installs, and where
+
+Plugins run unsandboxed with your user permissions, so here is everything this
+one touches outside its own directory.
+
+```yaml
+~/.local/bin/:            symlinks to the four binaries it builds
+~/.config/systemd/user/:  streamdeck-ctl.service and streamdeck-ctl-deck.service,
+                          the Stream Deck and Pedal daemons
+~/.config/hypr/:          elgato-bindings.lua, plus one guarded pcall line added
+                          to bindings.lua, only when you install shortcuts
+~/.local/state/elgato-panel/: light display names, display order, undo history
+~/.cache/elgato-panel/:   rendered key previews
+~/.config/streamdeck-ctl/config.toml: your deck and pedal configuration
+$XDG_RUNTIME_DIR/camctl/: overlay position and pid, cleared on reboot
+agent skill directories:  a symlink to src/skill/, only where the directory
+                          already exists, and only if you did not pass --no-skill
+```
+
+`scripts/uninstall` reverses all of it. It keeps your device configuration
+unless you pass `--purge`.
+
+### Privileges
+
+The plugin never asks for root and contains no sudoers rule. Two things need
+privilege and both are left to you, printed as instructions rather than run:
+
+- installing the udev rule that grants access to Stream Deck hardware
+- `camctl reset`, which re-authorizes the Cam Link over USB to clear a wedged
+  capture device, and needs passwordless sudo for that one write if you want it
+
+### Network and processes
+
+`elgatoctl` talks HTTP to Key Lights on your local network, discovered over mDNS
+with `avahi-browse`. Nothing else makes network calls and nothing phones home.
+The daemons are ordinary systemd user services; no second Quickshell process is
+ever started.
 
 ## Requirements
 
