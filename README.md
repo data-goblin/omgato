@@ -8,9 +8,15 @@ An unofficial Omarchy plugin for controlling Elgato hardware like lights,
 stream deck and CamLink.
 
 <p align="center">
-  <img src="docs/images/lights.png" alt="Key Lights view" width="300">
-  <img src="docs/images/deck.png" alt="Stream Deck view" width="300">
-  <img src="docs/images/camera.png" alt="Cam Link view" width="300">
+  <img src="docs/images/demo.gif" alt="Dragging a Key Light's brightness, then switching to the Stream Deck grid and the Cam Link controls" width="380">
+</p>
+
+<p align="center"><a href="docs/images/demo.mp4">Watch the same demo as video</a></p>
+
+<p align="center">
+  <img src="docs/images/lights.png" alt="Key Lights view" width="250">
+  <img src="docs/images/deck.png" alt="Stream Deck view" width="250">
+  <img src="docs/images/camera.png" alt="Cam Link view" width="250">
 </p>
 
 ## Supported hardware
