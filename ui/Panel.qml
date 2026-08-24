@@ -7,8 +7,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "io.github.data-goblin.omarchy-elgato"
-  ipcTarget: "io.github.data-goblin.omarchy-elgato"
+  moduleName: "io.github.data-goblin.omgato"
+  ipcTarget: "io.github.data-goblin.omgato"
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
@@ -99,7 +99,7 @@ Panel {
     return Qt.rgba(channel(r), channel(g), channel(b), 1)
   }
 
-  // Identifies this panel to camctl. Including the screen keeps the claim of a
+  // Identifies this panel to camlink-ctl. Including the screen keeps the claim of a
   // panel on one monitor separate from the same plugin's panel on another.
   readonly property string claimOwner: {
     var w = root.QsWindow ? root.QsWindow.window : null
@@ -107,18 +107,18 @@ Panel {
     return name === "" ? root.moduleName : root.moduleName + "." + name
   }
 
-  // Tell camctl the rectangle this panel occupies. Its height changes with the
+  // Tell camlink-ctl the rectangle this panel occupies. Its height changes with the
   // view, so this is sent again whenever the panel resizes.
   function claimSpace() {
     if (!opened || settings.showCamera === false) return
-    act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight),
+    act(["camlink-ctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight),
          "--owner", root.claimOwner])
   }
 
   function contextToggle() {
     if (view === "lights") { setLights("all", { on: !anyOn }); return }
     if (view === "deck") { act(["systemctl", "--user", deck.services[deckDaemonKey] === "active" ? "stop" : "start", deckDaemonKey]); return }
-    act(["camctl", "toggle"])
+    act(["camlink-ctl", "toggle"])
   }
 
   function refresh() {
@@ -127,7 +127,7 @@ Panel {
       return
     }
     if (interacting || renameIp !== "") return
-    var cmd = root.opened ? ["elgato-panel"] : ["elgato-panel", "--lights-only"]
+    var cmd = root.opened ? ["omgato-panel"] : ["omgato-panel", "--lights-only"]
     if (root.opened && root.view === "camera") cmd.push("--with-record")
     if (root.wantConflicts && root.opened) {
       cmd.push("--with-conflicts")
@@ -140,7 +140,7 @@ Panel {
 
   function act(cmd) {
     lastError = ""
-    if (cmd[0] === "elgato-panel" && String(cmd[1]).indexOf("shortcut") >= 0) wantConflicts = true
+    if (cmd[0] === "omgato-panel" && String(cmd[1]).indexOf("shortcut") >= 0) wantConflicts = true
     actionQueue.push(cmd)
     runNextAction()
   }
@@ -161,7 +161,7 @@ Panel {
       return next
     })
     root.lightsJson = ""
-    var cmd = ["elgatoctl", "set"]
+    var cmd = ["keylight-ctl", "set"]
     if (patch.on !== undefined) cmd.push(patch.on ? "--on" : "--off")
     if (patch.brightness !== undefined) cmd.push("--brightness", String(patch.brightness))
     if (patch.kelvin !== undefined) cmd.push("--temp", String(patch.kelvin))
@@ -186,7 +186,7 @@ Panel {
   }
 
   function startRecording(target) {
-    var cmd = ["elgato-panel", "record", "--target", target]
+    var cmd = ["omgato-panel", "record", "--target", target]
     if (recDesktopAudio) cmd.push("--desktop-audio")
     if (recMic) cmd.push("--mic")
     act(cmd)
@@ -302,7 +302,7 @@ Panel {
     if (event.key === Qt.Key_Shift || event.key === Qt.Key_Control
         || event.key === Qt.Key_Alt || event.key === Qt.Key_Meta) return true
     var combo = comboFromEvent(event)
-    if (combo !== "") act(["elgato-panel", "set-shortcut", "--id", capturingShortcut, "--keys", combo])
+    if (combo !== "") act(["omgato-panel", "set-shortcut", "--id", capturingShortcut, "--keys", combo])
     capturingShortcut = ""
     return true
   }
@@ -338,7 +338,7 @@ Panel {
     var addresses = lights.map(function(l) { return l.ip })
     addresses.splice(to, 0, addresses.splice(from, 1)[0])
     lightsJson = ""
-    act(["elgato-panel", "order", "--ips", addresses.join(",")])
+    act(["omgato-panel", "order", "--ips", addresses.join(",")])
   }
 
   function deckSet(pageName, index, field, value) {
@@ -452,30 +452,37 @@ Panel {
       interacting = false
       cancelOrder()
     }
-    // Keep the camera overlay from disappearing under this panel. camctl leaves
+    // Keep the camera overlay from disappearing under this panel. camlink-ctl leaves
     // a placement alone unless the two actually overlap. Release runs on every
     // close, not only when the camera section is on, so turning that section off
     // while the panel is open cannot strand the overlay out of position.
     if (opened) {
       if (settings.showCamera !== false) root.claimSpace()
     } else {
-      act(["camctl", "release", "--owner", root.claimOwner])
+      act(["camlink-ctl", "release", "--owner", root.claimOwner])
     }
     refresh()
+  }
+
+  Component {
+    id: markIcon
+    OmgatoMark {
+      color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+    }
   }
 
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󱕂"
+    iconComponent: markIcon
     dimmed: !root.anyOn && !root.anyUnreachable
     active: root.anyUnreachable
     tooltipText: root.barSummary
     slotSize: Style.bar.statusSlot
     fontSize: Style.font.caption
     onPressed: function(b) {
-      if (b === Qt.RightButton) root.act(["elgatoctl", "click"])
+      if (b === Qt.RightButton) root.act(["keylight-ctl", "click"])
       else root.toggle()
     }
   }
@@ -507,7 +514,7 @@ Panel {
 
         PanelHero {
           width: parent.width
-          title: "Elgato"
+          title: "Omgato"
           meta: "Lights, camera, action!"
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -517,13 +524,11 @@ Panel {
               implicitHeight: implicitWidth
               radius: Style.space(7)
               color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
-              Text {
+              OmgatoMark {
                 anchors.centerIn: parent
-                text: "E"
+                width: parent.width * 0.62
+                height: width
                 color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                font.bold: true
               }
             }
           }
@@ -627,9 +632,9 @@ Panel {
         primaryText: "Sync"
         canUndo: root.history.can_undo
         canRedo: root.history.can_redo
-        onPrimary: root.act(["elgato-panel", "sync"])
-        onUndo: root.act(["elgato-panel", "undo"])
-        onRedo: root.act(["elgato-panel", "redo"])
+        onPrimary: root.act(["omgato-panel", "sync"])
+        onUndo: root.act(["omgato-panel", "undo"])
+        onRedo: root.act(["omgato-panel", "redo"])
       }
 
       Row {
@@ -641,7 +646,7 @@ Panel {
           labelVisible: true
           fixedWidth: (parent.width - Style.space(10)) / 2
           text: "Save default"
-          onPressed: root.act(["elgato-panel", "save-default"])
+          onPressed: root.act(["omgato-panel", "save-default"])
         }
 
         WidgetButton {
@@ -651,7 +656,7 @@ Panel {
           text: "Restore default"
           enabled: root.defaultSaved
           opacity: root.defaultSaved ? 1.0 : 0.45
-          onPressed: root.act(["elgato-panel", "restore-default"])
+          onPressed: root.act(["omgato-panel", "restore-default"])
         }
       }
 
@@ -777,7 +782,7 @@ Panel {
                   onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
                 onActiveFocusChanged: if (!activeFocus && root.renameIp === lightCell.modelData.ip) root.renameIp = ""
                   onCommitted: function(v) {
-                    if (v !== lightCell.modelData.display) root.act(["elgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
+                    if (v !== lightCell.modelData.display) root.act(["omgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
                     root.renameIp = ""
                   }
                 }
@@ -829,7 +834,7 @@ Panel {
         width: parent.width
         text: "Rediscover lights"
         bordered: true
-        onClicked: root.act(["elgatoctl", "discover"])
+        onClicked: root.act(["keylight-ctl", "discover"])
       }
 
       ShortcutList {}
@@ -848,8 +853,8 @@ Panel {
         canUndo: root.deck.history ? root.deck.history.can_undo : false
         canRedo: root.deck.history ? root.deck.history.can_redo : false
         onPrimary: root.act(["streamdeck-ctl", "deck", "reload"])
-        onUndo: root.act(["elgato-panel", "deck-undo"])
-        onRedo: root.act(["elgato-panel", "deck-redo"])
+        onUndo: root.act(["omgato-panel", "deck-undo"])
+        onRedo: root.act(["omgato-panel", "deck-redo"])
       }
 
       Row {
@@ -1293,9 +1298,9 @@ Panel {
         primaryText: "Reset"
         canUndo: root.camera.history ? root.camera.history.can_undo : false
         canRedo: root.camera.history ? root.camera.history.can_redo : false
-        onPrimary: root.act(["camctl", "reset"])
-        onUndo: root.act(["elgato-panel", "cam-undo"])
-        onRedo: root.act(["elgato-panel", "cam-redo"])
+        onPrimary: root.act(["camlink-ctl", "reset"])
+        onUndo: root.act(["omgato-panel", "cam-undo"])
+        onRedo: root.act(["omgato-panel", "cam-redo"])
       }
 
       PanelSectionHeader { text: "RECORD"; foreground: root.foreground; fontFamily: root.fontFamily }
@@ -1337,7 +1342,7 @@ Panel {
           accent: root.urgent
           bordered: true
           active: true
-          onClicked: root.act(["elgato-panel", "record", "--stop"])
+          onClicked: root.act(["omgato-panel", "record", "--stop"])
         }
       }
 
@@ -1378,7 +1383,7 @@ Panel {
             foreground: root.record.history && root.record.history.can_undo ? root.foreground : root.dim
             labelVisible: true
             horizontalMargin: Style.space(4)
-            onPressed: if (root.record.history && root.record.history.can_undo) root.act(["elgato-panel", "scope-undo"])
+            onPressed: if (root.record.history && root.record.history.can_undo) root.act(["omgato-panel", "scope-undo"])
           }
           WidgetButton {
             bar: root.bar
@@ -1387,7 +1392,7 @@ Panel {
             foreground: root.record.history && root.record.history.can_redo ? root.foreground : root.dim
             labelVisible: true
             horizontalMargin: Style.space(4)
-            onPressed: if (root.record.history && root.record.history.can_redo) root.act(["elgato-panel", "scope-redo"])
+            onPressed: if (root.record.history && root.record.history.can_redo) root.act(["omgato-panel", "scope-redo"])
           }
         }
       }
@@ -1438,7 +1443,7 @@ Panel {
           fontSize: Style.font.bodySmall
           bordered: true
           active: !!root.camera.overlay
-          onClicked: root.act(["camctl", "toggle"])
+          onClicked: root.act(["camlink-ctl", "toggle"])
         }
         PanelButton {
           width: (parent.width - parent.spacing) / 2
@@ -1446,7 +1451,7 @@ Panel {
           text: "Fullscreen"
           fontSize: Style.font.bodySmall
           bordered: true
-          onClicked: root.act(["camctl", "full"])
+          onClicked: root.act(["camlink-ctl", "full"])
         }
       }
 
@@ -1469,7 +1474,7 @@ Panel {
             bordered: true
             active: root.camera.corner === modelData.id
             tooltipText: "Put the camera overlay in this corner"
-            onClicked: root.act(["camctl", "move", modelData.id])
+            onClicked: root.act(["camlink-ctl", "move", modelData.id])
           }
         }
 
@@ -1480,7 +1485,7 @@ Panel {
           bordered: true
           active: root.camera.corner === "area"
           tooltipText: "Drag out exactly where the camera overlay sits"
-          onClicked: root.act(["camctl", "pick"])
+          onClicked: root.act(["camlink-ctl", "pick"])
         }
       }
 
@@ -1518,7 +1523,7 @@ Panel {
         text: "Install"
         bordered: true
         tooltipText: "Write these shortcuts and source them from your hypr config"
-        onClicked: root.act(["elgato-panel", "install-shortcuts"])
+        onClicked: root.act(["omgato-panel", "install-shortcuts"])
       }
 
       WidgetButton {
@@ -1532,7 +1537,7 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         tooltipText: "Remove these shortcuts from your hypr config"
-        onPressed: root.act(["elgato-panel", "uninstall-shortcuts"])
+        onPressed: root.act(["omgato-panel", "uninstall-shortcuts"])
       }
     }
 

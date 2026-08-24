@@ -49,7 +49,7 @@ fn cmd_reset() -> i32 {
         }
         Err(e) => {
             notify(&format!("Cam Link reset failed: {e}"));
-            eprintln!("camctl: reset failed: {e}");
+            eprintln!("camlink-ctl: reset failed: {e}");
             1
         }
     }
@@ -93,7 +93,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
                         crate::holder::describe(&busy),
                         crate::holder::remedy(&busy)
                     );
-                    eprintln!("camctl: {msg}");
+                    eprintln!("camlink-ctl: {msg}");
                     notify(&msg);
                     return 1;
                 }
@@ -103,7 +103,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
 
     if state::exists(&state::needs_reset_flag()) {
         if let Err(e) = reset::reset() {
-            eprintln!("camctl: pre-show reset failed: {e}");
+            eprintln!("camlink-ctl: pre-show reset failed: {e}");
         } else {
             state::remove(&state::needs_reset_flag());
         }
@@ -112,7 +112,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     let pid = match overlay::spawn(cfg) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("camctl: {e}");
+            eprintln!("camlink-ctl: {e}");
             notify(&format!("mpv spawn failed: {e}"));
             return 1;
         }
@@ -158,7 +158,7 @@ fn cmd_move(cfg: &Config, corner: Corner) -> i32 {
 
 fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
     let Some(rect) = positioning::rect_from_geometry(geometry) else {
-        eprintln!("camctl: expected \"X,Y WxH\", got {geometry:?}");
+        eprintln!("camlink-ctl: expected \"X,Y WxH\", got {geometry:?}");
         return 2;
     };
     persist_position(&rect);
@@ -175,7 +175,7 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
 fn cmd_avoid(cfg: &Config, geometry: &str, owner: &str) -> i32 {
     let mon = match hypr::focused_monitor() {
         Ok(m) => m,
-        Err(e) => { eprintln!("camctl: {e}"); return 1; }
+        Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
     };
 
     let blocker = if let Some((w, h)) = positioning::size_from_text(geometry) {
@@ -183,15 +183,15 @@ fn cmd_avoid(cfg: &Config, geometry: &str, owner: &str) -> i32 {
     } else if let Some(pos) = positioning::rect_from_geometry(geometry) {
         match positioning::parse_rect(&pos) {
             Some(r) => r,
-            None => { eprintln!("camctl: avoid: bad rectangle {geometry:?}"); return 2; }
+            None => { eprintln!("camlink-ctl: avoid: bad rectangle {geometry:?}"); return 2; }
         }
     } else {
-        eprintln!("camctl: avoid: expected \"WxH\" or \"X,Y WxH\", got {geometry:?}");
+        eprintln!("camlink-ctl: avoid: expected \"WxH\" or \"X,Y WxH\", got {geometry:?}");
         return 2;
     };
 
     if let Err(e) = crate::blocker::claim(owner, &blocker) {
-        eprintln!("camctl: could not record the panel's claim: {e}");
+        eprintln!("camlink-ctl: could not record the panel's claim: {e}");
         return 1;
     }
     if !overlay::is_running() {
@@ -221,7 +221,7 @@ fn cmd_pick(cfg: &Config) -> i32 {
             cmd_place(cfg, &geometry)
         }
         Err(e) => {
-            eprintln!("camctl: region picker: {e}");
+            eprintln!("camlink-ctl: region picker: {e}");
             1
         }
     }
@@ -264,7 +264,7 @@ fn place_now(cfg: &Config) -> i32 {
     let win = match hypr::find_window(&cfg.window_title) {
         Ok(Some(w)) => w,
         Ok(None) => return 1,
-        Err(e) => { eprintln!("camctl: {e}"); return 1; }
+        Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
     };
 
     let mon = match hypr::focused_monitor() {

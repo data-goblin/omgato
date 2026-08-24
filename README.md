@@ -1,10 +1,10 @@
-# Omarchy Elgato
+# Omgato
 
-[![Release](https://img.shields.io/github/v/release/data-goblin/omarchy-elgato?display_name=tag&sort=semver)](https://github.com/data-goblin/omarchy-elgato/releases)
+[![Release](https://img.shields.io/github/v/release/data-goblin/omarchy-omgato?display_name=tag&sort=semver)](https://github.com/data-goblin/omarchy-omgato/releases)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Omarchy](https://img.shields.io/badge/omarchy-quattro-8a63d2.svg)](https://omarchy.org)
 
-An unofficial Omarchy plugin for controlling Elgato hardware like lights,
+An unofficial Omarchy plugin for controlling studio hardware: lights,
 stream deck and CamLink.
 
 <p align="center">
@@ -75,14 +75,14 @@ are not.
 | --- | :---: | :---: | :---: | --- |
 | Key Light | Temperature | ✓ | ✓ | Power, brightness, temperature, saved default, rename and reorder |
 | Key Light Air | Temperature | ✓ | ✓ | Power, brightness, temperature, saved default, rename and reorder |
-| Key Light Mini | Temperature | ✓ | ✗ | Same API; discontinued by Elgato, battery level is not read |
-| Ring Light | Temperature | ✓ | ✗ | Power, brightness and temperature; discontinued by Elgato |
+| Key Light Mini | Temperature | ✓ | ✗ | Same API; discontinued; battery level is not read |
+| Ring Light | Temperature | ✓ | ✗ | Power, brightness and temperature; discontinued |
 | Light Strip | Hue | ✓ | ✗ | Power and brightness only; it is hue based, so no colour control |
 | Key Light Neo | Temperature | ? | ✗ | Local HTTP API is not confirmed on this model |
 | Key Light Air MK.2 | Temperature | ? | ✗ | Local HTTP API is not confirmed on this model |
 | Light Strip Pro | Hue, addressable | ? | ✗ | Per-LED addressing does not fit the flat API this plugin speaks |
 
-Three of these are marked `?` because Elgato does not document the local API and
+Three of these are marked `?` because the vendor does not document the local API and
 the newer models are absent from every source that lists it. One command settles
 it on your own hardware, and the answer is worth an issue either way:
 
@@ -92,9 +92,9 @@ curl -s http://<light-ip>:9123/elgato/lights
 
 ### Cameras
 
-`camctl` matches `/dev/v4l/by-id` against a `device_pattern`, so any device the
+`camlink-ctl` matches `/dev/v4l/by-id` against a `device_pattern`, so any device the
 kernel exposes as a UVC webcam can drive the overlay. You can change it to something else
-by editing `~/.config/camctl/config.toml`:
+by editing `~/.config/camlink-ctl/config.toml`:
 
 ```toml
 device_pattern = "Facecam"
@@ -106,8 +106,8 @@ device_pattern = "Facecam"
 | Facecam MK.2 | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
 | Facecam 4K | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
 | Facecam Neo | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
-| Facecam | ✓ | ✗ | UVC; discontinued by Elgato |
-| Facecam Pro | ✓ | ✗ | UVC; discontinued by Elgato |
+| Facecam | ✓ | ✗ | UVC; discontinued |
+| Facecam Pro | ✓ | ✗ | UVC; discontinued |
 | Cam Link Pro | ✗ | ✗ | PCIe card exposing DirectShow, not UVC; no Linux support |
 
 ### Capture cards
@@ -121,12 +121,12 @@ applies where the kernel binds them.
 | Game Capture 4K X | ✓ | ✗ | UVC; needs the mainline `USB_QUIRK_NO_BOS` fix for full bandwidth |
 | Game Capture 4K S | ✓ | ✗ | UVC compliant; usable as an overlay source |
 | Video Capture | ✓ | ✗ | Analogue capture bound by `em28xx` or `cx231xx` in mainline |
-| Game Capture Neo | ? | ✗ | Plug and play, but UVC is not stated by Elgato |
+| Game Capture Neo | ? | ✗ | Plug and play, but UVC is not documented |
 | Game Capture 4K Pro | ✗ | ✗ | PCIe with a proprietary Windows-only driver |
 
 ### Audio
 
-Nothing in this plugin yet supports specific Elgato audio hardware.
+Nothing in this plugin yet drives audio hardware.
 
 | Device | Supported | Tested | Why not |
 | --- | :---: | :---: | --- |
@@ -138,7 +138,7 @@ Nothing in this plugin yet supports specific Elgato audio hardware.
 
 ### Teleprompter
 
-Nothing in this plugin yet supports Elgato teleprompters.
+Nothing in this plugin yet supports teleprompters.
 
 | Device | Supported | Tested | Why not |
 | --- | :---: | :---: | --- |
@@ -149,8 +149,8 @@ Nothing in this plugin yet supports Elgato teleprompters.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/data-goblin/omarchy-elgato --enable
-~/.config/omarchy/plugins/io.github.data-goblin.omarchy-elgato/scripts/install
+omarchy plugin add https://github.com/data-goblin/omarchy-omgato --enable
+~/.config/omarchy/plugins/io.github.data-goblin.omgato/scripts/install
 streamdeck-ctl enable
 ```
 
@@ -168,8 +168,8 @@ two steps. The second one rebuilds the binaries, and skipping it leaves you
 running the old ones:
 
 ```bash
-omarchy plugin update io.github.data-goblin.omarchy-elgato
-~/.config/omarchy/plugins/io.github.data-goblin.omarchy-elgato/scripts/install
+omarchy plugin update io.github.data-goblin.omgato
+~/.config/omarchy/plugins/io.github.data-goblin.omgato/scripts/install
 ```
 
 ## Remove
@@ -178,8 +178,8 @@ Order matters. `scripts/uninstall` uses the binaries to undo their own Hyprland
 edits, so run it before the plugin directory goes away:
 
 ```bash
-~/.config/omarchy/plugins/io.github.data-goblin.omarchy-elgato/scripts/uninstall
-omarchy plugin remove io.github.data-goblin.omarchy-elgato
+~/.config/omarchy/plugins/io.github.data-goblin.omgato/scripts/uninstall
+omarchy plugin remove io.github.data-goblin.omgato
 ```
 
 What survives on purpose: your Stream Deck and Pedal configuration, your light
@@ -193,9 +193,9 @@ Ten changes of undo history are kept, and separately you can pin one arrangement
 as the default and come back to it whenever a session has wandered:
 
 ```bash
-elgato-panel save-default      # remember the lights exactly as they are
-elgato-panel restore-default   # put every light back to it
-elgato-panel undo              # or step back one change at a time
+omgato-panel save-default      # remember the lights exactly as they are
+omgato-panel restore-default   # put every light back to it
+omgato-panel undo              # or step back one change at a time
 ```
 
 Both are buttons in the Key Lights view. Restore is greyed out until a default
@@ -204,7 +204,7 @@ has been saved.
 ## The camera overlay and the panel
 
 The panel opens over the top-right corner, which is where the camera overlay
-usually sits. Rather than hiding it, the panel tells `camctl` the rectangle it
+usually sits. Rather than hiding it, the panel tells `camlink-ctl` the rectangle it
 occupies and the overlay slides clear, returning to its own position when the
 panel closes. A placement that does not overlap is left exactly where you put
 it, and an overlay switched on while the panel is already open still lands clear
@@ -218,7 +218,7 @@ Each section can be switched off, so a rig with only Key Lights shows only Key
 Lights. Set them in the widget settings, or from a script:
 
 ```bash
-omarchy bar set io.github.data-goblin.omarchy-elgato showDeck false --json
+omarchy bar set io.github.data-goblin.omgato showDeck false --json
 ```
 
 | Setting | Default | What it controls |
@@ -232,33 +232,33 @@ omarchy bar set io.github.data-goblin.omarchy-elgato showDeck false --json
 ```
 manifest.json          plugin manifest, entry point and settings schema
 ui/Panel.qml           the bar widget and panel
-src/elgatoctl/         Key Lights over their local HTTP API
+src/keylight-ctl/         Key Lights over their local HTTP API
 src/streamdeck-ctl/    Stream Deck and Pedal daemons, rendering, TUI, preset
-src/camctl/            Cam Link overlay and status
-src/elgato-panel/      status aggregation, names, shortcuts, undo/redo history
+src/camlink-ctl/            Cam Link overlay and status
+src/omgato-panel/      status aggregation, names, shortcuts, undo/redo history
 src/skill/             the agent skill describing the tools
 scripts/install        build, link, install units, link the skill
 scripts/install-skill  link only the agent skill
 scripts/uninstall      reverse the installer
 ```
 
-`elgato-panel` is the only crate the panel asks for state. It gathers one JSON
+`omgato-panel` is the only crate the panel asks for state. It gathers one JSON
 document from the other three tools, keeps local light names and display order,
 and owns the undo histories. Device commands go straight from the panel to
-`elgatoctl`, `streamdeck-ctl` and `camctl`, so nothing sits between a click and
+`keylight-ctl`, `streamdeck-ctl` and `camlink-ctl`, so nothing sits between a click and
 the hardware.
 
 ## Shortcuts
 
-The plugin writes `~/.config/hypr/elgato-bindings.lua` and adds a single guarded
+The plugin writes `~/.config/hypr/omgato-bindings.lua` and adds a single guarded
 line to your `bindings.lua` to source it. Your own bindings file is never
 rewritten, and removing the plugin cannot break your config. Install them from
 the panel, or:
 
 ```bash
-elgato-panel install-shortcuts
-elgato-panel set-shortcut --id lights.toggle --keys "SUPER + ALT + L"
-elgato-panel uninstall-shortcuts
+omgato-panel install-shortcuts
+omgato-panel set-shortcut --id lights.toggle --keys "SUPER + ALT + L"
+omgato-panel uninstall-shortcuts
 ```
 
 Only a handful are bound out of the box: one for the lights, none for the deck,
@@ -275,12 +275,12 @@ one touches outside its own directory.
 ~/.local/bin/:            symlinks to the four binaries it builds
 ~/.config/systemd/user/:  streamdeck-ctl.service and streamdeck-ctl-deck.service,
                           the Stream Deck and Pedal daemons
-~/.config/hypr/:          elgato-bindings.lua, plus one guarded pcall line added
+~/.config/hypr/:          omgato-bindings.lua, plus one guarded pcall line added
                           to bindings.lua, only when you install shortcuts
-~/.local/state/elgato-panel/: light display names, display order, undo history
-~/.cache/elgato-panel/:   rendered key previews
+~/.local/state/omgato-panel/: light display names, display order, undo history
+~/.cache/omgato-panel/:   rendered key previews
 ~/.config/streamdeck-ctl/config.toml: your deck and pedal configuration
-$XDG_RUNTIME_DIR/camctl/: overlay position and pid, cleared on reboot
+$XDG_RUNTIME_DIR/camlink-ctl/: overlay position and pid, cleared on reboot
 agent skill directories:  a symlink to src/skill/, only where the directory
                           already exists, and only if you did not pass --no-skill
 ```
@@ -297,20 +297,20 @@ privilege and both are left to you, printed as instructions rather than run:
 
   ```bash
   sudo install -m 0644 \
-    ~/.config/omarchy/plugins/io.github.data-goblin.omarchy-elgato/src/streamdeck-ctl/udev/70-streamdeck-ctl.rules \
+    ~/.config/omarchy/plugins/io.github.data-goblin.omgato/src/streamdeck-ctl/udev/70-streamdeck-ctl.rules \
     /etc/udev/rules.d/70-streamdeck-ctl.rules
   sudo udevadm control --reload-rules && sudo udevadm trigger
   ```
 
-- `camctl reset`, which re-authorizes the Cam Link over USB to clear a wedged
+- `camlink-ctl reset`, which re-authorizes the Cam Link over USB to clear a wedged
   capture device, and needs passwordless sudo for that one write if you want it
 
-Runtime pid state lives in `$XDG_RUNTIME_DIR/camctl/`, which is owner-only, not
+Runtime pid state lives in `$XDG_RUNTIME_DIR/camlink-ctl/`, which is owner-only, not
 in a shared temporary directory.
 
 ### Network and processes
 
-`elgatoctl` talks HTTP to Key Lights on your local network, discovered over mDNS
+`keylight-ctl` talks HTTP to Key Lights on your local network, discovered over mDNS
 with `avahi-browse`. Nothing else makes network calls and nothing phones home.
 The daemons are ordinary systemd user services; no second Quickshell process is
 ever started.
@@ -341,15 +341,15 @@ No Stream Deck found:     the udev rule is missing. Install it as shown above,
                           then unplug and replug the device
 Keys never update:        the daemons are not running. Check with
                           systemctl --user status streamdeck-ctl-deck
-No lights discovered:     run elgatoctl discover. Key Lights answer over mDNS,
+No lights discovered:     run keylight-ctl discover. Key Lights answer over mDNS,
                           so the machine must be on the same subnet as the lights
 A light reads unreachable: probes retry inside a 500ms budget, so a light that
                           still reports unreachable is genuinely not answering.
-                          Confirm with elgatoctl ls --json
+                          Confirm with keylight-ctl ls --json
 Camera overlay is black:  the Cam Link is single-open. If a user service holds
                           it, the overlay borrows the device and gives it back
                           on hide. A plain process is named rather than killed.
-                          If it stays wedged, camctl reset
+                          If it stays wedged, camlink-ctl reset
 ```
 
 ## Contributing

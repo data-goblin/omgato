@@ -25,7 +25,7 @@ pub struct Cache {
 pub fn cache_path() -> PathBuf {
     dirs::config_dir()
         .expect("no config dir")
-        .join("elgatoctl/lights.toml")
+        .join("keylight-ctl/lights.toml")
 }
 
 pub fn load() -> Cache {

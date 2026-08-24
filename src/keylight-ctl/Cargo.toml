@@ -1,6 +1,6 @@
 [package]
-name = "camctl"
-description = "Picture-in-picture overlay and status for the Elgato Cam Link 4K"
+name = "keylight-ctl"
+description = "Control Key Lights over their local HTTP API"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,4 @@ dirs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+ureq = { version = "2", features = ["json"] }

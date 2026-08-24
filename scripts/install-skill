@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-name="omarchy-elgato"
+name="omarchy-omgato"
 source_dir="$repo/src/skill/$name"
 home_dir="${HOME:?HOME is required}"
 remove=0

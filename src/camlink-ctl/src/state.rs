@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 pub fn run_dir() -> PathBuf {
     let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
-    let p = PathBuf::from(xdg).join("camctl");
+    let p = PathBuf::from(xdg).join("camlink-ctl");
     let _ = fs::create_dir_all(&p);
     p
 }
@@ -22,7 +22,7 @@ pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
 pub fn borrowed_unit() -> PathBuf { run_dir().join("borrowed_unit") }
 
 pub fn pause_flag() -> PathBuf {
-    dirs::config_dir().expect("no config dir").join("camctl/pause")
+    dirs::config_dir().expect("no config dir").join("camlink-ctl/pause")
 }
 
 pub fn read(path: &PathBuf) -> Option<String> {
@@ -30,7 +30,7 @@ pub fn read(path: &PathBuf) -> Option<String> {
 }
 
 pub fn write_atomic(path: &PathBuf, value: &str) -> std::io::Result<()> {
-    // Include the pid: two camctl processes writing at once would otherwise
+    // Include the pid: two camlink-ctl processes writing at once would otherwise
     // share one temporary file and could rename each other's half-written state.
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     if let Some(parent) = path.parent() {

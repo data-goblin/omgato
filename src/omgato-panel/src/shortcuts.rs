@@ -9,8 +9,12 @@ use std::fs;
 use std::path::PathBuf;
 
 const SETTINGS: &str = "shortcuts.json";
-const MARKER: &str = "Elgato:";
-const REQUIRE_LINE: &str = r#"pcall(require, "hypr.elgato-bindings")"#;
+const MARKER: &str = "Omgato:";
+/// The marker written before the plugin was renamed. Still matched when reading
+/// so shortcuts installed under the old name are recognised and can be removed
+/// or replaced rather than left orphaned in the user's bindings.
+const LEGACY_MARKER: &str = "Elgato:";
+const REQUIRE_LINE: &str = r#"pcall(require, "hypr.omgato-bindings")"#;
 
 /// One bindable action: which panel view it belongs to, what it runs, and the
 /// combination it is bound to.
@@ -25,23 +29,23 @@ pub struct Action {
 /// An empty default leaves the action unbound: it is offered in the panel but
 /// claims no combination until the user gives it one.
 pub const ACTIONS: &[Action] = &[
-    Action { id: "lights.toggle", view: "lights", label: "Toggle all lights", command: "elgatoctl click", default_keys: "SUPER + ALT + L" },
-    Action { id: "lights.brighter", view: "lights", label: "Lights brighter", command: "elgatoctl brightness +10", default_keys: "" },
-    Action { id: "lights.dimmer", view: "lights", label: "Lights dimmer", command: "elgatoctl brightness -10", default_keys: "" },
-    Action { id: "lights.warmer", view: "lights", label: "Lights warmer", command: "elgatoctl temperature -300", default_keys: "" },
-    Action { id: "lights.cooler", view: "lights", label: "Lights cooler", command: "elgatoctl temperature +300", default_keys: "" },
-    Action { id: "lights.sync", view: "lights", label: "Match all lights", command: "elgato-panel sync", default_keys: "" },
+    Action { id: "lights.toggle", view: "lights", label: "Toggle all lights", command: "keylight-ctl click", default_keys: "SUPER + ALT + L" },
+    Action { id: "lights.brighter", view: "lights", label: "Lights brighter", command: "keylight-ctl brightness +10", default_keys: "" },
+    Action { id: "lights.dimmer", view: "lights", label: "Lights dimmer", command: "keylight-ctl brightness -10", default_keys: "" },
+    Action { id: "lights.warmer", view: "lights", label: "Lights warmer", command: "keylight-ctl temperature -300", default_keys: "" },
+    Action { id: "lights.cooler", view: "lights", label: "Lights cooler", command: "keylight-ctl temperature +300", default_keys: "" },
+    Action { id: "lights.sync", view: "lights", label: "Match all lights", command: "omgato-panel sync", default_keys: "" },
     Action { id: "deck.power", view: "deck", label: "Toggle deck display", command: "streamdeck-ctl deck power toggle", default_keys: "" },
     Action { id: "deck.reload", view: "deck", label: "Reload the deck", command: "streamdeck-ctl deck reload", default_keys: "" },
-    Action { id: "camera.toggle", view: "camera", label: "Toggle camera overlay", command: "camctl toggle", default_keys: "SUPER + ALT + C" },
-    Action { id: "camera.pick", view: "camera", label: "Place the camera", command: "camctl pick", default_keys: "SUPER + ALT + P" },
-    Action { id: "camera.full", view: "camera", label: "Camera fullscreen", command: "camctl full", default_keys: "SUPER + SHIFT + C" },
-    Action { id: "camera.tl", view: "camera", label: "Camera top-left", command: "camctl move tl", default_keys: "SUPER + ALT + 1" },
-    Action { id: "camera.tr", view: "camera", label: "Camera top-right", command: "camctl move tr", default_keys: "SUPER + ALT + 2" },
-    Action { id: "camera.bl", view: "camera", label: "Camera bottom-left", command: "camctl move bl", default_keys: "SUPER + ALT + 3" },
-    Action { id: "camera.br", view: "camera", label: "Camera bottom-right", command: "camctl move br", default_keys: "SUPER + ALT + 4" },
-    Action { id: "record.region", view: "camera", label: "Record an area", command: "elgato-panel record --target region", default_keys: "SUPER + ALT + R" },
-    Action { id: "record.stop", view: "camera", label: "Stop recording", command: "elgato-panel record --stop", default_keys: "SUPER + ALT + SHIFT + R" },
+    Action { id: "camera.toggle", view: "camera", label: "Toggle camera overlay", command: "camlink-ctl toggle", default_keys: "SUPER + ALT + C" },
+    Action { id: "camera.pick", view: "camera", label: "Place the camera", command: "camlink-ctl pick", default_keys: "SUPER + ALT + P" },
+    Action { id: "camera.full", view: "camera", label: "Camera fullscreen", command: "camlink-ctl full", default_keys: "SUPER + SHIFT + C" },
+    Action { id: "camera.tl", view: "camera", label: "Camera top-left", command: "camlink-ctl move tl", default_keys: "SUPER + ALT + 1" },
+    Action { id: "camera.tr", view: "camera", label: "Camera top-right", command: "camlink-ctl move tr", default_keys: "SUPER + ALT + 2" },
+    Action { id: "camera.bl", view: "camera", label: "Camera bottom-left", command: "camlink-ctl move bl", default_keys: "SUPER + ALT + 3" },
+    Action { id: "camera.br", view: "camera", label: "Camera bottom-right", command: "camlink-ctl move br", default_keys: "SUPER + ALT + 4" },
+    Action { id: "record.region", view: "camera", label: "Record an area", command: "omgato-panel record --target region", default_keys: "SUPER + ALT + R" },
+    Action { id: "record.stop", view: "camera", label: "Stop recording", command: "omgato-panel record --stop", default_keys: "SUPER + ALT + SHIFT + R" },
 ];
 
 /// Hypr spells punctuation out; a shortcut list should show the key on the cap.
@@ -99,7 +103,7 @@ pub struct Status {
 type Bindings = BTreeMap<String, String>;
 
 fn bindings_path() -> PathBuf {
-    hypr_dir().join("elgato-bindings.lua")
+    hypr_dir().join("omgato-bindings.lua")
 }
 
 fn user_bindings_path() -> PathBuf {
@@ -169,6 +173,7 @@ fn conflict_for(keys: &str, binds: &[Bind]) -> String {
             b.modmask == mask
                 && b.key.eq_ignore_ascii_case(&key)
                 && !b.description.starts_with(MARKER)
+                && !b.description.starts_with(LEGACY_MARKER)
         })
         .map(|b| {
             if b.description.is_empty() {
@@ -208,7 +213,7 @@ fn sourced() -> bool {
 
 fn render(configured: &Bindings) -> String {
     let mut out = String::from(
-        "-- Generated by the Omarchy Elgato plugin. Edit the shortcuts from the\n\
+        "-- Generated by the Omgato plugin. Edit the shortcuts from the\n\
          -- panel rather than here; this file is rewritten when they change.\n\n",
     );
     for action in ACTIONS {
@@ -239,7 +244,7 @@ pub fn install() -> Result<(), String> {
             text.push('\n');
         }
         text.push_str(&format!(
-            "\n-- Omarchy Elgato plugin shortcuts. Safe to delete along with the plugin.\n{REQUIRE_LINE}\n"
+            "\n-- Omgato plugin shortcuts. Safe to delete along with the plugin.\n{REQUIRE_LINE}\n"
         ));
         fs::write(&user, text).map_err(|e| format!("write {}: {e}", user.display()))?;
     }
@@ -252,7 +257,7 @@ pub fn uninstall() -> Result<(), String> {
     if let Ok(text) = fs::read_to_string(&user) {
         let kept: String = text
             .lines()
-            .filter(|line| !line.contains(REQUIRE_LINE) && !line.contains("Omarchy Elgato plugin shortcuts"))
+            .filter(|line| !line.contains(REQUIRE_LINE) && !line.contains("Omgato plugin shortcuts"))
             .collect::<Vec<_>>()
             .join("\n");
         let _ = fs::write(&user, kept + "\n");

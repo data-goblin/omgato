@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "elgatoctl", about = "Control Elgato Key Lights")]
+#[command(name = "keylight-ctl", about = "Control Key Lights over their local HTTP API")]
 pub struct Cli {
     /// Emit machine-readable JSON instead of tab-separated text
     #[arg(long, global = true)]

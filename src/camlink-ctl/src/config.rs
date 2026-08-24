@@ -55,14 +55,14 @@ impl Default for Config {
 }
 
 pub fn config_path() -> PathBuf {
-    dirs::config_dir().expect("no config dir").join("camctl/config.toml")
+    dirs::config_dir().expect("no config dir").join("camlink-ctl/config.toml")
 }
 
 pub fn load() -> Config {
     let path = config_path();
     match std::fs::read_to_string(&path) {
         Ok(s) => toml::from_str(&s).unwrap_or_else(|e| {
-            eprintln!("camctl: config parse error: {e} - using defaults");
+            eprintln!("camlink-ctl: config parse error: {e} - using defaults");
             Config::default()
         }),
         Err(_) => Config::default(),

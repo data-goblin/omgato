@@ -31,7 +31,7 @@ pub fn run() -> i32 {
     }
     if cache.lights.is_empty() {
         eprintln!("no lights found on the network");
-        eprintln!("ensure they're powered on and on the same wifi, then run: elgatoctl setup");
+        eprintln!("ensure they're powered on and on the same wifi, then run: keylight-ctl setup");
         return 1;
     }
     println!("found {} light(s):", cache.lights.len());
@@ -73,7 +73,7 @@ fn repl() -> i32 {
             print!("{HELP}");
             continue;
         }
-        let mut argv: Vec<String> = vec!["elgatoctl".into()];
+        let mut argv: Vec<String> = vec!["keylight-ctl".into()];
         argv.extend(t.split_whitespace().map(String::from));
         match Cli::try_parse_from(&argv) {
             Ok(cli) => {

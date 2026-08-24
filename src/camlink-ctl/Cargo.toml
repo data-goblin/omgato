@@ -1,6 +1,6 @@
 [package]
-name = "elgato-panel"
-description = "Aggregated status, names and undo history for the Omarchy Elgato panel"
+name = "camlink-ctl"
+description = "Picture-in-picture overlay and status for the Cam Link 4K"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.data-goblin.omarchy-elgato",
-  "name": "Omarchy Elgato",
+  "id": "io.github.data-goblin.omgato",
+  "name": "Omgato",
   "version": "0.1.0",
   "author": "Kurt Buhler",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "barWidget": "ui/Panel.qml"
   },
   "barWidget": {
-    "displayName": "Elgato",
+    "displayName": "Omgato",
     "description": "Key Light brightness and temperature, the Stream Deck key grid and pedal, and Cam Link overlay placement with quick recording.",
     "category": "Hardware",
     "defaultSection": "right",
@@ -28,7 +28,7 @@
         "key": "showLights",
         "type": "boolean",
         "label": "Key Lights",
-        "description": "Brightness, temperature and per-light control for Elgato Key Lights.",
+        "description": "Brightness, temperature and per-light control for Key Lights.",
         "defaultValue": true
       },
       {

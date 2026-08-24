@@ -1,7 +1,7 @@
 //! Panel-side state for the kurt.elgato Quickshell widget: one aggregated
 //! status document, local light names, key previews, and capped undo/redo
-//! histories. Device control itself lives in elgatoctl, streamdeck-ctl and
-//! camctl.
+//! histories. Device control itself lives in keylight-ctl, streamdeck-ctl and
+//! camlink-ctl.
 use clap::{Parser, Subcommand};
 use serde::Serialize;
 
@@ -14,7 +14,7 @@ mod sh;
 mod state;
 
 #[derive(Parser)]
-#[command(name = "elgato-panel", about = "Aggregated status and history for the Elgato panel")]
+#[command(name = "omgato-panel", about = "Aggregated status and history for the Omgato panel")]
 struct Cli {
     /// Skip the Stream Deck and Cam Link sections
     #[arg(long, global = true)]
@@ -151,7 +151,7 @@ fn travel_lights(step: i64) {
 
 fn report(result: Result<(), String>) {
     if let Err(e) = result {
-        eprintln!("elgato-panel: {e}");
+        eprintln!("omgato-panel: {e}");
         std::process::exit(1);
     }
 }

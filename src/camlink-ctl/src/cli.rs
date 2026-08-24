@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(name = "camctl", about = "Picture-in-picture overlay + status for the Elgato Cam Link 4K")]
+#[command(name = "camlink-ctl", about = "Picture-in-picture overlay and status for the Cam Link 4K")]
 pub struct Cli {
     #[command(subcommand)]
     pub cmd: Cmd,

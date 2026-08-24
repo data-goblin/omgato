@@ -123,7 +123,7 @@ pub fn dir() -> PathBuf {
     dirs::state_dir()
         .or_else(dirs::data_local_dir)
         .unwrap_or_else(std::env::temp_dir)
-        .join("elgato-panel")
+        .join("omgato-panel")
 }
 
 fn path(file: &str) -> PathBuf {

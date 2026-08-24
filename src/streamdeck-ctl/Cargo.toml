@@ -1,6 +1,6 @@
 [package]
 name = "streamdeck-ctl"
-description = "Control Elgato Stream Deck and Stream Deck Pedal devices"
+description = "Control Stream Deck and Stream Deck Pedal devices"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -24,7 +24,7 @@ fn safe_name(owner: &str) -> String {
     if cleaned.is_empty() { "panel".to_string() } else { cleaned }
 }
 
-/// The process to hold the claim against. camctl is spawned by the shell, so
+/// The process to hold the claim against. camlink-ctl is spawned by the shell, so
 /// its parent is the process whose life the claim should follow. Read from
 /// /proc/self/status rather than /proc/self/stat, whose comm field can itself
 /// contain spaces and brackets.

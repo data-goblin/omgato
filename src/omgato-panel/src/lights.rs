@@ -26,7 +26,7 @@ pub struct Light {
 pub fn read() -> Vec<Light> {
     let aliases = load_aliases();
     let order = load_order();
-    let rows: Vec<Row> = serde_json::from_str(&sh::run(&["elgatoctl", "--json", "ls"])).unwrap_or_default();
+    let rows: Vec<Row> = serde_json::from_str(&sh::run(&["keylight-ctl", "--json", "ls"])).unwrap_or_default();
     let mut lights: Vec<Light> = rows
         .into_iter()
         .map(|r| Light {
@@ -75,7 +75,7 @@ pub fn restore(snap: &[Snap]) {
         .iter()
         .map(|s| {
             vec![
-                "elgatoctl".into(),
+                "keylight-ctl".into(),
                 "set".into(),
                 if s.on { "--on".into() } else { "--off".into() },
                 "--brightness".into(),
@@ -119,7 +119,7 @@ pub fn save_default() -> Result<usize, String> {
 /// Put every light back to the saved default.
 pub fn restore_default() -> Result<usize, String> {
     let snap: Vec<Snap> = crate::state::read_state(crate::state::LIGHTS_DEFAULT)
-        .ok_or("no default saved yet - run: elgato-panel save-default")?;
+        .ok_or("no default saved yet - run: omgato-panel save-default")?;
     if snap.is_empty() {
         return Err("the saved default is empty".into());
     }
@@ -144,7 +144,7 @@ pub fn sync() {
         ((live.iter().map(|l| l.brightness as u32).sum::<u32>() as f64 / n as f64).round() as u32).min(100);
     let kelvin = (live.iter().map(|l| l.kelvin).sum::<u32>() as f64 / n as f64 / 50.0).round() as u32 * 50;
     sh::run(&[
-        "elgatoctl",
+        "keylight-ctl",
         "set",
         "--brightness",
         &brightness.to_string(),

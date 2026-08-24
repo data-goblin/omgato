@@ -258,7 +258,7 @@ fn cmd_temperature(value: &str, target: &str, out: &Out) -> i32 {
 fn cmd_ls(out: &Out) -> i32 {
     let cache = config::load();
     if cache.lights.is_empty() {
-        eprintln!("no lights cached - run: elgatoctl discover");
+        eprintln!("no lights cached - run: keylight-ctl discover");
         if out.json {
             println!("[]");
         }
@@ -273,7 +273,7 @@ fn select_or_die(target: &str) -> Result<Vec<Light>, i32> {
     let cache = config::load();
     let lights: Vec<Light> = config::select(&cache, target).into_iter().cloned().collect();
     if lights.is_empty() {
-        eprintln!("no matching lights for '{target}' - run: elgatoctl discover");
+        eprintln!("no matching lights for '{target}' - run: keylight-ctl discover");
         return Err(1);
     }
     Ok(lights)

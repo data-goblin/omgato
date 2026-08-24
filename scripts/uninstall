@@ -6,8 +6,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/elgato-panel"
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/elgato-panel"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omgato-panel"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omgato-panel"
 purge=0
 
 [ "${1:-}" = "--purge" ] && purge=1
@@ -21,14 +21,14 @@ for unit in streamdeck-ctl.service streamdeck-ctl-deck.service; do
 done
 systemctl --user daemon-reload 2>/dev/null || true
 
-if [ -x "$bin_dir/elgato-panel" ]; then
-    "$bin_dir/elgato-panel" uninstall-shortcuts 2>/dev/null || true
+if [ -x "$bin_dir/omgato-panel" ]; then
+    "$bin_dir/omgato-panel" uninstall-shortcuts 2>/dev/null || true
     echo "  hypr     shortcuts removed"
 fi
 
 "$repo/scripts/install-skill" --remove 2>/dev/null || true
 
-for tool in camctl elgatoctl elgato-panel streamdeck-ctl; do
+for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl; do
     if [ -L "$bin_dir/$tool" ]; then
         rm -f "$bin_dir/$tool"
         echo "  bin      unlinked $tool"
@@ -46,5 +46,5 @@ else
 fi
 
 echo
-echo "Left alone: your Stream Deck, camctl and Key Light configuration."
+echo "Left alone: your Stream Deck, camlink-ctl and Key Light configuration."
 echo "The udev rule, if you installed it, is at /etc/udev/rules.d/70-streamdeck-ctl.rules"

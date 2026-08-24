@@ -258,7 +258,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
-name = "camctl"
+name = "camlink-ctl"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -511,17 +511,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
-name = "elgato-panel"
-version = "0.1.0"
-dependencies = [
- "clap",
- "dirs",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
 name = "elgato-streamdeck"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,18 +518,6 @@ checksum = "5e86db7c0f5bbffc406f4226ea5bf900bfd818bd8e4f93482bdc1ceeb17824ac"
 dependencies = [
  "hidapi",
  "image",
-]
-
-[[package]]
-name = "elgatoctl"
-version = "0.1.0"
-dependencies = [
- "clap",
- "dirs",
- "serde",
- "serde_json",
- "toml",
- "ureq",
 ]
 
 [[package]]
@@ -1124,6 +1101,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "keylight-ctl"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dirs",
+ "serde",
+ "serde_json",
+ "toml",
+ "ureq",
+]
+
+[[package]]
 name = "lebe"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1420,6 +1409,17 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
  "libm",
+]
+
+[[package]]
+name = "omgato-panel"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dirs",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

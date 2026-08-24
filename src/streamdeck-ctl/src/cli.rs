@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "streamdeck-ctl", about = "Control Elgato Stream Deck devices (pedal, deck)")]
+#[command(name = "streamdeck-ctl", about = "Control Stream Deck devices (pedal, deck)")]
 pub struct Cli {
     #[command(subcommand)]
     pub cmd: Cmd,

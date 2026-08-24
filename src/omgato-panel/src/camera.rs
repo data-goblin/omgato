@@ -3,7 +3,7 @@ use crate::state::{self, CAMERA_HISTORY, History};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-const PAUSE_FLAG: &str = "camctl/pause";
+const PAUSE_FLAG: &str = "camlink-ctl/pause";
 
 #[derive(Default, Deserialize)]
 struct CamOut {
@@ -14,7 +14,7 @@ struct CamOut {
 }
 
 /// The slice of overlay state the panel can step through: whether it is up, and
-/// camctl's own placement string, which is either a corner or "rect:X,Y,W,H".
+/// camlink-ctl's own placement string, which is either a corner or "rect:X,Y,W,H".
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Placement {
     pub overlay: bool,
@@ -34,10 +34,10 @@ pub struct Status {
 
 fn position_file() -> PathBuf {
     let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_owned());
-    PathBuf::from(runtime).join("camctl/position")
+    PathBuf::from(runtime).join("camlink-ctl/position")
 }
 
-/// camctl's placement, verbatim, so hotkey moves show up here too.
+/// camlink-ctl's placement, verbatim, so hotkey moves show up here too.
 pub fn position() -> String {
     std::fs::read_to_string(position_file())
         .map(|s| s.trim().to_owned())
@@ -61,7 +61,7 @@ fn corner_of(position: &str) -> String {
 /// leave the history pointer where it was rather than losing a step to nothing.
 fn apply(placement: &Placement) -> bool {
     if !placement.overlay {
-        sh::run(&["camctl", "hide"]);
+        sh::run(&["camlink-ctl", "hide"]);
         return true;
     }
     match placement.position.strip_prefix("rect:") {
@@ -70,11 +70,11 @@ fn apply(placement: &Placement) -> bool {
             let [x, y, w, h] = parts[..] else {
                 return false;
             };
-            sh::run(&["camctl", "place", &format!("{x},{y} {w}x{h}")]);
+            sh::run(&["camlink-ctl", "place", &format!("{x},{y} {w}x{h}")]);
             true
         }
         None if placement.position.is_empty() => {
-            sh::run(&["camctl", "show"]);
+            sh::run(&["camlink-ctl", "show"]);
             true
         }
         None => {
@@ -82,13 +82,13 @@ fn apply(placement: &Placement) -> bool {
             if corner.is_empty() || corner == "area" {
                 return false;
             }
-            sh::run(&["camctl", "move", &corner]);
+            sh::run(&["camlink-ctl", "move", &corner]);
             true
         }
     }
 }
 
-/// One compact phrase for the panel, since camctl's tooltip repeats the state
+/// One compact phrase for the panel, since camlink-ctl's tooltip repeats the state
 /// word it is shown next to.
 fn detail(alt: &str, tooltip: &str) -> String {
     match alt {
@@ -99,7 +99,7 @@ fn detail(alt: &str, tooltip: &str) -> String {
 }
 
 pub fn status() -> Status {
-    let cam: CamOut = serde_json::from_str(&sh::run(&["camctl", "status"])).unwrap_or_default();
+    let cam: CamOut = serde_json::from_str(&sh::run(&["camlink-ctl", "status"])).unwrap_or_default();
     let paused = dirs::config_dir()
         .map(|d| d.join(PAUSE_FLAG).exists())
         .unwrap_or(false);

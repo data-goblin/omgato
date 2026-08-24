@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
-    "src/camctl",
-    "src/elgatoctl",
-    "src/elgato-panel",
+    "src/camlink-ctl",
+    "src/keylight-ctl",
+    "src/omgato-panel",
     "src/streamdeck-ctl",
 ]
 
@@ -12,7 +12,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
-repository = "https://github.com/data-goblin/omarchy-elgato"
+repository = "https://github.com/data-goblin/omarchy-omgato"
 
 [workspace.dependencies]
 anyhow = "1"
