@@ -8,16 +8,57 @@ pub struct Holder {
     pub unit: Option<String>,
 }
 
-/// The systemd user unit a process belongs to, if any. A process supervised by
-/// systemd comes straight back when killed, so the useful advice is the unit
-/// name rather than the pid.
+/// The systemd **user** unit a process belongs to, if any.
+///
+/// Only a user unit counts. A user unit sits under `user@<uid>.service` and can
+/// be stopped and started again without privilege, which is what makes it safe
+/// to borrow the capture device from. A system unit looks the same at the end of
+/// the cgroup path but is not ours to touch.
 fn unit_of(pid: u32) -> Option<String> {
     let cgroup = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
-    cgroup
-        .lines()
-        .filter_map(|line| line.rsplit('/').next())
-        .find(|part| part.ends_with(".service"))
-        .map(|s| s.to_string())
+    let marker = format!("/user@{}.service/", users_own_uid());
+    cgroup.lines().find_map(|line| {
+        if !line.contains(&marker) {
+            return None;
+        }
+        line.rsplit('/').next().filter(|p| p.ends_with(".service")).map(str::to_string)
+    })
+}
+
+fn users_own_uid() -> u32 {
+    // Safe: getuid never fails and touches no memory we own.
+    unsafe extern "C" {
+        fn getuid() -> u32;
+    }
+    unsafe { getuid() }
+}
+
+/// Stop the user unit holding the device and wait for it to let go, so the
+/// overlay can take it. Returns the unit that was stopped, for giving back.
+pub fn borrow(found: &[Holder], device: &Path) -> Option<String> {
+    let unit = found.iter().find_map(|h| h.unit.clone())?;
+    let stopped = std::process::Command::new("systemctl")
+        .args(["--user", "stop", &unit])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !stopped {
+        return None;
+    }
+    for _ in 0..40 {
+        if holders(device).is_empty() {
+            return Some(unit);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Some(unit)
+}
+
+/// Start a unit that was stopped to free the device.
+pub fn give_back(unit: &str) {
+    let _ = std::process::Command::new("systemctl")
+        .args(["--user", "start", unit])
+        .status();
 }
 
 fn command_of(pid: u32) -> String {

@@ -76,6 +76,31 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
         state::remove(&state::fullscreen_flag());
     }
 
+    // The Cam Link is single-open. If a user service is sitting on it, stop that
+    // service and note it down, rather than making the user work out what to run.
+    // cmd_hide starts it again, so the device is always handed back.
+    if let Some(dev) = overlay::find_device(&cfg.device_pattern) {
+        let busy = crate::holder::holders(&dev);
+        if !busy.is_empty() {
+            match crate::holder::borrow(&busy, &dev) {
+                Some(unit) => {
+                    state::write_atomic(&state::borrowed_unit(), &unit).ok();
+                    notify(&format!("Paused {unit} to use the camera"));
+                }
+                None => {
+                    let msg = format!(
+                        "camera is held by {}; {}",
+                        crate::holder::describe(&busy),
+                        crate::holder::remedy(&busy)
+                    );
+                    eprintln!("camctl: {msg}");
+                    notify(&msg);
+                    return 1;
+                }
+            }
+        }
+    }
+
     if state::exists(&state::needs_reset_flag()) {
         if let Err(e) = reset::reset() {
             eprintln!("camctl: pre-show reset failed: {e}");
@@ -113,6 +138,11 @@ fn cmd_hide() -> i32 {
     overlay::kill_running();
     state::remove(&state::fullscreen_flag());
     state::write_atomic(&state::needs_reset_flag(), "1").ok();
+    if let Some(unit) = state::read(&state::borrowed_unit()) {
+        state::remove(&state::borrowed_unit());
+        crate::holder::give_back(&unit);
+        notify(&format!("Resumed {unit}"));
+    }
     0
 }
 

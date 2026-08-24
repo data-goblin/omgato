@@ -22,6 +22,10 @@ pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
 /// never lost and an overlay shown *after* the panel still lands clear of it.
 pub fn avoid_blocker() -> PathBuf { run_dir().join("avoid_blocker") }
 
+/// A user unit that was stopped so the overlay could take the capture device.
+/// Started again when the overlay is hidden, so borrowing is always paid back.
+pub fn borrowed_unit() -> PathBuf { run_dir().join("borrowed_unit") }
+
 pub fn pause_flag() -> PathBuf {
     dirs::config_dir().expect("no config dir").join("camctl/pause")
 }

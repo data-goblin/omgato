@@ -344,9 +344,10 @@ No lights discovered:     run elgatoctl discover. Key Lights answer over mDNS,
 A light reads unreachable: probes retry inside a 500ms budget, so a light that
                           still reports unreachable is genuinely not answering.
                           Confirm with elgatoctl ls --json
-Camera overlay is black:  the Cam Link is single-open. camctl names whatever is
-                          holding it, and the systemd unit to stop if that is
-                          what has it. If it stays wedged, camctl reset
+Camera overlay is black:  the Cam Link is single-open. If a user service holds
+                          it, the overlay borrows the device and gives it back
+                          on hide. A plain process is named rather than killed.
+                          If it stays wedged, camctl reset
 ```
 
 ## Contributing
