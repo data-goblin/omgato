@@ -57,6 +57,45 @@ pub fn placement(
     Placement { x, y, w, h }
 }
 
+/// A panel hanging from the bar at the right edge, given only its size. The
+/// bar widget lives on the right, so that is where its panel appears.
+pub fn panel_rect(mon: &Monitor, w: i32, h: i32) -> Placement {
+    let usable = usable_from_monitor(mon);
+    Placement { x: usable.right - w, y: usable.top, w, h }
+}
+
+fn overlaps(a: &Placement, b: &Placement) -> bool {
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+}
+
+/// Slide the overlay clear of `blocker`, preferring to move left because a
+/// panel occupies a full-height column. Falls back to moving down when there is
+/// no room on the left. Returns None when it already misses the blocker, so the
+/// caller can leave a position the user chose alone.
+pub fn dodge(
+    overlay: &Placement,
+    blocker: &Placement,
+    mon: &Monitor,
+    margin: i32,
+) -> Option<Placement> {
+    if !overlaps(overlay, blocker) {
+        return None;
+    }
+    let usable = usable_from_monitor(mon);
+
+    let left = blocker.x - overlay.w - margin;
+    if left >= usable.left {
+        return Some(Placement { x: left, ..*overlay });
+    }
+
+    let below = blocker.y + blocker.h + margin;
+    if below + overlay.h <= usable.bottom {
+        return Some(Placement { y: below, ..*overlay });
+    }
+
+    Some(Placement { x: usable.left + margin, ..*overlay })
+}
+
 fn usable_from_monitor(mon: &Monitor) -> Rect {
     let scale = if mon.scale > 0.0 { mon.scale } else { 1.0 };
     let mw = (mon.width as f32 / scale) as i32;
@@ -79,6 +118,19 @@ pub fn parse_rect(position: &str) -> Option<Placement> {
         .collect::<Option<Vec<i32>>>()?;
     let [x, y, w, h] = parts[..] else { return None };
     (w > 0 && h > 0).then_some(Placement { x, y, w, h })
+}
+
+/// Renders a placement back into the persisted "rect:X,Y,W,H" form.
+pub fn rect_to_position(p: &Placement) -> String {
+    format!("rect:{},{},{},{}", p.x, p.y, p.w, p.h)
+}
+
+/// Reads a bare "WxH" size, which is how a panel reports itself.
+pub fn size_from_text(text: &str) -> Option<(i32, i32)> {
+    let (w, h) = text.trim().split_once('x')?;
+    let w: i32 = w.trim().parse().ok()?;
+    let h: i32 = h.trim().parse().ok()?;
+    (w > 0 && h > 0).then_some((w, h))
 }
 
 /// Normalises slurp's "X,Y WxH" into the persisted "rect:X,Y,W,H" form.

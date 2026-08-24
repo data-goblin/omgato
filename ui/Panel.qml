@@ -434,6 +434,12 @@ Panel {
       interacting = false
       cancelOrder()
     }
+    // Keep the camera overlay from disappearing under this panel. camctl leaves
+    // a placement alone unless the two actually overlap.
+    if (settings.showCamera !== false) {
+      if (opened) act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight)])
+      else act(["camctl", "release"])
+    }
     refresh()
   }
 

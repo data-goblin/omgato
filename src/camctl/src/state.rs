@@ -17,6 +17,10 @@ pub fn pid_file() -> PathBuf { run_dir().join("ffplay.pid") }
 /// Cam Link enters when the V4L2 fd closes mid-stream. Lives in
 /// XDG_RUNTIME_DIR so it clears on reboot.
 pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
+/// Holds the position the overlay had before a panel pushed it aside, so
+/// `release` can put it back exactly where the user left it.
+pub fn avoid_restore() -> PathBuf { run_dir().join("avoid_restore") }
+
 pub fn pause_flag() -> PathBuf {
     dirs::config_dir().expect("no config dir").join("camctl/pause")
 }

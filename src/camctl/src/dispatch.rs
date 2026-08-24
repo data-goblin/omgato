@@ -19,6 +19,8 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Move { corner } => cmd_move(&cfg, corner),
         Cmd::Place { geometry } => cmd_place(&cfg, &geometry),
         Cmd::Pick => cmd_pick(&cfg),
+        Cmd::Avoid { geometry } => cmd_avoid(&cfg, &geometry),
+        Cmd::Release => cmd_release(&cfg),
         Cmd::Full => cmd_full(&cfg),
         Cmd::Status => cmd_status(&cfg),
         Cmd::Pause => {
@@ -132,6 +134,56 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
     state::remove(&state::fullscreen_flag());
     if !overlay::is_running() {
         return cmd_show(cfg, Some(&rect));
+    }
+    place_now(cfg)
+}
+
+/// Push the overlay out from under a panel that has just opened over it, and
+/// remember where it was so `release` can put it back. Doing nothing when the
+/// two do not overlap keeps a deliberate placement intact.
+fn cmd_avoid(cfg: &Config, geometry: &str) -> i32 {
+    if !overlay::is_running() {
+        return 0;
+    }
+    let mon = match hypr::focused_monitor() {
+        Ok(m) => m,
+        Err(e) => { eprintln!("camctl: {e}"); return 1; }
+    };
+
+    let blocker = if let Some((w, h)) = positioning::size_from_text(geometry) {
+        positioning::panel_rect(&mon, w, h)
+    } else if let Some(pos) = positioning::rect_from_geometry(geometry) {
+        match positioning::parse_rect(&pos) {
+            Some(r) => r,
+            None => { eprintln!("camctl: avoid: bad rectangle {geometry:?}"); return 2; }
+        }
+    } else {
+        eprintln!("camctl: avoid: expected \"WxH\" or \"X,Y WxH\", got {geometry:?}");
+        return 2;
+    };
+
+    let pos = state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone());
+    let current = positioning::placement(cfg, &mon, &pos, false, None);
+
+    let Some(moved) = positioning::dodge(&current, &blocker, &mon, cfg.margin as i32) else {
+        return 0;
+    };
+
+    if !state::exists(&state::avoid_restore()) {
+        state::write_atomic(&state::avoid_restore(), &pos).ok();
+    }
+    persist_position(&positioning::rect_to_position(&moved));
+    place_now(cfg)
+}
+
+fn cmd_release(cfg: &Config) -> i32 {
+    let Some(previous) = state::read(&state::avoid_restore()) else {
+        return 0;
+    };
+    state::remove(&state::avoid_restore());
+    persist_position(&previous);
+    if !overlay::is_running() {
+        return 0;
     }
     place_now(cfg)
 }

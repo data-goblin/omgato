@@ -28,6 +28,14 @@ pub enum Cmd {
     Pick,
     /// Toggle fullscreen on the overlay's monitor
     Full,
+    /// Move the overlay clear of a panel. Takes the panel's "WxH", or an
+    /// explicit "X,Y WxH" rectangle.
+    Avoid {
+        #[arg(value_name = "GEOMETRY")]
+        geometry: String,
+    },
+    /// Put the overlay back where it was before `avoid` moved it
+    Release,
     /// Emit waybar status JSON
     Status,
     /// Pause notifications + status updates (touches a flag file)
