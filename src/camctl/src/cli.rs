@@ -11,7 +11,7 @@ pub struct Cli {
 pub enum Cmd {
     /// Show the overlay (no-op if already running)
     Show,
-    /// Hide the overlay (waits for ffplay to release the device)
+    /// Hide the overlay (waits for mpv to release the device)
     Hide,
     /// Show if hidden, hide if shown
     Toggle,
