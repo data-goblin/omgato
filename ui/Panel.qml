@@ -28,7 +28,7 @@ Panel {
   property string renameIp: ""
   property bool renamingPage: false
   property string view: "lights"
-  property int pageIndex: 8
+  property int pageIndex: 0
   property var selection: []
   property int selectionAnchor: -1
   readonly property int editIndex: selection.length === 1 ? selection[0] : -1
