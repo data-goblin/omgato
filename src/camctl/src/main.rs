@@ -3,6 +3,7 @@ use clap::Parser;
 mod cli;
 mod config;
 mod dispatch;
+mod holder;
 mod hypr;
 mod obs;
 mod overlay;

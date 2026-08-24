@@ -24,10 +24,11 @@ Panel {
   property bool recOptionsLoaded: false
   property int recSeconds: 0
   property var history: ({ can_undo: false, can_redo: false })
+  property bool defaultSaved: false
   property string renameIp: ""
   property bool renamingPage: false
   property string view: "lights"
-  property int pageIndex: 0
+  property int pageIndex: 8
   property var selection: []
   property int selectionAnchor: -1
   readonly property int editIndex: selection.length === 1 ? selection[0] : -1
@@ -83,10 +84,10 @@ Panel {
 
   readonly property string contextLabel: view === "lights" ? "Lights"
     : view === "deck" ? (device === "pedal" ? "Pedal" : "Deck")
-    : "Polling"
+    : "Overlay"
   readonly property bool contextChecked: view === "lights" ? anyOn
     : view === "deck" ? (deck.services[deckDaemonKey] === "active")
-    : !camera.paused
+    : camera.overlay
 
   function kelvinColor(kelvin) {
     var t = Math.max(1000, Math.min(40000, kelvin)) / 100
@@ -101,7 +102,7 @@ Panel {
   function contextToggle() {
     if (view === "lights") { setLights("all", { on: !anyOn }); return }
     if (view === "deck") { act(["systemctl", "--user", deck.services[deckDaemonKey] === "active" ? "stop" : "start", deckDaemonKey]); return }
-    act(["camctl", camera.paused ? "resume" : "pause"])
+    act(["camctl", "toggle"])
   }
 
   function refresh() {
@@ -376,6 +377,7 @@ Panel {
             }
           }
           if (data.history) root.history = data.history
+          root.defaultSaved = data.default_saved === true
         } catch (e) {
         }
       }
@@ -608,6 +610,29 @@ Panel {
         onPrimary: root.act(["elgato-panel", "sync"])
         onUndo: root.act(["elgato-panel", "undo"])
         onRedo: root.act(["elgato-panel", "redo"])
+      }
+
+      Row {
+        width: parent.width
+        spacing: Style.space(10)
+
+        WidgetButton {
+          bar: root.bar
+          labelVisible: true
+          fixedWidth: (parent.width - Style.space(10)) / 2
+          text: "Save default"
+          onPressed: root.act(["elgato-panel", "save-default"])
+        }
+
+        WidgetButton {
+          bar: root.bar
+          labelVisible: true
+          fixedWidth: (parent.width - Style.space(10)) / 2
+          text: "Restore default"
+          enabled: root.defaultSaved
+          opacity: root.defaultSaved ? 1.0 : 0.45
+          onPressed: root.act(["elgato-panel", "restore-default"])
+        }
       }
 
       Grid {

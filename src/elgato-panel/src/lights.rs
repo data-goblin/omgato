@@ -91,6 +91,35 @@ pub fn restore(snap: &[Snap]) {
 
 /// Averages brightness and temperature across reachable lights and pushes the
 /// result to all of them in one call.
+/// Remember the lights exactly as they are, so a session can be put back to a
+/// known starting point without hunting through the undo history.
+pub fn save_default() -> Result<usize, String> {
+    let lights = read();
+    let snap = snapshot(&lights, None)
+        .ok_or("no reachable lights to save")?;
+    let count = snap.len();
+    crate::state::write_state(crate::state::LIGHTS_DEFAULT, &snap);
+    Ok(count)
+}
+
+/// Put every light back to the saved default.
+pub fn restore_default() -> Result<usize, String> {
+    let snap: Vec<Snap> = crate::state::read_state(crate::state::LIGHTS_DEFAULT)
+        .ok_or("no default saved yet - run: elgato-panel save-default")?;
+    if snap.is_empty() {
+        return Err("the saved default is empty".into());
+    }
+    let count = snap.len();
+    restore(&snap);
+    Ok(count)
+}
+
+/// Whether a default exists, for the panel to enable or grey out its button.
+pub fn has_default() -> bool {
+    crate::state::read_state::<Vec<Snap>>(crate::state::LIGHTS_DEFAULT)
+        .is_some_and(|s| !s.is_empty())
+}
+
 pub fn sync() {
     let live: Vec<Light> = read().into_iter().filter(|l| l.reachable).collect();
     if live.is_empty() {

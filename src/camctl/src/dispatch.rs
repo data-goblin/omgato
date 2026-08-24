@@ -87,6 +87,7 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     let pid = match overlay::spawn(cfg) {
         Ok(p) => p,
         Err(e) => {
+            eprintln!("camctl: {e}");
             notify(&format!("mpv spawn failed: {e}"));
             return 1;
         }
@@ -142,9 +143,6 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
 /// remember where it was so `release` can put it back. Doing nothing when the
 /// two do not overlap keeps a deliberate placement intact.
 fn cmd_avoid(cfg: &Config, geometry: &str) -> i32 {
-    if !overlay::is_running() {
-        return 0;
-    }
     let mon = match hypr::focused_monitor() {
         Ok(m) => m,
         Err(e) => { eprintln!("camctl: {e}"); return 1; }
@@ -162,30 +160,27 @@ fn cmd_avoid(cfg: &Config, geometry: &str) -> i32 {
         return 2;
     };
 
-    let pos = state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone());
-    let current = positioning::placement(cfg, &mon, &pos, false, None);
-
-    let Some(moved) = positioning::dodge(&current, &blocker, &mon, cfg.margin as i32) else {
-        return 0;
-    };
-
-    if !state::exists(&state::avoid_restore()) {
-        state::write_atomic(&state::avoid_restore(), &pos).ok();
-    }
-    persist_position(&positioning::rect_to_position(&moved));
-    place_now(cfg)
-}
-
-fn cmd_release(cfg: &Config) -> i32 {
-    let Some(previous) = state::read(&state::avoid_restore()) else {
-        return 0;
-    };
-    state::remove(&state::avoid_restore());
-    persist_position(&previous);
+    state::write_atomic(&state::avoid_blocker(), &positioning::rect_to_position(&blocker)).ok();
     if !overlay::is_running() {
         return 0;
     }
     place_now(cfg)
+}
+
+fn cmd_release(cfg: &Config) -> i32 {
+    if !state::exists(&state::avoid_blocker()) {
+        return 0;
+    }
+    state::remove(&state::avoid_blocker());
+    if !overlay::is_running() {
+        return 0;
+    }
+    place_now(cfg)
+}
+
+/// The rectangle a panel has claimed, if one currently has.
+fn active_blocker() -> Option<positioning::Placement> {
+    state::read(&state::avoid_blocker()).and_then(|s| positioning::parse_rect(&s))
 }
 
 fn cmd_pick(cfg: &Config) -> i32 {
@@ -262,7 +257,16 @@ fn place_now(cfg: &Config) -> i32 {
         None
     };
 
-    let p = placement(cfg, &mon, &pos, full, obs_region);
+    let mut p = placement(cfg, &mon, &pos, full, obs_region);
+    // A panel that is currently open claims a rectangle. Dodging here rather
+    // than when the panel opened means an overlay shown afterwards also lands
+    // clear of it, and the position the user chose is never overwritten.
+    if !full
+        && let Some(blocker) = active_blocker()
+        && let Some(moved) = positioning::dodge(&p, &blocker, &mon, cfg.margin as i32)
+    {
+        p = moved;
+    }
     let _ = hypr::resize_window_pixel(&win.address, p.w, p.h);
     let _ = hypr::move_window_pixel(&win.address, p.x, p.y);
     let _ = hypr::pin_window(&win.address);

@@ -38,6 +38,10 @@ enum Cmd {
     Status,
     /// Set every light to the average brightness and temperature
     Sync,
+    /// Remember the current light settings as the default
+    SaveDefault,
+    /// Put every light back to the saved default
+    RestoreDefault,
     /// Step back one recorded light state
     Undo,
     /// Step forward one recorded light state
@@ -96,6 +100,9 @@ enum Cmd {
 struct Document {
     lights: Vec<lights::Light>,
     history: state::Flags,
+    /// Whether a saved default exists, so the panel knows if restoring is
+    /// something the user can actually do yet.
+    default_saved: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     deck: Option<deck::Status>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,6 +131,7 @@ fn status(lights_only: bool, with_conflicts: bool, with_record: bool) {
     let doc = Document {
         lights,
         history: history.flags(),
+        default_saved: lights::has_default(),
         deck,
         camera,
         record: (!lights_only).then(|| record::status(with_record)),
@@ -153,6 +161,12 @@ fn main() {
     match cli.cmd {
         None | Some(Cmd::Status) => status(cli.lights_only, cli.with_conflicts, cli.with_record),
         Some(Cmd::Sync) => lights::sync(),
+        Some(Cmd::SaveDefault) => report(lights::save_default().map(|n| {
+            println!("saved {n} lights as the default");
+        })),
+        Some(Cmd::RestoreDefault) => report(lights::restore_default().map(|n| {
+            println!("restored {n} lights to the default");
+        })),
         Some(Cmd::Undo) => travel_lights(-1),
         Some(Cmd::Redo) => travel_lights(1),
         Some(Cmd::Rename { ip, name }) => {

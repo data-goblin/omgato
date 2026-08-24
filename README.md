@@ -8,7 +8,7 @@ An unofficial Omarchy plugin for controlling Elgato hardware like lights,
 stream deck and CamLink.
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Dragging a Key Light's brightness, then switching to the Stream Deck grid and the Cam Link controls" width="380">
+  <img src="docs/images/demo.gif" alt="Switching the camera overlay on from the panel, watching it park clear, then raising one Key Light, dimming the other, and restoring the saved default" width="420">
 </p>
 
 <p align="center"><a href="docs/images/demo.mp4">Watch the same demo as video</a></p>
@@ -18,6 +18,10 @@ stream deck and CamLink.
   <img src="docs/images/deck.png" alt="Stream Deck view" width="250">
   <img src="docs/images/camera.png" alt="Cam Link view" width="250">
 </p>
+
+> [!NOTE]
+> I am not a programmer. I used Claude Code and Codex to build this for myself.
+> Excuse my ignorance to etiquette or common practice here. Any feedback and contributions welcome!
 
 ## Supported hardware
 
@@ -67,8 +71,8 @@ are not.
 
 | Device | Colour model | Supported | Tested | What the plugin does with it |
 | --- | :---: | :---: | :---: | --- |
-| Key Light | Temperature | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
-| Key Light Air | Temperature | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
+| Key Light | Temperature | ✓ | ✓ | Power, brightness, temperature, saved default, rename and reorder |
+| Key Light Air | Temperature | ✓ | ✓ | Power, brightness, temperature, saved default, rename and reorder |
 | Key Light Mini | Temperature | ✓ | ✗ | Same API; discontinued by Elgato, battery level is not read |
 | Ring Light | Temperature | ✓ | ✗ | Power, brightness and temperature; discontinued by Elgato |
 | Light Strip | Hue | ✓ | ✗ | Power and brightness only; it is hue based, so no colour control |
@@ -180,6 +184,31 @@ What survives on purpose: your Stream Deck and Pedal configuration, your light
 names and display order, and the udev rule at
 `/etc/udev/rules.d/70-streamdeck-ctl.rules`, which needs root to remove. Pass
 `--purge` to `scripts/uninstall` to drop the saved state as well.
+
+## Lights, defaults and undo
+
+Ten changes of undo history are kept, and separately you can pin one arrangement
+as the default and come back to it whenever a session has wandered:
+
+```bash
+elgato-panel save-default      # remember the lights exactly as they are
+elgato-panel restore-default   # put every light back to it
+elgato-panel undo              # or step back one change at a time
+```
+
+Both are buttons in the Key Lights view. Restore is greyed out until a default
+has been saved.
+
+## The camera overlay and the panel
+
+The panel opens over the top-right corner, which is where the camera overlay
+usually sits. Rather than hiding it, the panel tells `camctl` the rectangle it
+occupies and the overlay slides clear, returning to its own position when the
+panel closes. A placement that does not overlap is left exactly where you put
+it, and an overlay switched on while the panel is already open still lands clear
+of it.
+
+The overlay switch is the toggle in the top right of the Cam Link view.
 
 ## Settings
 
@@ -315,8 +344,9 @@ No lights discovered:     run elgatoctl discover. Key Lights answer over mDNS,
 A light reads unreachable: probes retry inside a 500ms budget, so a light that
                           still reports unreachable is genuinely not answering.
                           Confirm with elgatoctl ls --json
-Camera overlay is black:  the Cam Link is single-open. Close anything else using
-                          it, then camctl show. If it stays wedged, camctl reset
+Camera overlay is black:  the Cam Link is single-open. camctl names whatever is
+                          holding it, and the systemd unit to stop if that is
+                          what has it. If it stays wedged, camctl reset
 ```
 
 ## Contributing

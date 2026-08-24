@@ -31,6 +31,18 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
         .ok_or_else(|| format!("device matching '{}' not found in /dev/v4l/by-id", cfg.device_pattern))?;
     let dev_str = dev.to_string_lossy().into_owned();
 
+    // The Cam Link is single-open. Say which process to stop rather than
+    // letting mpv fail later with a bare "resource busy".
+    let busy = crate::holder::holders(&dev);
+    if !busy.is_empty() {
+        return Err(format!(
+            "{} is already in use by {}; {}",
+            dev.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(dev_str),
+            crate::holder::describe(&busy),
+            crate::holder::remedy(&busy)
+        ));
+    }
+
     let cap_w = cfg.capture_size[0];
     let cap_h = cfg.capture_size[1];
     let fps = cfg.framerate;
