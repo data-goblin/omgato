@@ -299,7 +299,9 @@ fn place_now(cfg: &Config) -> i32 {
     }
     let _ = hypr::resize_window_pixel(&win.address, p.w, p.h);
     let _ = hypr::move_window_pixel(&win.address, p.x, p.y);
-    let _ = hypr::pin_window(&win.address);
+    if !win.pinned {
+        let _ = hypr::pin_window(&win.address);
+    }
     0
 }
 

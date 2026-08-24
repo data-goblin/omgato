@@ -32,6 +32,11 @@ pub struct Client {
     #[serde(default)]
     pub mapped: bool,
     pub monitor: i32,
+    /// A pinned floating window stays visible across workspace switches, which
+    /// is what makes the overlay a picture-in-picture rather than a window that
+    /// disappears the moment you move workspace.
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 pub fn clients() -> Result<Vec<Client>, String> {
@@ -96,6 +101,10 @@ pub fn resize_window_pixel(addr: &str, w: i32, h: i32) -> Result<(), String> {
 }
 
 /// Keeps the overlay visible across workspace switches.
+///
+/// The dispatcher toggles, so calling it on an already pinned window unpins it.
+/// Every reposition used to call this, which left the overlay pinned only on an
+/// even number of moves and stranded on one workspace the rest of the time.
 pub fn pin_window(addr: &str) -> Result<(), String> {
     dispatch(&format!(
         "/dispatch hl.dsp.window.pin({{ window = \"address:{addr}\" }})"
