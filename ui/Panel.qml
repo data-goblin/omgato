@@ -99,11 +99,20 @@ Panel {
     return Qt.rgba(channel(r), channel(g), channel(b), 1)
   }
 
+  // Identifies this panel to camctl. Including the screen keeps the claim of a
+  // panel on one monitor separate from the same plugin's panel on another.
+  readonly property string claimOwner: {
+    var w = root.QsWindow ? root.QsWindow.window : null
+    var name = w && w.screen ? w.screen.name : ""
+    return name === "" ? root.moduleName : root.moduleName + "." + name
+  }
+
   // Tell camctl the rectangle this panel occupies. Its height changes with the
   // view, so this is sent again whenever the panel resizes.
   function claimSpace() {
     if (!opened || settings.showCamera === false) return
-    act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight)])
+    act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight),
+         "--owner", root.claimOwner])
   }
 
   function contextToggle() {
@@ -450,7 +459,7 @@ Panel {
     if (opened) {
       if (settings.showCamera !== false) root.claimSpace()
     } else {
-      act(["camctl", "release"])
+      act(["camctl", "release", "--owner", root.claimOwner])
     }
     refresh()
   }

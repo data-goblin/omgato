@@ -8,7 +8,7 @@ An unofficial Omarchy plugin for controlling Elgato hardware like lights,
 stream deck and CamLink.
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Switching the camera overlay on from the panel, watching it park clear of the panel, then raising one Key Light, dimming the other, and restoring the saved default" width="700">
+  <img src="docs/images/demo.gif" alt="Switching the camera overlay on from the panel, watching it park clear, raising one Key Light and dimming the other, restoring the saved default, then switching everything back off" width="700">
 </p>
 
 <p align="center"><a href="docs/images/demo.mp4">Watch the same demo as video</a></p>

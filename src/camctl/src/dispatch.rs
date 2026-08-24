@@ -19,8 +19,8 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Move { corner } => cmd_move(&cfg, corner),
         Cmd::Place { geometry } => cmd_place(&cfg, &geometry),
         Cmd::Pick => cmd_pick(&cfg),
-        Cmd::Avoid { geometry } => cmd_avoid(&cfg, &geometry),
-        Cmd::Release => cmd_release(&cfg),
+        Cmd::Avoid { geometry, owner } => cmd_avoid(&cfg, &geometry, &owner),
+        Cmd::Release { owner } => cmd_release(&cfg, &owner),
         Cmd::Full => cmd_full(&cfg),
         Cmd::Status => cmd_status(&cfg),
         Cmd::Pause => {
@@ -172,7 +172,7 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
 /// Push the overlay out from under a panel that has just opened over it, and
 /// remember where it was so `release` can put it back. Doing nothing when the
 /// two do not overlap keeps a deliberate placement intact.
-fn cmd_avoid(cfg: &Config, geometry: &str) -> i32 {
+fn cmd_avoid(cfg: &Config, geometry: &str, owner: &str) -> i32 {
     let mon = match hypr::focused_monitor() {
         Ok(m) => m,
         Err(e) => { eprintln!("camctl: {e}"); return 1; }
@@ -190,27 +190,22 @@ fn cmd_avoid(cfg: &Config, geometry: &str) -> i32 {
         return 2;
     };
 
-    state::write_atomic(&state::avoid_blocker(), &positioning::rect_to_position(&blocker)).ok();
+    if let Err(e) = crate::blocker::claim(owner, &blocker) {
+        eprintln!("camctl: could not record the panel's claim: {e}");
+        return 1;
+    }
     if !overlay::is_running() {
         return 0;
     }
     place_now(cfg)
 }
 
-fn cmd_release(cfg: &Config) -> i32 {
-    if !state::exists(&state::avoid_blocker()) {
-        return 0;
-    }
-    state::remove(&state::avoid_blocker());
+fn cmd_release(cfg: &Config, owner: &str) -> i32 {
+    crate::blocker::release(owner);
     if !overlay::is_running() {
         return 0;
     }
     place_now(cfg)
-}
-
-/// The rectangle a panel has claimed, if one currently has.
-fn active_blocker() -> Option<positioning::Placement> {
-    state::read(&state::avoid_blocker()).and_then(|s| positioning::parse_rect(&s))
 }
 
 fn cmd_pick(cfg: &Config) -> i32 {
@@ -292,7 +287,7 @@ fn place_now(cfg: &Config) -> i32 {
     // than when the panel opened means an overlay shown afterwards also lands
     // clear of it, and the position the user chose is never overwritten.
     if !full
-        && let Some(blocker) = active_blocker()
+        && let Some(blocker) = crate::blocker::obstruction(&p)
         && let Some(moved) = positioning::dodge(&p, &blocker, &mon, cfg.margin as i32)
     {
         p = moved;

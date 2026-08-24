@@ -1,5 +1,6 @@
 use clap::Parser;
 
+mod blocker;
 mod cli;
 mod config;
 mod dispatch;

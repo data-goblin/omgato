@@ -17,11 +17,6 @@ pub fn pid_file() -> PathBuf { run_dir().join("ffplay.pid") }
 /// Cam Link enters when the V4L2 fd closes mid-stream. Lives in
 /// XDG_RUNTIME_DIR so it clears on reboot.
 pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
-/// The rectangle a panel currently occupies. Held as its own fact rather than
-/// by rewriting the overlay's position, so the placement the user chose is
-/// never lost and an overlay shown *after* the panel still lands clear of it.
-pub fn avoid_blocker() -> PathBuf { run_dir().join("avoid_blocker") }
-
 /// A user unit that was stopped so the overlay could take the capture device.
 /// Started again when the overlay is hidden, so borrowing is always paid back.
 pub fn borrowed_unit() -> PathBuf { run_dir().join("borrowed_unit") }

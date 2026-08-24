@@ -33,9 +33,16 @@ pub enum Cmd {
     Avoid {
         #[arg(value_name = "GEOMETRY")]
         geometry: String,
+        /// Identifies the panel making the claim, so two panels or two monitors
+        /// do not overwrite each other
+        #[arg(long, default_value = "panel")]
+        owner: String,
     },
-    /// Put the overlay back where it was before `avoid` moved it
-    Release,
+    /// Drop this panel's claim on the space the overlay avoids
+    Release {
+        #[arg(long, default_value = "panel")]
+        owner: String,
+    },
     /// Emit waybar status JSON
     Status,
     /// Pause notifications + status updates (touches a flag file)
