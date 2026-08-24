@@ -18,27 +18,127 @@ handed to an agent.
 
 ## Supported hardware
 
-Layout comes from the device library rather than a list here, so any Stream Deck
-the `elgato-streamdeck` crate recognises is laid out correctly. Supported means
-the plugin drives it; tested means it has been exercised on real hardware.
+Legend: `✓` yes, `✗` no, `?` plausible but unconfirmed. Supported means the
+plugin drives it. Tested means it has been exercised on real hardware here.
+Unsupported peripherals are listed rather than omitted, so the gaps are visible.
 
-| Device | Supported | Tested | What the plugin does with it |
-| --- | :---: | :---: | --- |
-| Stream Deck Mk.2 (5x3) | ✓ | ✓ | Key grid, pages, multi-key editing, brightness, display power |
-| Stream Deck Original and V2 (5x3) | ✓ | ✗ | Same 5x3 grid and paging as the Mk.2 |
-| Stream Deck Mini and Mini Mk.2 (3x2) | ✓ | ✗ | Three by two grid, paging, same editing surface |
-| Stream Deck XL and XL V2 (8x4) | ✓ | ✗ | Eight by four grid, paging, same editing surface |
-| Stream Deck Neo (4x2) | ✓ | ✗ | Key grid and paging; the two touch keys are not addressable |
-| Stream Deck + (4x2) | ✓ | ✗ | Key grid and paging; dials and touch strip are not addressable |
-| Stream Deck Pedal | ✓ | ✓ | Tap, hold and double bindings for each of the three pedals |
-| Key Light | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
-| Key Light Air | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
-| Key Light Mini | ✓ | ✗ | Same local HTTP API as the other Key Lights |
-| Ring Light | ✓ | ✗ | Same local HTTP API as the other Key Lights |
-| Cam Link 4K | ✓ | ✓ | Overlay placement by corner or dragged area, plus recording |
+### Stream Deck
+
+Layout comes from the `elgato-streamdeck` crate, so every model it recognises is
+laid out correctly with no change here. All are USB vendor `0fd9`.
+
+| Device | Grid | USB ID | Supported | Tested | What the plugin does with it |
+| --- | :---: | :---: | :---: | :---: | --- |
+| Stream Deck MK.2 | 5x3 | `0080` | ✓ | ✓ | Key grid, pages, multi-key editing, brightness, display power |
+| Stream Deck | 5x3 | `0060` | ✓ | ✗ | Same grid and paging as the MK.2 |
+| Stream Deck V2 | 5x3 | `006d` | ✓ | ✗ | Same grid and paging as the MK.2 |
+| Stream Deck Scissor Keys | 5x3 | `00a5` | ✓ | ✗ | Same as the MK.2; only the key switches differ |
+| Stream Deck Mini | 3x2 | `0063` | ✓ | ✗ | Three by two grid, paging, same editing surface |
+| Stream Deck Mini MK.2 | 3x2 | `0090` | ✓ | ✗ | Three by two grid, paging, same editing surface |
+| Stream Deck Mini: Discord Edition | 3x2 | `00b3` | ✓ | ✗ | Driven identically to the Mini |
+| Stream Deck XL | 8x4 | `006c` | ✓ | ✗ | Eight by four grid, paging, same editing surface |
+| Stream Deck XL V2 | 8x4 | `008f` | ✓ | ✗ | Eight by four grid, paging, same editing surface |
+| Stream Deck Neo | 4x2 | `009a` | ✓ | ✗ | Key grid and paging; the two touch keys are not addressable |
+| Stream Deck + | 4x2 | `0084` | ✓ | ✗ | Key grid and paging; dials and touch strip are not addressable |
+| Stream Deck Pedal | 3 | `0086` | ✓ | ✓ | Tap, hold and double bindings for each of the three pedals |
+| Stream Deck Module (6 keys) | 3x2 | `00b8` | ✓ | ✗ | OEM panel-mount module, driven as its desktop equivalent |
+| Stream Deck Module (15 keys) | 5x3 | `00b9` | ✓ | ✗ | OEM panel-mount module, driven as its desktop equivalent |
+| Stream Deck Module (32 keys) | 8x4 | `00ba` | ✓ | ✗ | OEM panel-mount module, driven as its desktop equivalent |
+| Stream Deck + XL | 9x4 | `00c6` | ✗ | ✗ | Not yet in the device library, so nothing here recognises it |
+| Stream Deck Studio | 16x2 | `00aa` | ✗ | ✗ | Not in the device library; the rack unit is unrecognised |
+| Stream Deck Mobile, Virtual Stream Deck | - | - | ✗ | ✗ | Software, not USB hardware; out of scope |
 
 Auto-pagination puts its arrows at the two ends of the bottom row, which is
 sensible on every grid but has only been seen on a 5x3.
+
+### Lights
+
+Discovered over mDNS as `_elg._tcp` and driven over the local `/elgato/lights`
+HTTP API on port 9123. The plugin reads and writes `on`, `brightness` and
+`temperature`, so temperature-based lights are fully covered and hue-based ones
+are not.
+
+| Device | Colour model | Supported | Tested | What the plugin does with it |
+| --- | :---: | :---: | :---: | --- |
+| Key Light | Temperature | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
+| Key Light Air | Temperature | ✓ | ✓ | Power, brightness and colour temperature, rename and reorder |
+| Key Light Mini | Temperature | ✓ | ✗ | Same API; discontinued by Elgato, battery level is not read |
+| Ring Light | Temperature | ✓ | ✗ | Power, brightness and temperature; discontinued by Elgato |
+| Light Strip | Hue | ✓ | ✗ | Power and brightness only; it is hue based, so no colour control |
+| Key Light Neo | Temperature | ? | ✗ | Local HTTP API is not confirmed on this model |
+| Key Light Air MK.2 | Temperature | ? | ✗ | Local HTTP API is not confirmed on this model |
+| Light Strip Pro | Hue, addressable | ? | ✗ | Per-LED addressing does not fit the flat API this plugin speaks |
+
+Three of these are marked `?` because Elgato does not document the local API and
+the newer models are absent from every source that lists it. One command settles
+it on your own hardware, and the answer is worth an issue either way:
+
+```bash
+curl -s http://<light-ip>:9123/elgato/lights
+```
+
+### Cameras
+
+`camctl` matches `/dev/v4l/by-id` against a `device_pattern`, so any device the
+kernel exposes as a UVC webcam can drive the overlay. Point it at something else
+by editing `~/.config/camctl/config.toml`:
+
+```toml
+device_pattern = "Facecam"
+```
+
+| Device | Supported | Tested | What the plugin does with it |
+| --- | :---: | :---: | --- |
+| Cam Link 4K | ✓ | ✓ | Overlay placement by corner or dragged area, plus recording |
+| Facecam MK.2 | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
+| Facecam 4K | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
+| Facecam Neo | ✓ | ✗ | UVC 1.5; set `device_pattern` and the overlay works |
+| Facecam | ✓ | ✗ | UVC; discontinued by Elgato |
+| Facecam Pro | ✓ | ✗ | UVC; discontinued by Elgato |
+| Cam Link Pro | ✗ | ✗ | PCIe card exposing DirectShow, not UVC; no Linux support |
+
+### Capture cards
+
+These present as video devices too, so the same overlay and recording path
+applies where the kernel binds them.
+
+| Device | Supported | Tested | What the plugin does with it |
+| --- | :---: | :---: | --- |
+| Game Capture HD60 X | ✓ | ✗ | UVC compatible; usable as an overlay source |
+| Game Capture 4K X | ✓ | ✗ | UVC; needs the mainline `USB_QUIRK_NO_BOS` fix for full bandwidth |
+| Game Capture 4K S | ✓ | ✗ | UVC compliant; usable as an overlay source |
+| Video Capture | ✓ | ✗ | Analogue capture bound by `em28xx` or `cx231xx` in mainline |
+| Game Capture Neo | ? | ✗ | Plug and play, but UVC is not stated by Elgato |
+| Game Capture 4K Pro | ✗ | ✗ | PCIe with a proprietary Windows-only driver |
+
+### Audio
+
+Nothing here drives Elgato audio hardware. The Wave range mixes, gains and mutes
+over a separate protocol that this plugin does not implement, and the microphones
+work as ordinary USB audio devices without it.
+
+| Device | Supported | Tested | Why not |
+| --- | :---: | :---: | --- |
+| Wave:3, Wave:3 MK.2 | ✗ | ✗ | USB audio class; capture works, hardware controls do not |
+| Wave XLR, Wave XLR MK.2, Wave XLR Pro | ✗ | ✗ | Interface controls need a protocol this plugin does not speak |
+| Wave Neo | ✗ | ✗ | USB audio class; capture works, hardware controls do not |
+| Wave DX | ✗ | ✗ | A passive XLR microphone; there is nothing to control |
+| XLR Dock MK.2 | ✗ | ✗ | Attaches to a Stream Deck +, but exposes no controls here |
+
+### Teleprompter
+
+| Device | Supported | Tested | Why not |
+| --- | :---: | :---: | --- |
+| Prompter | ✗ | ✗ | Presents as an extra USB-C display, not a controllable device |
+| Prompter XL | ✗ | ✗ | Presents as an extra USB display, not a controllable device |
+
+A Prompter needs nothing from this plugin: Hyprland already treats it as a
+monitor, so any window can be dragged onto it.
+
+### Mounts and accessories
+
+The Multi Mount system, mic arms, green screens, acoustic panels and dial caps
+contain no electronics, so there is nothing for this plugin to drive.
 
 > [!NOTE]
 > If you own hardware that is not supported, please feel free to test, add it,
