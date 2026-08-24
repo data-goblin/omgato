@@ -99,6 +99,13 @@ Panel {
     return Qt.rgba(channel(r), channel(g), channel(b), 1)
   }
 
+  // Tell camctl the rectangle this panel occupies. Its height changes with the
+  // view, so this is sent again whenever the panel resizes.
+  function claimSpace() {
+    if (!opened || settings.showCamera === false) return
+    act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight)])
+  }
+
   function contextToggle() {
     if (view === "lights") { setLights("all", { on: !anyOn }); return }
     if (view === "deck") { act(["systemctl", "--user", deck.services[deckDaemonKey] === "active" ? "stop" : "start", deckDaemonKey]); return }
@@ -437,10 +444,13 @@ Panel {
       cancelOrder()
     }
     // Keep the camera overlay from disappearing under this panel. camctl leaves
-    // a placement alone unless the two actually overlap.
-    if (settings.showCamera !== false) {
-      if (opened) act(["camctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight)])
-      else act(["camctl", "release"])
+    // a placement alone unless the two actually overlap. Release runs on every
+    // close, not only when the camera section is on, so turning that section off
+    // while the panel is open cannot strand the overlay out of position.
+    if (opened) {
+      if (settings.showCamera !== false) root.claimSpace()
+    } else {
+      act(["camctl", "release"])
     }
     refresh()
   }
@@ -470,6 +480,7 @@ Panel {
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
+    onContentHeightChanged: root.claimSpace()
 
     PanelKeyCatcher {
       id: keyCatcher

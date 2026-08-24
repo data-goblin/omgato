@@ -95,10 +95,24 @@ pub fn restore(snap: &[Snap]) {
 /// known starting point without hunting through the undo history.
 pub fn save_default() -> Result<usize, String> {
     let lights = read();
-    let snap = snapshot(&lights, None)
-        .ok_or("no reachable lights to save")?;
+    // An unreachable light has no state to record, and snapshot() would store a
+    // placeholder of off/0/0. Restoring that later would switch the light off
+    // and drive it to minimum, so refuse rather than save something destructive.
+    let missing: Vec<&str> = lights
+        .iter()
+        .filter(|l| !l.reachable)
+        .map(|l| l.name.as_str())
+        .collect();
+    if !missing.is_empty() {
+        return Err(format!(
+            "not saving a default while these lights are unreachable: {}",
+            missing.join(", ")
+        ));
+    }
+    let snap = snapshot(&lights, None).ok_or("no reachable lights to save")?;
     let count = snap.len();
-    crate::state::write_state(crate::state::LIGHTS_DEFAULT, &snap);
+    crate::state::write_state_checked(crate::state::LIGHTS_DEFAULT, &snap)
+        .map_err(|e| format!("could not write the default: {e}"))?;
     Ok(count)
 }
 

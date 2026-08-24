@@ -35,7 +35,9 @@ pub fn read(path: &PathBuf) -> Option<String> {
 }
 
 pub fn write_atomic(path: &PathBuf, value: &str) -> std::io::Result<()> {
-    let tmp = path.with_extension("tmp");
+    // Include the pid: two camctl processes writing at once would otherwise
+    // share one temporary file and could rename each other's half-written state.
+    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

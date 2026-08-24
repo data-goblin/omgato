@@ -129,11 +129,13 @@ pub fn describe(found: &[Holder]) -> String {
     found
         .iter()
         .map(|h| {
-            let mut cmd = h.command.clone();
-            if cmd.len() > 60 {
-                cmd.truncate(57);
-                cmd.push_str("...");
-            }
+            // Truncating by bytes panics when the cut lands inside a multibyte
+            // character, which a path or argument can easily contain.
+            let cmd: String = if h.command.chars().count() > 60 {
+                h.command.chars().take(57).chain("...".chars()).collect()
+            } else {
+                h.command.clone()
+            };
             match &h.unit {
                 Some(unit) => format!("{unit} (pid {})", h.pid),
                 None => format!("pid {} ({cmd})", h.pid),

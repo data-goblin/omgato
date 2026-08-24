@@ -139,6 +139,20 @@ pub fn write_state<T: Serialize>(file: &str, value: &T) {
     write_json(&path(file), value);
 }
 
+/// Same as `write_state`, but says whether it worked. Anything the user is told
+/// succeeded needs this rather than the silent form.
+pub fn write_state_checked<T: Serialize>(file: &str, value: &T) -> std::io::Result<()> {
+    let target = path(file);
+    let parent = target
+        .parent()
+        .ok_or_else(|| std::io::Error::other("state path has no parent"))?;
+    fs::create_dir_all(parent)?;
+    let tmp = target.with_extension(format!("{}.tmp", std::process::id()));
+    let text = serde_json::to_string(value).map_err(std::io::Error::other)?;
+    fs::write(&tmp, text)?;
+    fs::rename(&tmp, &target)
+}
+
 fn read_json<T: DeserializeOwned>(path: &PathBuf) -> Option<T> {
     serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
 }
