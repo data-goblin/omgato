@@ -4,11 +4,8 @@
 [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Omarchy](https://img.shields.io/badge/omarchy-quattro-8a63d2.svg)](https://omarchy.org)
 
-One Omarchy Quattro bar panel for Elgato peripherals: Key Lights, a Stream Deck
-with its Pedal, and a Cam Link 4K overlay. This is an unofficial project. The
-panel is thin. Every device is driven by a small command line tool in this
-repository, so anything the panel does can also be scripted, bound to a key, or
-handed to an agent.
+An unofficial Omarchy plugin for controlling Elgato hardware like lights,
+stream deck and CamLink.
 
 <p align="center">
   <img src="docs/images/lights.png" alt="Key Lights view" width="300">
@@ -18,9 +15,13 @@ handed to an agent.
 
 ## Supported hardware
 
-Legend: `✓` yes, `✗` no, `?` plausible but unconfirmed. Supported means the
-plugin drives it. Tested means it has been exercised on real hardware here.
-Unsupported peripherals are listed rather than omitted, so the gaps are visible.
+Legend: `✓` yes, `✗` no, `?` plausible but unconfirmed. 
+
+I could only test hardware that I own.
+
+> [!NOTE]
+> If you own hardware that is not supported, please feel free to test, add it,
+> and submit a PR.
 
 ### Stream Deck
 
@@ -80,7 +81,7 @@ curl -s http://<light-ip>:9123/elgato/lights
 ### Cameras
 
 `camctl` matches `/dev/v4l/by-id` against a `device_pattern`, so any device the
-kernel exposes as a UVC webcam can drive the overlay. Point it at something else
+kernel exposes as a UVC webcam can drive the overlay. You can change it to something else
 by editing `~/.config/camctl/config.toml`:
 
 ```toml
@@ -113,9 +114,7 @@ applies where the kernel binds them.
 
 ### Audio
 
-Nothing here drives Elgato audio hardware. The Wave range mixes, gains and mutes
-over a separate protocol that this plugin does not implement, and the microphones
-work as ordinary USB audio devices without it.
+Nothing in this plugin yet supports specific Elgato audio hardware.
 
 | Device | Supported | Tested | Why not |
 | --- | :---: | :---: | --- |
@@ -127,25 +126,13 @@ work as ordinary USB audio devices without it.
 
 ### Teleprompter
 
+Nothing in this plugin yet supports Elgato teleprompters.
+
 | Device | Supported | Tested | Why not |
 | --- | :---: | :---: | --- |
 | Prompter | ✗ | ✗ | Presents as an extra USB-C display, not a controllable device |
 | Prompter XL | ✗ | ✗ | Presents as an extra USB display, not a controllable device |
 
-A Prompter needs nothing from this plugin: Hyprland already treats it as a
-monitor, so any window can be dragged onto it.
-
-### Mounts and accessories
-
-The Multi Mount system, mic arms, green screens, acoustic panels and dial caps
-contain no electronics, so there is nothing for this plugin to drive.
-
-> [!NOTE]
-> If you own hardware that is not supported, please feel free to test, add it,
-> and submit a pull request.
-
-`streamdeck-ctl ls --json` output is the single most useful thing to attach to an
-issue: it shows exactly what the library reports for your device.
 
 ## Install
 
@@ -337,5 +324,6 @@ before opening one. Release history is in [CHANGELOG.md](CHANGELOG.md).
 MIT. See [LICENSE](LICENSE).
 
 Elgato, Stream Deck, Key Light and Cam Link are trademarks of Corsair Gaming and
-its Elgato brand, which does not sponsor or endorse this project. This is an
-unofficial, community-built plugin and is not affiliated with Elgato.
+its Elgato brand, which does not sponsor or endorse this project.
+
+This is an unofficial, community-built plugin and is not affiliated with Elgato.
