@@ -2,6 +2,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::fs::OpenOptions;
+use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 
 pub const HISTORY_MAX: usize = 11; // baseline + 10 undoable changes
@@ -12,9 +14,35 @@ pub const CAMERA_HISTORY: &str = "camera-history.json";
 pub const SCOPE_HISTORY: &str = "scope-history.json";
 pub const LIGHTS_DEFAULT: &str = "lights-default.json";
 
+pub struct CommandLock(fs::File);
+
+pub fn command_lock() -> std::io::Result<CommandLock> {
+    fs::create_dir_all(dir())?;
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(dir().join("command.lock"))?;
+    let result = unsafe { flock(file.as_raw_fd(), LOCK_EX) };
+    if result == 0 {
+        Ok(CommandLock(file))
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+impl Drop for CommandLock {
+    fn drop(&mut self) {
+        let _ = unsafe { flock(self.0.as_raw_fd(), LOCK_UN) };
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snap {
     pub name: String,
+    #[serde(default)]
+    pub ip: String,
     pub on: bool,
     pub brightness: u8,
     pub kelvin: u32,
@@ -193,3 +221,10 @@ fn write_json<T: Serialize>(path: &PathBuf, value: &T) {
         let _ = fs::rename(&tmp, path);
     }
 }
+
+unsafe extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+}
+
+const LOCK_EX: i32 = 2;
+const LOCK_UN: i32 = 8;

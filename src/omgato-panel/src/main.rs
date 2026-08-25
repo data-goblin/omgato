@@ -140,13 +140,14 @@ fn status(lights_only: bool, with_conflicts: bool, with_record: bool) {
     println!("{}", serde_json::to_string(&doc).unwrap_or_default());
 }
 
-fn travel_lights(step: i64) {
+fn travel_lights(step: i64) -> Result<(), String> {
     let history: state::History<Vec<state::Snap>> = state::History::load(state::LIGHTS_HISTORY);
     let Some((pos, snap)) = history.seek(step) else {
-        return;
+        return Ok(());
     };
-    lights::restore(snap);
+    lights::restore(snap)?;
     history.commit_pos(state::LIGHTS_HISTORY, pos);
+    Ok(())
 }
 
 fn report(result: Result<(), String>) {
@@ -158,6 +159,13 @@ fn report(result: Result<(), String>) {
 
 fn main() {
     let cli = Cli::parse();
+    let _lock = match state::command_lock() {
+        Ok(lock) => lock,
+        Err(e) => {
+            eprintln!("omgato-panel: could not lock panel state: {e}");
+            std::process::exit(1);
+        }
+    };
     match cli.cmd {
         None | Some(Cmd::Status) => status(cli.lights_only, cli.with_conflicts, cli.with_record),
         Some(Cmd::Sync) => lights::sync(),
@@ -167,8 +175,8 @@ fn main() {
         Some(Cmd::RestoreDefault) => report(lights::restore_default().map(|n| {
             println!("restored {n} lights to the default");
         })),
-        Some(Cmd::Undo) => travel_lights(-1),
-        Some(Cmd::Redo) => travel_lights(1),
+        Some(Cmd::Undo) => report(travel_lights(-1)),
+        Some(Cmd::Redo) => report(travel_lights(1)),
         Some(Cmd::Rename { ip, name }) => {
             let mut aliases = state::load_aliases();
             let name = name.trim();
@@ -190,8 +198,8 @@ fn main() {
         }
         Some(Cmd::DeckUndo) => deck::travel(-1),
         Some(Cmd::DeckRedo) => deck::travel(1),
-        Some(Cmd::CamUndo) => camera::travel(-1),
-        Some(Cmd::CamRedo) => camera::travel(1),
+        Some(Cmd::CamUndo) => report(camera::travel(-1)),
+        Some(Cmd::CamRedo) => report(camera::travel(1)),
         Some(Cmd::ScopeUndo) => record::travel(-1),
         Some(Cmd::ScopeRedo) => record::travel(1),
         Some(Cmd::InstallShortcuts) => report(shortcuts::install()),

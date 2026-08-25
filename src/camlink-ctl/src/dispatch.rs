@@ -335,6 +335,8 @@ fn cmd_status(cfg: &Config) -> i32 {
         "class": class,
         "tooltip": tooltip,
         "overlay": overlay::is_running(),
+        "position": state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone()),
+        "paused": state::exists(&state::pause_flag()),
     });
     println!("{}", json);
     0

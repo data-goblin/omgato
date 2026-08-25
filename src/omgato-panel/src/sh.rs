@@ -55,3 +55,25 @@ pub fn run_all(cmds: &[Vec<String>]) -> Vec<String> {
             .collect()
     })
 }
+
+fn succeeds_owned(cmd: &[String]) -> bool {
+    let Some((bin, args)) = cmd.split_first() else {
+        return false;
+    };
+    Command::new(bin)
+        .args(args)
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
+/// Runs every command at once and reports each exit status in input order.
+pub fn succeed_all(cmds: &[Vec<String>]) -> Vec<bool> {
+    if cmds.len() < 2 {
+        return cmds.iter().map(|c| succeeds_owned(c)).collect();
+    }
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = cmds.iter().map(|c| scope.spawn(move || succeeds_owned(c))).collect();
+        handles.into_iter().map(|h| h.join().unwrap_or(false)).collect()
+    })
+}
