@@ -43,6 +43,8 @@ pub enum Cmd {
         #[arg(long, default_value = "panel")]
         owner: String,
     },
+    /// Re-apply the current placement, after a display or bar change
+    Replace,
     /// Emit waybar status JSON
     Status,
     /// Pause notifications + status updates (touches a flag file)

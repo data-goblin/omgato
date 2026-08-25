@@ -11,6 +11,10 @@ struct CamOut {
     alt: String,
     #[serde(default)]
     tooltip: String,
+    /// Whether the overlay window is up. Distinct from `alt`, which reports
+    /// whether the capture device is streaming.
+    #[serde(default)]
+    overlay: bool,
 }
 
 /// The slice of overlay state the panel can step through: whether it is up, and
@@ -103,7 +107,7 @@ pub fn status() -> Status {
     let paused = dirs::config_dir()
         .map(|d| d.join(PAUSE_FLAG).exists())
         .unwrap_or(false);
-    let overlay = cam.alt == "on";
+    let overlay = cam.overlay;
     let position = position();
 
     let mut history: History<Placement> = History::load(CAMERA_HISTORY);

@@ -21,6 +21,7 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Pick => cmd_pick(&cfg),
         Cmd::Avoid { geometry, owner } => cmd_avoid(&cfg, &geometry, &owner),
         Cmd::Release { owner } => cmd_release(&cfg, &owner),
+        Cmd::Replace => cmd_replace(&cfg),
         Cmd::Full => cmd_full(&cfg),
         Cmd::Status => cmd_status(&cfg),
         Cmd::Pause => {
@@ -121,6 +122,12 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     match overlay::wait_for_window(&cfg.window_title, pid, Duration::from_secs(4)) {
         overlay::WaitResult::Mapped(_addr) => {
             place_now(cfg);
+            // A bar registers its exclusive zone slightly after it maps, so a
+            // placement made the instant the overlay appears can be computed
+            // against a reserved area of zero and sit under the bar. Place once
+            // more when the layout has settled.
+            std::thread::sleep(Duration::from_millis(700));
+            place_now(cfg);
             0
         }
         overlay::WaitResult::Died => {
@@ -208,6 +215,16 @@ fn cmd_release(cfg: &Config, owner: &str) -> i32 {
     place_now(cfg)
 }
 
+/// Re-apply the current placement. The reserved area a bar claims changes when
+/// the shell restarts or the display is reconfigured, and the overlay is
+/// otherwise left wherever it was put.
+fn cmd_replace(cfg: &Config) -> i32 {
+    if !overlay::is_running() {
+        return 0;
+    }
+    place_now(cfg)
+}
+
 fn cmd_pick(cfg: &Config) -> i32 {
     let picked = std::process::Command::new("omarchy-capture-region")
         .arg("region")
@@ -247,11 +264,16 @@ fn cmd_status(cfg: &Config) -> i32 {
         CamState::Disabled       => ("disabled", "disabled", "Camera monitor paused. Click to resume.".into()),
     };
 
+    // Whether the overlay window is up is a different question from whether the
+    // capture device is producing frames. A Cam Link showing "no signal" has the
+    // overlay running and nothing streaming, so a caller that wants to know
+    // about the window has to be told about the window.
     let json = serde_json::json!({
         "text": "",
         "alt": alt,
         "class": class,
         "tooltip": tooltip,
+        "overlay": overlay::is_running(),
     });
     println!("{}", json);
     0
@@ -267,11 +289,14 @@ fn place_now(cfg: &Config) -> i32 {
         Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
     };
 
-    let mon = match hypr::focused_monitor() {
-        Ok(m) => m,
-        Err(_) => match hypr::monitor_for_address(&win.address) {
-            Ok(Some(m)) => m,
-            _ => return 1,
+    // The monitor the overlay actually sits on, not whichever happens to have
+    // focus. Placing against the focused monitor moves the window using another
+    // screen's geometry the moment the two differ.
+    let mon = match hypr::monitor_for_address(&win.address) {
+        Ok(Some(m)) => m,
+        _ => match hypr::focused_monitor() {
+            Ok(m) => m,
+            Err(_) => return 1,
         },
     };
 

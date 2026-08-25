@@ -25,10 +25,19 @@ pub fn placement(
     fullscreen: bool,
     obs_region: Option<Region>,
 ) -> Placement {
-    let usable = if let Some(r) = obs_region {
-        Rect { left: r.x, top: r.y, right: r.x + r.w, bottom: r.y + r.h }
-    } else {
-        usable_from_monitor(mon)
+    let screen = usable_from_monitor(mon);
+    // An OBS capture region constrains where the overlay may sit, but it is
+    // expressed over the raw screen and so knows nothing about the space a bar
+    // reserves. Intersecting the two keeps the overlay inside the captured area
+    // without letting it slide under the bar when OBS is capturing the lot.
+    let usable = match obs_region {
+        Some(r) => Rect {
+            left: r.x.max(screen.left),
+            top: r.y.max(screen.top),
+            right: (r.x + r.w).min(screen.right),
+            bottom: (r.y + r.h).min(screen.bottom),
+        },
+        None => screen,
     };
 
     if let Some(rect) = parse_rect(position)
