@@ -2,10 +2,26 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
+/// The directory holding this user's overlay state, created private to the
+/// user. A directory that already exists is verified rather than trusted: the
+/// temp-directory fallback is a predictable path, so another local user could
+/// otherwise pre-create it and plant symlinks that redirect every state write.
+/// A directory that cannot be secured ends the process instead of downgrading
+/// to an unsafe one.
 pub fn run_dir() -> PathBuf {
+    match secure_run_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("camlink-ctl: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn secure_run_dir() -> Result<PathBuf, String> {
     let (p, legacy) = match std::env::var("XDG_RUNTIME_DIR") {
         Ok(xdg) => {
             let runtime = PathBuf::from(xdg);
@@ -16,12 +32,41 @@ pub fn run_dir() -> PathBuf {
             None,
         ),
     };
+    match fs::DirBuilder::new().mode(0o700).create(&p) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(&p)?,
+        Err(e) => return Err(format!("create {}: {e}", p.display())),
+    }
     if let Some(legacy) = legacy {
         migrate_entries(&legacy, &p);
     }
-    let _ = fs::create_dir_all(&p);
-    let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o700));
-    p
+    Ok(p)
+}
+
+/// Accept an existing state directory only if it is a real directory this user
+/// owns and no other user can enter. Reads metadata without following symlinks,
+/// so a link planted at the path is rejected rather than resolved to its target.
+fn verify_private_dir(p: &Path) -> Result<(), String> {
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("stat {}: {e}", p.display()))?;
+    if !meta.is_dir() {
+        return Err(format!("{} exists but is not a directory", p.display()));
+    }
+    let uid = users_own_uid();
+    if meta.uid() != uid {
+        return Err(format!(
+            "{} is owned by uid {}, not {uid}; refusing to use it",
+            p.display(),
+            meta.uid()
+        ));
+    }
+    let mode = meta.permissions().mode() & 0o7777;
+    if mode & 0o077 != 0 {
+        return Err(format!(
+            "{} is reachable by other users (mode {mode:o}); refusing to use it",
+            p.display()
+        ));
+    }
+    Ok(())
 }
 
 pub fn position_file() -> PathBuf { run_dir().join("position") }
@@ -81,7 +126,8 @@ pub fn write_atomic(path: &PathBuf, value: &str) -> std::io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     {
-        let mut f = fs::File::create(&tmp)?;
+        let _ = fs::remove_file(&tmp);
+        let mut f = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
         f.write_all(value.as_bytes())?;
         f.write_all(b"\n")?;
         f.sync_all().ok();

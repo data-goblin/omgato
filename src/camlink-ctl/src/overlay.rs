@@ -105,9 +105,13 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
     let win_w = cfg.size[0];
     let win_h = cfg.size[1];
 
+    // Unlink then create exclusively rather than truncating in place:
+    // remove_file drops a symlink itself instead of following it, and O_EXCL
+    // refuses to open one at all, so the log cannot redirect a write elsewhere.
     let log_path = state::run_dir().join("mpv.log");
+    let _ = std::fs::remove_file(&log_path);
     let log = std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
+        .create_new(true).write(true)
         .open(&log_path)
         .map_err(|e| format!("open log: {e}"))?;
 

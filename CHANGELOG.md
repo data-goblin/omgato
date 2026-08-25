@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-08-25
+
+### Security
+
+- Refuse a camera state directory that this user does not own or that other
+  users can enter, instead of silently accepting one another local user
+  prepared at the predictable temp-directory fallback path
+- Create the camera overlay log by exclusive creation after unlinking, so a
+  symlink left at that path can no longer redirect the write and truncate
+  another file
+
 ## [0.1.1] - 2026-08-25
 
 ### Fixed

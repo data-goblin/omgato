@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.data-goblin.omgato",
   "name": "Omgato",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Kurt Buhler",
   "license": "MIT",
   "description": "Key Lights, Stream Deck and Cam Link in one Omarchy panel.",
