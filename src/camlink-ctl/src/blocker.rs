@@ -3,12 +3,13 @@ use crate::state;
 use std::fs;
 use std::path::PathBuf;
 
+const LEASE_MILLIS: u64 = 15_000;
+
 /// Rectangles that panels have claimed, one file per owner.
 ///
 /// A single shared file could not describe two panels, or the same panel on two
-/// monitors, and a shell that died left its claim behind for good. Each claim is
-/// therefore its own file carrying the pid that made it, so a claim whose owner
-/// is gone is ignored and cleaned up rather than blocking the overlay forever.
+/// monitors, and a vanished panel left its claim behind for good. Each claim is
+/// therefore its own renewable lease carrying the process that made it.
 pub fn dir() -> PathBuf {
     let p = state::run_dir().join("blockers");
     let _ = fs::create_dir_all(&p);
@@ -52,6 +53,25 @@ fn identity(pid: u32) -> String {
     }
 }
 
+fn monotonic_millis() -> Option<u64> {
+    let uptime = fs::read_to_string("/proc/uptime").ok()?;
+    let seconds: f64 = uptime.split_whitespace().next()?.parse().ok()?;
+    Some((seconds * 1000.0) as u64)
+}
+
+fn fresh(path: &std::path::Path, issued: Option<&str>) -> bool {
+    if let (Some(now), Some(issued)) = (
+        monotonic_millis(),
+        issued.and_then(|value| value.parse::<u64>().ok()),
+    ) {
+        return issued <= now && now - issued <= LEASE_MILLIS;
+    }
+    path.metadata()
+        .and_then(|meta| meta.modified())
+        .and_then(|modified| modified.elapsed().map_err(std::io::Error::other))
+        .is_ok_and(|age| age.as_millis() <= LEASE_MILLIS as u128)
+}
+
 fn alive(line: &str) -> bool {
     let mut fields = line.split_whitespace();
     let Some(pid) = fields.next().and_then(|v| v.parse::<u32>().ok()) else {
@@ -65,7 +85,12 @@ fn alive(line: &str) -> bool {
 
 pub fn claim(owner: &str, rect: &Placement) -> std::io::Result<()> {
     let path = dir().join(safe_name(owner));
-    let body = format!("{}\n{}\n", positioning::rect_to_position(rect), identity(owning_pid()));
+    let body = format!(
+        "{}\n{}\n{}\n",
+        positioning::rect_to_position(rect),
+        identity(owning_pid()),
+        monotonic_millis().unwrap_or_default()
+    );
     let tmp = path.with_file_name(format!(
         "{}.{}.tmp",
         path.file_name().and_then(|n| n.to_str()).unwrap_or("panel"),
@@ -79,8 +104,8 @@ pub fn release(owner: &str) {
     let _ = fs::remove_file(dir().join(safe_name(owner)));
 }
 
-/// Every claim whose owner is still running. Claims from a dead owner are
-/// deleted on the way past, so a crashed shell cleans itself up.
+/// Every fresh claim whose owner is still running. Expired and dead claims are
+/// deleted on the way past.
 pub fn live() -> Vec<Placement> {
     let Ok(entries) = fs::read_dir(dir()) else {
         return Vec::new();
@@ -101,7 +126,7 @@ pub fn live() -> Vec<Placement> {
             let _ = fs::remove_file(&path);
             continue;
         };
-        if alive(owner) {
+        if alive(owner) && fresh(&path, lines.next()) {
             out.push(rect);
         } else {
             let _ = fs::remove_file(&path);

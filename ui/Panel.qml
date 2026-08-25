@@ -50,6 +50,7 @@ Panel {
   property bool wantConflicts: true
   property int dragFrom: -1
   property int dragTo: -1
+  property string claimedOwner: ""
 
   readonly property bool anyOn: lights.some(function(l) { return l.on })
   readonly property string barSummary: {
@@ -75,9 +76,10 @@ Panel {
   }
 
   onSectionsChanged: {
-    if (!sections.length) return
-    for (var i = 0; i < sections.length; i++) if (sections[i].id === view) return
-    view = sections[0].id
+    var found = false
+    for (var i = 0; i < sections.length; i++) if (sections[i].id === view) found = true
+    if (!found && sections.length) view = sections[0].id
+    if (opened) Qt.callLater(root.claimSpace)
   }
 
   readonly property string deckDaemonKey: device === "pedal" ? "streamdeck-ctl.service" : "streamdeck-ctl-deck.service"
@@ -102,18 +104,38 @@ Panel {
   // Identifies this panel to camlink-ctl. Including the screen keeps the claim of a
   // panel on one monitor separate from the same plugin's panel on another.
   readonly property string claimOwner: {
-    var w = root.QsWindow ? root.QsWindow.window : null
-    var name = w && w.screen ? w.screen.name : ""
+    var name = panel.screen ? String(panel.screen.name || "") : ""
     return name === "" ? root.moduleName : root.moduleName + "." + name
   }
 
-  // Tell camlink-ctl the rectangle this panel occupies. Its height changes with the
-  // view, so this is sent again whenever the panel resizes.
-  function claimSpace() {
-    if (!opened || settings.showCamera === false) return
-    act(["camlink-ctl", "avoid", Math.round(panel.contentWidth) + "x" + Math.round(panel.contentHeight),
-         "--owner", root.claimOwner])
+  function releaseClaim() {
+    if (claimedOwner === "") return
+    var owner = claimedOwner
+    claimedOwner = ""
+    act(["camlink-ctl", "release", "--owner", owner])
   }
+
+  // Tell camlink-ctl the exact rectangle this panel occupies on its own output.
+  function claimSpace() {
+    var screenName = panel.screen ? String(panel.screen.name || "") : ""
+    var width = Math.round(panel.contentWidth)
+    var height = Math.round(panel.contentHeight)
+    if (!opened || settings.showCamera === false || screenName === "" || width < 1 || height < 1) {
+      releaseClaim()
+      return
+    }
+    var owner = root.claimOwner
+    if (claimedOwner !== "" && claimedOwner !== owner) releaseClaim()
+    claimedOwner = owner
+    var origin = panel.cardOrigin
+    var geometry = Math.round(origin.x) + "," + Math.round(origin.y) + " " + width + "x" + height
+    act(["camlink-ctl", "avoid", geometry, "--monitor", screenName, "--owner", owner])
+  }
+
+  // A detached release survives this QML object being torn down during a plugin
+  // reload or display removal.
+  Component.onDestruction: if (claimedOwner !== "")
+    Quickshell.execDetached(["camlink-ctl", "release", "--owner", claimedOwner])
 
   function contextToggle() {
     if (view === "lights") { setLights("all", { on: !anyOn }); return }
@@ -434,6 +456,13 @@ Panel {
     onTriggered: root.recSeconds += 1
   }
 
+  Timer {
+    interval: 5000
+    running: root.opened && settings.showCamera !== false
+    repeat: true
+    onTriggered: root.claimSpace()
+  }
+
   onDeckChanged: if (deckBrightnessLocal >= 0 && deck.brightness === deckBrightnessLocal) deckBrightnessLocal = -1
   onDeckBrightnessLocalChanged: if (deckBrightnessLocal >= 0) deckBrightnessHold.restart()
 
@@ -452,14 +481,11 @@ Panel {
       interacting = false
       cancelOrder()
     }
-    // Keep the camera overlay from disappearing under this panel. camlink-ctl leaves
-    // a placement alone unless the two actually overlap. Release runs on every
-    // close, not only when the camera section is on, so turning that section off
-    // while the panel is open cannot strand the overlay out of position.
+    // Keep the camera overlay from disappearing under this panel.
     if (opened) {
-      if (settings.showCamera !== false) root.claimSpace()
+      if (settings.showCamera !== false) Qt.callLater(root.claimSpace)
     } else {
-      act(["camlink-ctl", "release", "--owner", root.claimOwner])
+      releaseClaim()
     }
     refresh()
   }
@@ -497,6 +523,9 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
     onContentHeightChanged: root.claimSpace()
+    onContentWidthChanged: root.claimSpace()
+    onCardOriginChanged: root.claimSpace()
+    onScreenChanged: root.claimSpace()
 
     PanelKeyCatcher {
       id: keyCatcher
