@@ -73,7 +73,7 @@ pub fn scene_path(override_path: Option<&str>) -> Option<PathBuf> {
     for e in fs::read_dir(&dir).ok()?.flatten() {
         let p = e.path();
         if p.extension().and_then(|s| s.to_str()) != Some("json") { continue; }
-        let mt = e.metadata().ok()?.modified().ok()?;
+        let Ok(mt) = e.metadata().and_then(|m| m.modified()) else { continue };
         if best.as_ref().is_none_or(|(_, t)| mt > *t) {
             best = Some((p, mt));
         }
@@ -99,9 +99,13 @@ pub fn find_region_for_monitor(scene_file: &Path, mon: &Monitor) -> Option<Regio
     let scene_source = scene.sources.iter().find(|s| s.id == "scene")?;
     let mw = mon.width as f32;
     let mh = mon.height as f32;
-    let item = scene_source.settings.items.iter().find(|it| {
+    let mut matches = scene_source.settings.items.iter().filter(|it| {
         (it.scale_ref.x - mw).abs() < 1.0 && (it.scale_ref.y - mh).abs() < 1.0
-    })?;
+    });
+    let item = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
 
     let scale = if mon.scale > 0.0 { mon.scale } else { 1.0 };
     let src_w = item.scale_ref.x as i32;
@@ -123,4 +127,40 @@ pub fn find_region_for_monitor(scene_file: &Path, mon: &Monitor) -> Option<Regio
         w: (x1 - x0).max(0),
         h: (y1 - y0).max(0),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn monitor() -> Monitor {
+        Monitor {
+            id: 1,
+            name: "DP-1".into(),
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            scale: 1.0,
+            focused: true,
+            reserved: [0; 4],
+        }
+    }
+
+    #[test]
+    fn rejects_ambiguous_same_resolution_sources() {
+        let path = std::env::temp_dir().join(format!("omgato-obs-test-{}.json", std::process::id()));
+        let scene = r#"{
+            "sources": [{
+                "id": "scene",
+                "settings": {"items": [
+                    {"scale_ref": {"x": 1920, "y": 1080}},
+                    {"scale_ref": {"x": 1920, "y": 1080}, "crop_left": 100}
+                ]}
+            }]
+        }"#;
+        fs::write(&path, scene).unwrap();
+        assert!(find_region_for_monitor(&path, &monitor()).is_none());
+        fs::remove_file(path).unwrap();
+    }
 }

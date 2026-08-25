@@ -9,7 +9,23 @@ use crate::status::{self, CamState};
 use crate::{hypr, overlay, state};
 
 pub fn run(cmd: Cmd) -> i32 {
+    let _lock = match state::command_lock() {
+        Ok(lock) => lock,
+        Err(e) => {
+            eprintln!("camlink-ctl: could not lock overlay state: {e}");
+            return 1;
+        }
+    };
     let cfg = config::load();
+    let may_start = matches!(
+        &cmd,
+        Cmd::Show | Cmd::Toggle | Cmd::Move { .. } | Cmd::Place { .. } | Cmd::Full
+    );
+    if !may_start && !overlay::is_running()
+        && let Err(e) = return_borrowed(false)
+    {
+        eprintln!("camlink-ctl: {e}");
+    }
     match cmd {
         Cmd::Show => cmd_show(&cfg, None),
         Cmd::Hide => cmd_hide(),
@@ -19,7 +35,9 @@ pub fn run(cmd: Cmd) -> i32 {
         Cmd::Move { corner } => cmd_move(&cfg, corner),
         Cmd::Place { geometry } => cmd_place(&cfg, &geometry),
         Cmd::Pick => cmd_pick(&cfg),
-        Cmd::Avoid { geometry, owner } => cmd_avoid(&cfg, &geometry, &owner),
+        Cmd::Avoid { geometry, monitor, owner } => {
+            cmd_avoid(&cfg, &geometry, monitor.as_deref(), &owner)
+        }
         Cmd::Release { owner } => cmd_release(&cfg, &owner),
         Cmd::Replace => cmd_replace(&cfg),
         Cmd::Full => cmd_full(&cfg),
@@ -42,7 +60,7 @@ fn cmd_reset() -> i32 {
     if overlay::is_running() {
         overlay::kill_running();
     }
-    match reset::reset() {
+    let result = match reset::reset() {
         Ok(p) => {
             state::remove(&state::needs_reset_flag());
             notify(&format!("Cam Link reset: {}", p.display()));
@@ -53,24 +71,26 @@ fn cmd_reset() -> i32 {
             eprintln!("camlink-ctl: reset failed: {e}");
             1
         }
+    };
+    if let Err(e) = return_borrowed(true) {
+        eprintln!("camlink-ctl: {e}");
+        return 1;
     }
+    result
 }
 
 fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     if overlay::is_running() {
         if let Some(pos) = override_position {
             persist_position(pos);
-            place_now(cfg);
-        } else {
-            place_now(cfg);
         }
-        return 0;
+        return place_now(cfg);
     }
 
-    if overlay::find_device(&cfg.device_pattern).is_none() {
+    let Some(dev) = overlay::find_device(&cfg.device_pattern) else {
         notify("Cam Link 4K not connected");
         return 1;
-    }
+    };
 
     if let Some(pos) = override_position {
         persist_position(pos);
@@ -80,26 +100,43 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     // The Cam Link is single-open. If a user service is sitting on it, stop that
     // service and note it down, rather than making the user work out what to run.
     // cmd_hide starts it again, so the device is always handed back.
-    if let Some(dev) = overlay::find_device(&cfg.device_pattern) {
-        let busy = crate::holder::holders(&dev);
-        if !busy.is_empty() {
-            match crate::holder::borrow(&busy, &dev) {
-                Some(unit) => {
-                    state::write_atomic(&state::borrowed_unit(), &unit).ok();
-                    notify(&format!("Paused {unit} to use the camera"));
-                }
-                None => {
-                    let msg = format!(
-                        "camera is held by {}; {}",
-                        crate::holder::describe(&busy),
-                        crate::holder::remedy(&busy)
-                    );
-                    eprintln!("camlink-ctl: {msg}");
-                    notify(&msg);
-                    return 1;
-                }
+    let busy = crate::holder::holders(&dev);
+    if !busy.is_empty() {
+        let Some(unit) = crate::holder::borrowable_unit(&busy) else {
+            let msg = format!(
+                "camera is held by {}; {}",
+                crate::holder::describe(&busy),
+                crate::holder::remedy(&busy)
+            );
+            eprintln!("camlink-ctl: {msg}");
+            notify(&msg);
+            return 1;
+        };
+        if let Some(previous) = state::read(&state::borrowed_unit())
+            && previous != unit
+        {
+            if let Err(e) = return_borrowed(false) {
+                eprintln!("camlink-ctl: {e}");
+            } else {
+                eprintln!("camlink-ctl: returned {previous}; retry to borrow {unit}");
             }
+            return 1;
         }
+        if let Err(e) = state::write_atomic(&state::borrowed_unit(), &unit) {
+            eprintln!("camlink-ctl: could not record the borrowed unit: {e}");
+            return 1;
+        }
+        if let Err(e) = crate::holder::borrow(&unit, &dev) {
+            let returned = return_borrowed(false);
+            let msg = match returned {
+                Ok(()) => e,
+                Err(give_back) => format!("{e}; {give_back}"),
+            };
+            eprintln!("camlink-ctl: {msg}");
+            notify(&msg);
+            return 1;
+        }
+        notify(&format!("Paused {unit} to use the camera"));
     }
 
     if state::exists(&state::needs_reset_flag()) {
@@ -115,23 +152,24 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
         Err(e) => {
             eprintln!("camlink-ctl: {e}");
             notify(&format!("mpv spawn failed: {e}"));
+            let _ = return_borrowed(true);
             return 1;
         }
     };
 
     match overlay::wait_for_window(&cfg.window_title, pid, Duration::from_secs(4)) {
         overlay::WaitResult::Mapped(_addr) => {
-            place_now(cfg);
+            let _ = place_now(cfg);
             // A bar registers its exclusive zone slightly after it maps, so a
             // placement made the instant the overlay appears can be computed
             // against a reserved area of zero and sit under the bar. Place once
             // more when the layout has settled.
             std::thread::sleep(Duration::from_millis(700));
-            place_now(cfg);
-            0
+            place_now(cfg)
         }
         overlay::WaitResult::Died => {
             notify("Cam Link 4K receiving no HDMI signal. Power on the source and try again.");
+            let _ = return_borrowed(true);
             1
         }
         overlay::WaitResult::Timeout => {
@@ -145,10 +183,9 @@ fn cmd_hide() -> i32 {
     overlay::kill_running();
     state::remove(&state::fullscreen_flag());
     state::write_atomic(&state::needs_reset_flag(), "1").ok();
-    if let Some(unit) = state::read(&state::borrowed_unit()) {
-        state::remove(&state::borrowed_unit());
-        crate::holder::give_back(&unit);
-        notify(&format!("Resumed {unit}"));
+    if let Err(e) = return_borrowed(true) {
+        eprintln!("camlink-ctl: {e}");
+        return 1;
     }
     0
 }
@@ -179,17 +216,41 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
 /// Push the overlay out from under a panel that has just opened over it, and
 /// remember where it was so `release` can put it back. Doing nothing when the
 /// two do not overlap keeps a deliberate placement intact.
-fn cmd_avoid(cfg: &Config, geometry: &str, owner: &str) -> i32 {
-    let mon = match hypr::focused_monitor() {
-        Ok(m) => m,
-        Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
+fn cmd_avoid(cfg: &Config, geometry: &str, monitor: Option<&str>, owner: &str) -> i32 {
+    let mon = match monitor {
+        Some(name) => match hypr::named_monitor(name) {
+            Ok(Some(m)) => m,
+            Ok(None) => {
+                eprintln!("camlink-ctl: avoid: output {name:?} is not active");
+                return 1;
+            }
+            Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
+        },
+        None => match hypr::focused_monitor() {
+            Ok(m) => m,
+            Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
+        },
     };
 
     let blocker = if let Some((w, h)) = positioning::size_from_text(geometry) {
         positioning::panel_rect(&mon, w, h)
     } else if let Some(pos) = positioning::rect_from_geometry(geometry) {
         match positioning::parse_rect(&pos) {
-            Some(r) => r,
+            Some(mut r) => {
+                if monitor.is_some() {
+                    let Some(x) = r.x.checked_add(mon.x) else {
+                        eprintln!("camlink-ctl: avoid: horizontal coordinate is out of range");
+                        return 2;
+                    };
+                    let Some(y) = r.y.checked_add(mon.y) else {
+                        eprintln!("camlink-ctl: avoid: vertical coordinate is out of range");
+                        return 2;
+                    };
+                    r.x = x;
+                    r.y = y;
+                }
+                r
+            }
             None => { eprintln!("camlink-ctl: avoid: bad rectangle {geometry:?}"); return 2; }
         }
     } else {
@@ -280,13 +341,28 @@ fn cmd_status(cfg: &Config) -> i32 {
 }
 
 fn place_now(cfg: &Config) -> i32 {
+    let mut last_error = String::new();
+    for attempt in 0..2 {
+        match place_once(cfg) {
+            Ok(()) => return 0,
+            Err(e) => last_error = e,
+        }
+        if attempt == 0 {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+    eprintln!("camlink-ctl: could not place the overlay: {last_error}");
+    1
+}
+
+fn place_once(cfg: &Config) -> Result<(), String> {
     let pos = state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone());
     let full = state::exists(&state::fullscreen_flag());
 
     let win = match hypr::find_window(&cfg.window_title) {
         Ok(Some(w)) => w,
-        Ok(None) => return 1,
-        Err(e) => { eprintln!("camlink-ctl: {e}"); return 1; }
+        Ok(None) => return Err("overlay window is not mapped".into()),
+        Err(e) => return Err(e),
     };
 
     // The monitor the overlay actually sits on, not whichever happens to have
@@ -294,10 +370,7 @@ fn place_now(cfg: &Config) -> i32 {
     // screen's geometry the moment the two differ.
     let mon = match hypr::monitor_for_address(&win.address) {
         Ok(Some(m)) => m,
-        _ => match hypr::focused_monitor() {
-            Ok(m) => m,
-            Err(_) => return 1,
-        },
+        _ => hypr::focused_monitor()?,
     };
 
     let obs_region = if cfg.obs_aware {
@@ -308,6 +381,12 @@ fn place_now(cfg: &Config) -> i32 {
     };
 
     let mut p = placement(cfg, &mon, &pos, full, obs_region);
+    if !full
+        && let Some(saved) = positioning::parse_rect(&pos)
+        && saved != p
+    {
+        persist_position(&positioning::rect_to_position(&p));
+    }
     // A panel that is currently open claims a rectangle. Dodging here rather
     // than when the panel opened means an overlay shown afterwards also lands
     // clear of it, and the position the user chose is never overwritten.
@@ -317,12 +396,12 @@ fn place_now(cfg: &Config) -> i32 {
     {
         p = moved;
     }
-    let _ = hypr::resize_window_pixel(&win.address, p.w, p.h);
-    let _ = hypr::move_window_pixel(&win.address, p.x, p.y);
+    hypr::resize_window_pixel(&win.address, p.w, p.h)?;
+    hypr::move_window_pixel(&win.address, p.x, p.y)?;
     if !win.pinned {
-        let _ = hypr::pin_window(&win.address);
+        hypr::pin_window(&win.address)?;
     }
-    0
+    Ok(())
 }
 
 fn persist_position(pos: &str) {
@@ -335,4 +414,14 @@ fn notify(msg: &str) {
         .status();
 }
 
-
+fn return_borrowed(tell_user: bool) -> Result<(), String> {
+    let Some(unit) = state::read(&state::borrowed_unit()) else {
+        return Ok(());
+    };
+    crate::holder::give_back(&unit)?;
+    state::remove(&state::borrowed_unit());
+    if tell_user {
+        notify(&format!("Resumed {unit}"));
+    }
+    Ok(())
+}

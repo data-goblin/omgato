@@ -33,6 +33,9 @@ pub enum Cmd {
     Avoid {
         #[arg(value_name = "GEOMETRY")]
         geometry: String,
+        /// Treat an explicit rectangle as local to this output
+        #[arg(long, value_name = "OUTPUT")]
+        monitor: Option<String>,
         /// Identifies the panel making the claim, so two panels or two monitors
         /// do not overwrite each other
         #[arg(long, default_value = "panel")]

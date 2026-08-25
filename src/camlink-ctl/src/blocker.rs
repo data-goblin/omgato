@@ -39,14 +39,38 @@ fn owning_pid() -> u32 {
         .unwrap_or_else(std::process::id)
 }
 
-fn alive(pid: u32) -> bool {
-    PathBuf::from(format!("/proc/{pid}")).exists()
+fn start_time(pid: u32) -> Option<u64> {
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_, after_comm) = stat.rsplit_once(") ")?;
+    after_comm.split_whitespace().nth(19)?.parse().ok()
+}
+
+fn identity(pid: u32) -> String {
+    match start_time(pid) {
+        Some(start) => format!("{pid} {start}"),
+        None => pid.to_string(),
+    }
+}
+
+fn alive(line: &str) -> bool {
+    let mut fields = line.split_whitespace();
+    let Some(pid) = fields.next().and_then(|v| v.parse::<u32>().ok()) else {
+        return false;
+    };
+    match fields.next() {
+        Some(wanted) => start_time(pid).is_some_and(|actual| wanted == actual.to_string()),
+        None => PathBuf::from(format!("/proc/{pid}")).exists(),
+    }
 }
 
 pub fn claim(owner: &str, rect: &Placement) -> std::io::Result<()> {
     let path = dir().join(safe_name(owner));
-    let body = format!("{}\n{}\n", positioning::rect_to_position(rect), owning_pid());
-    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    let body = format!("{}\n{}\n", positioning::rect_to_position(rect), identity(owning_pid()));
+    let tmp = path.with_file_name(format!(
+        "{}.{}.tmp",
+        path.file_name().and_then(|n| n.to_str()).unwrap_or("panel"),
+        std::process::id()
+    ));
     fs::write(&tmp, body)?;
     fs::rename(&tmp, &path)
 }
@@ -73,12 +97,14 @@ pub fn live() -> Vec<Placement> {
             let _ = fs::remove_file(&path);
             continue;
         };
-        let owner_pid: Option<u32> = lines.next().and_then(|p| p.trim().parse().ok());
-        match owner_pid {
-            Some(pid) if !alive(pid) => {
-                let _ = fs::remove_file(&path);
-            }
-            _ => out.push(rect),
+        let Some(owner) = lines.next() else {
+            let _ = fs::remove_file(&path);
+            continue;
+        };
+        if alive(owner) {
+            out.push(rect);
+        } else {
+            let _ = fs::remove_file(&path);
         }
     }
     out
@@ -91,10 +117,10 @@ pub fn obstruction(overlay: &Placement) -> Option<Placement> {
     let overlapping: Vec<Placement> = live()
         .into_iter()
         .filter(|b| {
-            overlay.x < b.x + b.w
-                && b.x < overlay.x + overlay.w
-                && overlay.y < b.y + b.h
-                && b.y < overlay.y + overlay.h
+            overlay.x < b.x.saturating_add(b.w)
+                && b.x < overlay.x.saturating_add(overlay.w)
+                && overlay.y < b.y.saturating_add(b.h)
+                && b.y < overlay.y.saturating_add(overlay.h)
         })
         .collect();
     if overlapping.is_empty() {
@@ -102,7 +128,26 @@ pub fn obstruction(overlay: &Placement) -> Option<Placement> {
     }
     let left = overlapping.iter().map(|b| b.x).min()?;
     let top = overlapping.iter().map(|b| b.y).min()?;
-    let right = overlapping.iter().map(|b| b.x + b.w).max()?;
-    let bottom = overlapping.iter().map(|b| b.y + b.h).max()?;
-    Some(Placement { x: left, y: top, w: right - left, h: bottom - top })
+    let right = overlapping.iter().map(|b| b.x.saturating_add(b.w)).max()?;
+    let bottom = overlapping.iter().map(|b| b.y.saturating_add(b.h)).max()?;
+    Some(Placement {
+        x: left,
+        y: top,
+        w: right.saturating_sub(left),
+        h: bottom.saturating_sub(top),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lease_identity_rejects_malformed_and_reused_processes() {
+        let pid = std::process::id();
+        let current = identity(pid);
+        assert!(alive(&current));
+        assert!(!alive("not-a-pid"));
+        assert!(!alive(&format!("{pid} 0")));
+    }
 }
