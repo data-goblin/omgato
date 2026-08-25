@@ -290,10 +290,11 @@ unless you pass `--purge`.
 
 ### Privileges
 
-The plugin never asks for root and contains no sudoers rule. Two things need
-privilege and both are left to you, printed as instructions rather than run:
+No sudoers rule ships with the plugin, and `scripts/install` performs no
+privileged step itself. Two operations need root:
 
-- installing the udev rule that grants access to Stream Deck hardware:
+- installing the udev rule that grants access to Stream Deck hardware. The
+  installer prints these and leaves them to you:
 
   ```bash
   sudo install -m 0644 \
@@ -302,16 +303,23 @@ privilege and both are left to you, printed as instructions rather than run:
   sudo udevadm control --reload-rules && sudo udevadm trigger
   ```
 
-- `camlink-ctl reset`, which re-authorizes the Cam Link over USB to clear a wedged
-  capture device, and needs passwordless sudo for that one write if you want it
+- re-authorizing the Cam Link over USB, which clears the wedged state the device
+  enters when its capture stream is cut. This is the one place the code calls
+  `sudo` for you: `camlink-ctl` runs
+  `sudo -n tee /sys/bus/usb/devices/<dev>/authorized`, writing `0` and then `1`.
+  It fires on `camlink-ctl reset`, and again inside `camlink-ctl show` when the
+  previous session left the device wedged. The `-n` means it never prompts, so
+  with no cached credential and no passwordless rule of your own the reset fails,
+  a warning goes to stderr, and the overlay starts anyway.
 
-Runtime pid state lives in `$XDG_RUNTIME_DIR/camlink-ctl/`, which is owner-only, not
-in a shared temporary directory.
+Runtime pid state lives in `$XDG_RUNTIME_DIR/camlink-ctl/`, created mode 0700.
+With `XDG_RUNTIME_DIR` unset it falls back to a uid-suffixed directory under the
+temp dir, also 0700.
 
 ### Network and processes
 
 `keylight-ctl` talks HTTP to Key Lights on your local network, discovered over mDNS
-with `avahi-browse`. Nothing else makes network calls and nothing phones home.
+with `avahi-browse` (`_elg._tcp`). No other code in the plugin makes network calls.
 The daemons are ordinary systemd user services; no second Quickshell process is
 ever started.
 
