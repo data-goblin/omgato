@@ -30,6 +30,8 @@ pub struct Client {
     pub address: String,
     pub title: String,
     #[serde(default)]
+    pub pid: u32,
+    #[serde(default)]
     pub mapped: bool,
     pub monitor: i32,
     /// A pinned floating window stays visible across workspace switches, which

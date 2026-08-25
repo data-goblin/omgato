@@ -21,16 +21,16 @@ pub fn run(cmd: Cmd) -> i32 {
         &cmd,
         Cmd::Show | Cmd::Toggle | Cmd::Move { .. } | Cmd::Place { .. } | Cmd::Full
     );
-    if !may_start && !overlay::is_running()
+    if !may_start && !overlay::is_running(&cfg.window_title)
         && let Err(e) = return_borrowed(false)
     {
         eprintln!("camlink-ctl: {e}");
     }
     match cmd {
         Cmd::Show => cmd_show(&cfg, None),
-        Cmd::Hide => cmd_hide(),
+        Cmd::Hide => cmd_hide(&cfg),
         Cmd::Toggle => {
-            if overlay::is_running() { cmd_hide() } else { cmd_show(&cfg, None) }
+            if overlay::is_running(&cfg.window_title) { cmd_hide(&cfg) } else { cmd_show(&cfg, None) }
         }
         Cmd::Move { corner } => cmd_move(&cfg, corner),
         Cmd::Place { geometry } => cmd_place(&cfg, &geometry),
@@ -52,13 +52,13 @@ pub fn run(cmd: Cmd) -> i32 {
             state::remove(&state::pause_flag());
             0
         }
-        Cmd::Reset => cmd_reset(),
+        Cmd::Reset => cmd_reset(&cfg),
     }
 }
 
-fn cmd_reset() -> i32 {
-    if overlay::is_running() {
-        overlay::kill_running();
+fn cmd_reset(cfg: &Config) -> i32 {
+    if overlay::is_running(&cfg.window_title) {
+        overlay::kill_running(&cfg.window_title);
     }
     let result = match reset::reset() {
         Ok(p) => {
@@ -80,7 +80,7 @@ fn cmd_reset() -> i32 {
 }
 
 fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
-    if overlay::is_running() {
+    if overlay::is_running(&cfg.window_title) {
         if let Some(pos) = override_position {
             persist_position(pos);
         }
@@ -179,8 +179,8 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     }
 }
 
-fn cmd_hide() -> i32 {
-    overlay::kill_running();
+fn cmd_hide(cfg: &Config) -> i32 {
+    overlay::kill_running(&cfg.window_title);
     state::remove(&state::fullscreen_flag());
     state::write_atomic(&state::needs_reset_flag(), "1").ok();
     if let Err(e) = return_borrowed(true) {
@@ -194,7 +194,7 @@ fn cmd_move(cfg: &Config, corner: Corner) -> i32 {
     let pos = config::corner_to_position(corner);
     persist_position(pos);
     state::remove(&state::fullscreen_flag());
-    if !overlay::is_running() {
+    if !overlay::is_running(&cfg.window_title) {
         return cmd_show(cfg, Some(pos));
     }
     place_now(cfg)
@@ -207,7 +207,7 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
     };
     persist_position(&rect);
     state::remove(&state::fullscreen_flag());
-    if !overlay::is_running() {
+    if !overlay::is_running(&cfg.window_title) {
         return cmd_show(cfg, Some(&rect));
     }
     place_now(cfg)
@@ -262,7 +262,7 @@ fn cmd_avoid(cfg: &Config, geometry: &str, monitor: Option<&str>, owner: &str) -
         eprintln!("camlink-ctl: could not record the panel's claim: {e}");
         return 1;
     }
-    if !overlay::is_running() {
+    if !overlay::is_running(&cfg.window_title) {
         return 0;
     }
     place_now(cfg)
@@ -270,7 +270,7 @@ fn cmd_avoid(cfg: &Config, geometry: &str, monitor: Option<&str>, owner: &str) -
 
 fn cmd_release(cfg: &Config, owner: &str) -> i32 {
     crate::blocker::release(owner);
-    if !overlay::is_running() {
+    if !overlay::is_running(&cfg.window_title) {
         return 0;
     }
     place_now(cfg)
@@ -280,7 +280,7 @@ fn cmd_release(cfg: &Config, owner: &str) -> i32 {
 /// the shell restarts or the display is reconfigured, and the overlay is
 /// otherwise left wherever it was put.
 fn cmd_replace(cfg: &Config) -> i32 {
-    if !overlay::is_running() {
+    if !overlay::is_running(&cfg.window_title) {
         return 0;
     }
     place_now(cfg)
@@ -306,7 +306,7 @@ fn cmd_pick(cfg: &Config) -> i32 {
 }
 
 fn cmd_full(cfg: &Config) -> i32 {
-    if !overlay::is_running()
+    if !overlay::is_running(&cfg.window_title)
         && cmd_show(cfg, None) != 0 { return 1; }
     if state::exists(&state::fullscreen_flag()) {
         state::remove(&state::fullscreen_flag());
@@ -334,7 +334,7 @@ fn cmd_status(cfg: &Config) -> i32 {
         "alt": alt,
         "class": class,
         "tooltip": tooltip,
-        "overlay": overlay::is_running(),
+        "overlay": overlay::is_running(&cfg.window_title),
         "position": state::read(&state::position_file()).unwrap_or_else(|| cfg.position.clone()),
         "paused": state::exists(&state::pause_flag()),
     });
