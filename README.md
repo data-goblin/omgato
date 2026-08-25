@@ -1,6 +1,6 @@
 # Omgato
 
-[![Release](https://img.shields.io/github/v/release/data-goblin/omarchy-omgato?display_name=tag&sort=semver)](https://github.com/data-goblin/omarchy-omgato/releases)
+[![Release](https://img.shields.io/github/v/release/data-goblin/omgato?display_name=tag&sort=semver)](https://github.com/data-goblin/omgato/releases)
 [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Omarchy](https://img.shields.io/badge/omarchy-quattro-8a63d2.svg)](https://omarchy.org)
 
@@ -149,7 +149,7 @@ Nothing in this plugin yet supports teleprompters.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/data-goblin/omarchy-omgato --enable
+omarchy plugin add https://github.com/data-goblin/omgato --enable
 ~/.config/omarchy/plugins/io.github.data-goblin.omgato/scripts/install
 streamdeck-ctl enable
 ```

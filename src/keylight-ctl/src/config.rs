@@ -23,9 +23,24 @@ pub struct Cache {
 }
 
 pub fn cache_path() -> PathBuf {
-    dirs::config_dir()
-        .expect("no config dir")
-        .join("keylight-ctl/lights.toml")
+    let config = dirs::config_dir().expect("no config dir");
+    let path = config.join("keylight-ctl/lights.toml");
+    let legacy = config.join("elgatoctl/lights.toml");
+    migrate_file(&legacy, &path);
+    path
+}
+
+fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
+    if to.exists() || !from.is_file() {
+        return;
+    }
+    let Some(parent) = to.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if fs::rename(from, to).is_err() && !to.exists() {
+        let _ = fs::copy(from, to);
+    }
 }
 
 pub fn load() -> Cache {

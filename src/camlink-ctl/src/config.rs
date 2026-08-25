@@ -55,7 +55,24 @@ impl Default for Config {
 }
 
 pub fn config_path() -> PathBuf {
-    dirs::config_dir().expect("no config dir").join("camlink-ctl/config.toml")
+    let config = dirs::config_dir().expect("no config dir");
+    let path = config.join("camlink-ctl/config.toml");
+    let legacy = config.join("camctl/config.toml");
+    migrate_file(&legacy, &path);
+    path
+}
+
+fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
+    if to.exists() || !from.is_file() {
+        return;
+    }
+    let Some(parent) = to.parent() else { return };
+    if std::fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if std::fs::rename(from, to).is_err() && !to.exists() {
+        let _ = std::fs::copy(from, to);
+    }
 }
 
 pub fn load() -> Config {

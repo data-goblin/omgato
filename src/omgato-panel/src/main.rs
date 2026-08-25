@@ -1,4 +1,4 @@
-//! Panel-side state for the kurt.elgato Quickshell widget: one aggregated
+//! Panel-side state for the Omgato Quickshell widget: one aggregated
 //! status document, local light names, key previews, and capped undo/redo
 //! histories. Device control itself lives in keylight-ctl, streamdeck-ctl and
 //! camlink-ctl.

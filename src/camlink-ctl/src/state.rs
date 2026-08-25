@@ -6,10 +6,19 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 pub fn run_dir() -> PathBuf {
-    let p = match std::env::var("XDG_RUNTIME_DIR") {
-        Ok(xdg) => PathBuf::from(xdg).join("camlink-ctl"),
-        Err(_) => std::env::temp_dir().join(format!("camlink-ctl-{}", users_own_uid())),
+    let (p, legacy) = match std::env::var("XDG_RUNTIME_DIR") {
+        Ok(xdg) => {
+            let runtime = PathBuf::from(xdg);
+            (runtime.join("camlink-ctl"), Some(runtime.join("camctl")))
+        }
+        Err(_) => (
+            std::env::temp_dir().join(format!("camlink-ctl-{}", users_own_uid())),
+            None,
+        ),
     };
+    if let Some(legacy) = legacy {
+        migrate_entries(&legacy, &p);
+    }
     let _ = fs::create_dir_all(&p);
     let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o700));
     p
@@ -54,7 +63,10 @@ impl Drop for CommandLock {
 }
 
 pub fn pause_flag() -> PathBuf {
-    dirs::config_dir().expect("no config dir").join("camlink-ctl/pause")
+    let config = dirs::config_dir().expect("no config dir");
+    let path = config.join("camlink-ctl/pause");
+    migrate_file(&config.join("camctl/pause"), &path);
+    path
 }
 
 pub fn read(path: &PathBuf) -> Option<String> {
@@ -96,3 +108,32 @@ unsafe extern "C" {
 
 const LOCK_EX: i32 = 2;
 const LOCK_UN: i32 = 8;
+
+fn migrate_file(from: &Path, to: &Path) {
+    if to.exists() || !from.is_file() {
+        return;
+    }
+    let Some(parent) = to.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if fs::rename(from, to).is_err() && !to.exists() {
+        let _ = fs::copy(from, to);
+    }
+}
+
+fn migrate_entries(from: &Path, to: &Path) {
+    if !from.is_dir() || fs::create_dir_all(to).is_err() {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(from) else { return };
+    for entry in entries.flatten() {
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if source.is_dir() && target.is_dir() {
+            migrate_entries(&source, &target);
+        } else if !target.exists() {
+            let _ = fs::rename(source, target);
+        }
+    }
+}

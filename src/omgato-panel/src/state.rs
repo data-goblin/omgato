@@ -127,7 +127,30 @@ pub fn dir() -> PathBuf {
 }
 
 fn path(file: &str) -> PathBuf {
-    dir().join(file)
+    let target = dir().join(file);
+    let legacy = legacy_dir().join(file);
+    migrate_file(&legacy, &target);
+    target
+}
+
+fn legacy_dir() -> PathBuf {
+    dirs::state_dir()
+        .or_else(dirs::data_local_dir)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("elgato-panel")
+}
+
+fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
+    if to.exists() || !from.is_file() {
+        return;
+    }
+    let Some(parent) = to.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if fs::rename(from, to).is_err() && !to.exists() {
+        let _ = fs::copy(from, to);
+    }
 }
 
 /// Reads and writes an arbitrary small document in the panel's state directory.

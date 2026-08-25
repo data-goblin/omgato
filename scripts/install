@@ -30,6 +30,12 @@ done
 cargo build --release --manifest-path "$repo/Cargo.toml"
 
 mkdir -p "$bin_dir" "$unit_dir"
+for tool in camctl elgatoctl elgato-panel; do
+    if [ -L "$bin_dir/$tool" ]; then
+        rm -f "$bin_dir/$tool"
+        echo "  bin    removed obsolete $tool link"
+    fi
+done
 for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl; do
     ln -sfn "$repo/target/release/$tool" "$bin_dir/$tool"
     echo "  bin    $bin_dir/$tool"

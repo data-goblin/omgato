@@ -4,7 +4,8 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 name="omarchy-omgato"
-source_dir="$repo/src/skill/$name"
+legacy_name="omarchy-elgato"
+source_dir="$repo/src/skill/omgato"
 home_dir="${HOME:?HOME is required}"
 remove=0
 
@@ -21,6 +22,12 @@ targets=(
 touched=0
 for target in "${targets[@]}"; do
     parent="$(dirname "$target")"
+    legacy_target="$parent/$legacy_name"
+    if [ -L "$legacy_target" ]; then
+        rm -f "$legacy_target"
+        echo "  removed  $legacy_target"
+        touched=1
+    fi
     if [ "$remove" = 1 ]; then
         [ -L "$target" ] && rm -f "$target" && echo "  removed  $target" && touched=1
         continue
