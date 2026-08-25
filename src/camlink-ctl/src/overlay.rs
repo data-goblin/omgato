@@ -182,7 +182,7 @@ pub fn kill_running(title: &str) -> bool {
     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
-        if !pid_alive(pid) {
+        if !process_alive(process) {
             state::remove(&state::pid_file());
             return true;
         }
@@ -191,13 +191,13 @@ pub fn kill_running(title: &str) -> bool {
     unsafe { libc::kill(pid as i32, libc::SIGKILL); }
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
-        if !pid_alive(pid) {
-            break;
+        if !process_alive(process) {
+            state::remove(&state::pid_file());
+            return true;
         }
         std::thread::sleep(Duration::from_millis(5));
     }
-    state::remove(&state::pid_file());
-    true
+    false
 }
 
 pub enum WaitResult {

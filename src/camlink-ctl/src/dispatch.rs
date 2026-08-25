@@ -57,8 +57,11 @@ pub fn run(cmd: Cmd) -> i32 {
 }
 
 fn cmd_reset(cfg: &Config) -> i32 {
-    if overlay::is_running(&cfg.window_title) {
-        overlay::kill_running(&cfg.window_title);
+    if overlay::is_running(&cfg.window_title)
+        && !overlay::kill_running(&cfg.window_title)
+    {
+        eprintln!("camlink-ctl: could not stop the camera overlay");
+        return 1;
     }
     let result = match reset::reset() {
         Ok(p) => {
@@ -180,7 +183,12 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
 }
 
 fn cmd_hide(cfg: &Config) -> i32 {
-    overlay::kill_running(&cfg.window_title);
+    if overlay::is_running(&cfg.window_title)
+        && !overlay::kill_running(&cfg.window_title)
+    {
+        eprintln!("camlink-ctl: could not stop the camera overlay");
+        return 1;
+    }
     state::remove(&state::fullscreen_flag());
     state::write_atomic(&state::needs_reset_flag(), "1").ok();
     if let Err(e) = return_borrowed(true) {
