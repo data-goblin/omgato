@@ -8,6 +8,8 @@ bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omgato-panel"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omgato-panel"
+legacy_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/elgato-panel"
+legacy_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/elgato-panel"
 purge=0
 
 [ "${1:-}" = "--purge" ] && purge=1
@@ -28,7 +30,7 @@ fi
 
 "$repo/scripts/install-skill" --remove 2>/dev/null || true
 
-for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl; do
+for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl camctl elgatoctl elgato-panel; do
     if [ -L "$bin_dir/$tool" ]; then
         rm -f "$bin_dir/$tool"
         echo "  bin      unlinked $tool"
@@ -37,10 +39,18 @@ done
 
 rm -rf "$cache_dir"
 echo "  cache    removed $cache_dir"
+if [ -d "$legacy_cache_dir" ]; then
+    rm -rf "$legacy_cache_dir"
+    echo "  cache    removed $legacy_cache_dir"
+fi
 
 if [ "$purge" = 1 ]; then
     rm -rf "$state_dir"
     echo "  state    removed $state_dir (light names, order, undo history)"
+    if [ -d "$legacy_state_dir" ]; then
+        rm -rf "$legacy_state_dir"
+        echo "  state    removed $legacy_state_dir"
+    fi
 else
     echo "  state    kept $state_dir; pass --purge to remove it"
 fi

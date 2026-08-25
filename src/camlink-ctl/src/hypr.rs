@@ -30,6 +30,8 @@ pub struct Client {
     pub address: String,
     pub title: String,
     #[serde(default)]
+    pub pid: u32,
+    #[serde(default)]
     pub mapped: bool,
     pub monitor: i32,
     /// A pinned floating window stays visible across workspace switches, which
@@ -51,6 +53,8 @@ pub fn find_window(title: &str) -> Result<Option<Client>, String> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Monitor {
     #[allow(dead_code)] pub id: i32,
+    #[serde(default)]
+    pub name: String,
     pub x: i32,
     pub y: i32,
     pub width: i32,
@@ -73,6 +77,10 @@ pub fn focused_monitor() -> Result<Monitor, String> {
         .ok_or_else(|| "no focused monitor".into())
 }
 
+pub fn named_monitor(name: &str) -> Result<Option<Monitor>, String> {
+    Ok(monitors()?.into_iter().find(|m| m.name == name))
+}
+
 pub fn monitor_for_address(addr: &str) -> Result<Option<Monitor>, String> {
     let cs = clients()?;
     let c = match cs.into_iter().find(|c| c.address == addr) {
@@ -87,17 +95,15 @@ pub fn monitor_for_address(addr: &str) -> Result<Option<Monitor>, String> {
 // old "movewindowpixel exact ..." form now fails to parse, silently leaving the
 // overlay wherever it was mapped.
 pub fn move_window_pixel(addr: &str, x: i32, y: i32) -> Result<(), String> {
-    dispatch(&format!(
+    dispatch_action(&format!(
         "/dispatch hl.dsp.window.move({{ x = {x}, y = {y}, exact = true, window = \"address:{addr}\" }})"
     ))
-    .map(|_| ())
 }
 
 pub fn resize_window_pixel(addr: &str, w: i32, h: i32) -> Result<(), String> {
-    dispatch(&format!(
+    dispatch_action(&format!(
         "/dispatch hl.dsp.window.resize({{ x = {w}, y = {h}, exact = true, window = \"address:{addr}\" }})"
     ))
-    .map(|_| ())
 }
 
 /// Keeps the overlay visible across workspace switches.
@@ -106,8 +112,16 @@ pub fn resize_window_pixel(addr: &str, w: i32, h: i32) -> Result<(), String> {
 /// Every reposition used to call this, which left the overlay pinned only on an
 /// even number of moves and stranded on one workspace the rest of the time.
 pub fn pin_window(addr: &str) -> Result<(), String> {
-    dispatch(&format!(
+    dispatch_action(&format!(
         "/dispatch hl.dsp.window.pin({{ window = \"address:{addr}\" }})"
     ))
-    .map(|_| ())
+}
+
+fn dispatch_action(cmd: &str) -> Result<(), String> {
+    let response = dispatch(cmd)?;
+    if response.trim() == "ok" {
+        Ok(())
+    } else {
+        Err(format!("Hyprland rejected the command: {}", response.trim()))
+    }
 }

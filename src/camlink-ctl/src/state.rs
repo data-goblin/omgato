@@ -1,11 +1,26 @@
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::Write;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 pub fn run_dir() -> PathBuf {
-    let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
-    let p = PathBuf::from(xdg).join("camlink-ctl");
+    let (p, legacy) = match std::env::var("XDG_RUNTIME_DIR") {
+        Ok(xdg) => {
+            let runtime = PathBuf::from(xdg);
+            (runtime.join("camlink-ctl"), Some(runtime.join("camctl")))
+        }
+        Err(_) => (
+            std::env::temp_dir().join(format!("camlink-ctl-{}", users_own_uid())),
+            None,
+        ),
+    };
+    if let Some(legacy) = legacy {
+        migrate_entries(&legacy, &p);
+    }
     let _ = fs::create_dir_all(&p);
+    let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o700));
     p
 }
 
@@ -21,8 +36,37 @@ pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
 /// Started again when the overlay is hidden, so borrowing is always paid back.
 pub fn borrowed_unit() -> PathBuf { run_dir().join("borrowed_unit") }
 
+pub struct CommandLock(fs::File);
+
+/// Serialise state-changing commands from the panel, shortcuts and display
+/// hooks. Each CLI invocation is a separate process, so atomic files alone do
+/// not prevent a hide from overtaking a show or a release from overtaking avoid.
+pub fn command_lock() -> std::io::Result<CommandLock> {
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(run_dir().join("command.lock"))?;
+    let result = unsafe { flock(file.as_raw_fd(), LOCK_EX) };
+    if result == 0 {
+        Ok(CommandLock(file))
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+impl Drop for CommandLock {
+    fn drop(&mut self) {
+        let _ = unsafe { flock(self.0.as_raw_fd(), LOCK_UN) };
+    }
+}
+
 pub fn pause_flag() -> PathBuf {
-    dirs::config_dir().expect("no config dir").join("camlink-ctl/pause")
+    let config = dirs::config_dir().expect("no config dir");
+    let path = config.join("camlink-ctl/pause");
+    migrate_file(&config.join("camctl/pause"), &path);
+    path
 }
 
 pub fn read(path: &PathBuf) -> Option<String> {
@@ -51,4 +95,45 @@ pub fn remove(path: &PathBuf) {
 
 pub fn exists(path: &Path) -> bool {
     path.exists()
+}
+
+fn users_own_uid() -> u32 {
+    unsafe { getuid() }
+}
+
+unsafe extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+    fn getuid() -> u32;
+}
+
+const LOCK_EX: i32 = 2;
+const LOCK_UN: i32 = 8;
+
+fn migrate_file(from: &Path, to: &Path) {
+    if to.exists() || !from.is_file() {
+        return;
+    }
+    let Some(parent) = to.parent() else { return };
+    if fs::create_dir_all(parent).is_err() {
+        return;
+    }
+    if fs::rename(from, to).is_err() && !to.exists() {
+        let _ = fs::copy(from, to);
+    }
+}
+
+fn migrate_entries(from: &Path, to: &Path) {
+    if !from.is_dir() || fs::create_dir_all(to).is_err() {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(from) else { return };
+    for entry in entries.flatten() {
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if source.is_dir() && target.is_dir() {
+            migrate_entries(&source, &target);
+        } else if !target.exists() {
+            let _ = fs::rename(source, target);
+        }
+    }
 }

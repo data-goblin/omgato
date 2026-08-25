@@ -45,7 +45,7 @@ An action is `exec:<command>`, `key:<KEY_NAME>`, `page:<name>` or `noop`.
 ## Cam Link overlay
 
 ```bash
-camlink-ctl status                    # JSON: alt, class, tooltip
+camlink-ctl status                    # JSON: stream, overlay, position and pause state
 camlink-ctl show | hide | toggle | full
 camlink-ctl move tl | tr | bl | br
 camlink-ctl place "X,Y WxH"           # an explicit rectangle

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-08-25
+
+### Fixed
+
+- Serialise camera overlay commands so show, hide, avoidance and release cannot
+  race each other
+- Keep overlays visible after display changes by resolving and clamping placement
+  against the current monitor layout
+- Recover orphaned camera processes and expire claims left behind by crashed
+  owners without disturbing live owners
+- Borrow camera devices safely from every matching systemd user unit and avoid
+  restarting them while a failed process termination could still hold the device
+- Migrate configuration, state, runtime data, links and shortcuts left under the
+  plugin's former name
+- Restore Key Lights by their network identity and report partial restore failures
+- Keep panel claims aligned with the panel's actual screen and release them when
+  camera controls are disabled or the panel is destroyed
+- Centre the Omgato mark reliably within its panel item
+
 ## [0.1.0] - 2026-08-23
 
 First release. Brings four previously separate tools together as one Omarchy

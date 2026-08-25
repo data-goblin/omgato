@@ -7,11 +7,16 @@ import QtQuick.Shapes
 Item {
   id: root
 
+  implicitWidth: 24
+  implicitHeight: 24
   property color color: "#f7f7fa"
-  readonly property real unit: Math.min(width, height) / 24
+  readonly property real markSize: Math.min(width, height)
+  readonly property real unit: markSize / 24
 
   Shape {
-    anchors.fill: parent
+    anchors.centerIn: parent
+    width: root.markSize
+    height: root.markSize
     preferredRendererType: Shape.CurveRenderer
     layer.enabled: true
     layer.samples: 4

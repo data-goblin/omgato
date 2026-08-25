@@ -33,32 +33,41 @@ fn users_own_uid() -> u32 {
     unsafe { getuid() }
 }
 
-/// Stop the user unit holding the device and wait for it to let go, so the
-/// overlay can take it. Returns the unit that was stopped, for giving back.
-pub fn borrow(found: &[Holder], device: &Path) -> Option<String> {
-    let unit = found.iter().find_map(|h| h.unit.clone())?;
+/// The one user unit that owns every holder. Stopping only one of several owners
+/// would disrupt it without making the device available.
+pub fn borrowable_unit(found: &[Holder]) -> Option<String> {
+    let unit = found.first()?.unit.clone()?;
+    found.iter().all(|h| h.unit.as_deref() == Some(&unit)).then_some(unit)
+}
+
+/// Stop a user unit and wait for the device to become free.
+pub fn borrow(unit: &str, device: &Path) -> Result<(), String> {
     let stopped = std::process::Command::new("systemctl")
-        .args(["--user", "stop", &unit])
+        .args(["--user", "stop", "--", unit])
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
     if !stopped {
-        return None;
+        return Err(format!("could not stop {unit}"));
     }
     for _ in 0..40 {
         if holders(device).is_empty() {
-            return Some(unit);
+            return Ok(());
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
-    Some(unit)
+    let still_busy = describe(&holders(device));
+    Err(format!("the camera stayed held by {still_busy}"))
 }
 
 /// Start a unit that was stopped to free the device.
-pub fn give_back(unit: &str) {
-    let _ = std::process::Command::new("systemctl")
-        .args(["--user", "start", unit])
-        .status();
+pub fn give_back(unit: &str) -> Result<(), String> {
+    let started = std::process::Command::new("systemctl")
+        .args(["--user", "start", "--", unit])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    started.then_some(()).ok_or_else(|| format!("could not restart {unit}"))
 }
 
 fn command_of(pid: u32) -> String {
@@ -143,4 +152,26 @@ pub fn describe(found: &[Holder]) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn holder(unit: Option<&str>) -> Holder {
+        Holder { pid: 1, command: "camera".into(), unit: unit.map(str::to_owned) }
+    }
+
+    #[test]
+    fn borrows_only_when_every_holder_has_the_same_user_unit() {
+        assert_eq!(
+            borrowable_unit(&[holder(Some("camera.service")), holder(Some("camera.service"))]),
+            Some("camera.service".into())
+        );
+        assert_eq!(
+            borrowable_unit(&[holder(Some("camera.service")), holder(Some("other.service"))]),
+            None
+        );
+        assert_eq!(borrowable_unit(&[holder(Some("camera.service")), holder(None)]), None);
+    }
 }

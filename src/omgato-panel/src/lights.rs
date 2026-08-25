@@ -52,28 +52,61 @@ pub fn snapshot(lights: &[Light], previous: Option<&Vec<Snap>>) -> Option<Vec<Sn
     }
     let mut snap: Vec<Snap> = lights
         .iter()
-        .map(|l| {
-            let carried = if l.reachable {
-                None
-            } else {
-                previous.and_then(|p| p.iter().find(|s| s.name == l.name)).cloned()
-            };
-            carried.unwrap_or_else(|| Snap {
+        .filter_map(|l| {
+            if !l.reachable {
+                return previous
+                    .and_then(|p| {
+                        p.iter().find(|s| {
+                            if s.ip.is_empty() {
+                                s.name == l.name
+                            } else {
+                                s.ip == l.ip
+                            }
+                        })
+                    })
+                    .cloned();
+            }
+            Some(Snap {
                 name: l.name.clone(),
+                ip: l.ip.clone(),
                 on: l.on,
                 brightness: l.brightness,
                 kelvin: l.kelvin,
             })
         })
         .collect();
-    snap.sort_by(|a, b| a.name.cmp(&b.name));
+    snap.sort_by(|a, b| a.ip.cmp(&b.ip).then_with(|| a.name.cmp(&b.name)));
     Some(snap)
 }
 
-pub fn restore(snap: &[Snap]) {
-    let cmds: Vec<Vec<String>> = snap
+pub fn restore(snap: &[Snap]) -> Result<(), String> {
+    let live = snap.iter().any(|s| s.ip.is_empty()).then(read);
+    let targets: Result<Vec<String>, String> = snap
         .iter()
         .map(|s| {
+            if !s.ip.is_empty() {
+                return Ok(s.ip.clone());
+            }
+            let matches: Vec<&Light> = live
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .filter(|l| l.name == s.name)
+                .collect();
+            match matches.as_slice() {
+                [light] => Ok(light.ip.clone()),
+                [] => Err(format!("the saved light {:?} is no longer configured", s.name)),
+                _ => Err(format!(
+                    "the saved light name {:?} is ambiguous; save the default again",
+                    s.name
+                )),
+            }
+        })
+        .collect();
+    let cmds: Vec<Vec<String>> = snap
+        .iter()
+        .zip(targets?)
+        .map(|(s, target)| {
             vec![
                 "keylight-ctl".into(),
                 "set".into(),
@@ -82,15 +115,22 @@ pub fn restore(snap: &[Snap]) {
                 s.brightness.to_string(),
                 "--temp".into(),
                 s.kelvin.to_string(),
-                s.name.clone(),
+                target,
             ]
         })
         .collect();
-    sh::run_all(&cmds);
+    let failed: Vec<&str> = sh::succeed_all(&cmds)
+        .into_iter()
+        .zip(snap)
+        .filter_map(|(ok, light)| (!ok).then_some(light.name.as_str()))
+        .collect();
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("could not restore: {}", failed.join(", ")))
+    }
 }
 
-/// Averages brightness and temperature across reachable lights and pushes the
-/// result to all of them in one call.
 /// Remember the lights exactly as they are, so a session can be put back to a
 /// known starting point without hunting through the undo history.
 pub fn save_default() -> Result<usize, String> {
@@ -124,7 +164,7 @@ pub fn restore_default() -> Result<usize, String> {
         return Err("the saved default is empty".into());
     }
     let count = snap.len();
-    restore(&snap);
+    restore(&snap)?;
     Ok(count)
 }
 
@@ -134,6 +174,8 @@ pub fn has_default() -> bool {
         .is_some_and(|s| !s.is_empty())
 }
 
+/// Averages brightness and temperature across reachable lights and pushes the
+/// result to all of them in one call.
 pub fn sync() {
     let live: Vec<Light> = read().into_iter().filter(|l| l.reachable).collect();
     if live.is_empty() {
@@ -151,4 +193,36 @@ pub fn sync() {
         "--temp",
         &kelvin.to_string(),
     ]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn light(ip: &str, reachable: bool, brightness: u8) -> Light {
+        Light {
+            name: "Key Light".into(),
+            display: "Key Light".into(),
+            ip: ip.into(),
+            reachable,
+            on: true,
+            brightness,
+            kelvin: 4000,
+        }
+    }
+
+    #[test]
+    fn snapshots_identically_named_lights_by_address() {
+        let snap = snapshot(&[light("10.0.0.2", true, 20), light("10.0.0.3", true, 80)], None)
+            .unwrap();
+        assert_eq!(snap[0].ip, "10.0.0.2");
+        assert_eq!(snap[0].brightness, 20);
+        assert_eq!(snap[1].ip, "10.0.0.3");
+        assert_eq!(snap[1].brightness, 80);
+
+        let carried = snapshot(&[light("10.0.0.2", false, 0), light("10.0.0.3", true, 70)], Some(&snap))
+            .unwrap();
+        assert_eq!(carried[0].brightness, 20);
+        assert_eq!(carried[1].brightness, 70);
+    }
 }

@@ -1,9 +1,6 @@
 use crate::sh;
 use crate::state::{self, CAMERA_HISTORY, History};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-
-const PAUSE_FLAG: &str = "camlink-ctl/pause";
 
 #[derive(Default, Deserialize)]
 struct CamOut {
@@ -15,6 +12,10 @@ struct CamOut {
     /// whether the capture device is streaming.
     #[serde(default)]
     overlay: bool,
+    #[serde(default)]
+    position: String,
+    #[serde(default)]
+    paused: bool,
 }
 
 /// The slice of overlay state the panel can step through: whether it is up, and
@@ -36,18 +37,6 @@ pub struct Status {
     pub history: state::Flags,
 }
 
-fn position_file() -> PathBuf {
-    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_owned());
-    PathBuf::from(runtime).join("camlink-ctl/position")
-}
-
-/// camlink-ctl's placement, verbatim, so hotkey moves show up here too.
-pub fn position() -> String {
-    std::fs::read_to_string(position_file())
-        .map(|s| s.trim().to_owned())
-        .unwrap_or_default()
-}
-
 /// Short code the panel highlights with: a corner, or "area" for a free rectangle.
 fn corner_of(position: &str) -> String {
     match position {
@@ -65,8 +54,7 @@ fn corner_of(position: &str) -> String {
 /// leave the history pointer where it was rather than losing a step to nothing.
 fn apply(placement: &Placement) -> bool {
     if !placement.overlay {
-        sh::run(&["camlink-ctl", "hide"]);
-        return true;
+        return sh::succeeded(&["camlink-ctl", "hide"]);
     }
     match placement.position.strip_prefix("rect:") {
         Some(rect) => {
@@ -74,20 +62,17 @@ fn apply(placement: &Placement) -> bool {
             let [x, y, w, h] = parts[..] else {
                 return false;
             };
-            sh::run(&["camlink-ctl", "place", &format!("{x},{y} {w}x{h}")]);
-            true
+            sh::succeeded(&["camlink-ctl", "place", &format!("{x},{y} {w}x{h}")])
         }
         None if placement.position.is_empty() => {
-            sh::run(&["camlink-ctl", "show"]);
-            true
+            sh::succeeded(&["camlink-ctl", "show"])
         }
         None => {
             let corner = corner_of(&placement.position);
             if corner.is_empty() || corner == "area" {
                 return false;
             }
-            sh::run(&["camlink-ctl", "move", &corner]);
-            true
+            sh::succeeded(&["camlink-ctl", "move", &corner])
         }
     }
 }
@@ -104,11 +89,8 @@ fn detail(alt: &str, tooltip: &str) -> String {
 
 pub fn status() -> Status {
     let cam: CamOut = serde_json::from_str(&sh::run(&["camlink-ctl", "status"])).unwrap_or_default();
-    let paused = dirs::config_dir()
-        .map(|d| d.join(PAUSE_FLAG).exists())
-        .unwrap_or(false);
     let overlay = cam.overlay;
-    let position = position();
+    let position = cam.position;
 
     let mut history: History<Placement> = History::load(CAMERA_HISTORY);
     history.fold(
@@ -121,20 +103,21 @@ pub fn status() -> Status {
         overlay,
         state: if cam.alt.is_empty() { "unknown".to_owned() } else { cam.alt },
         tooltip: detail,
-        paused,
+        paused: cam.paused,
         corner: corner_of(&position),
         position,
         history: history.flags(),
     }
 }
 
-pub fn travel(step: i64) {
+pub fn travel(step: i64) -> Result<(), String> {
     let history: History<Placement> = History::load(CAMERA_HISTORY);
     let Some((pos, placement)) = history.seek(step) else {
-        return;
+        return Ok(());
     };
     if !apply(placement) {
-        return;
+        return Err("could not restore the camera placement".into());
     }
     history.commit_pos(CAMERA_HISTORY, pos);
+    Ok(())
 }

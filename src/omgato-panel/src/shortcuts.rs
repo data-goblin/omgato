@@ -6,6 +6,8 @@ use crate::state;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 const SETTINGS: &str = "shortcuts.json";
@@ -15,6 +17,9 @@ const MARKER: &str = "Omgato:";
 /// or replaced rather than left orphaned in the user's bindings.
 const LEGACY_MARKER: &str = "Elgato:";
 const REQUIRE_LINE: &str = r#"pcall(require, "hypr.omgato-bindings")"#;
+const LEGACY_REQUIRE_LINE: &str = r#"pcall(require, "hypr.elgato-bindings")"#;
+const SOURCE_COMMENT: &str = "-- Omgato plugin shortcuts. Safe to delete along with the plugin.";
+const LEGACY_SOURCE_COMMENT: &str = "-- Omarchy Elgato plugin shortcuts. Safe to delete along with the plugin.";
 
 /// One bindable action: which panel view it belongs to, what it runs, and the
 /// combination it is bound to.
@@ -104,6 +109,10 @@ type Bindings = BTreeMap<String, String>;
 
 fn bindings_path() -> PathBuf {
     hypr_dir().join("omgato-bindings.lua")
+}
+
+fn legacy_bindings_path() -> PathBuf {
+    hypr_dir().join("elgato-bindings.lua")
 }
 
 fn user_bindings_path() -> PathBuf {
@@ -208,7 +217,9 @@ pub fn status(with_conflicts: bool) -> Status {
 }
 
 fn sourced() -> bool {
-    fs::read_to_string(user_bindings_path()).is_ok_and(|s| s.contains(REQUIRE_LINE))
+    fs::read_to_string(user_bindings_path()).is_ok_and(|s| {
+        s.lines().any(|line| line.trim() == REQUIRE_LINE)
+    })
 }
 
 fn render(configured: &Bindings) -> String {
@@ -238,38 +249,41 @@ pub fn install() -> Result<(), String> {
     write_bindings(&configured())?;
 
     let user = user_bindings_path();
-    let mut text = fs::read_to_string(&user).unwrap_or_default();
-    if !text.contains(REQUIRE_LINE) {
-        if !text.is_empty() && !text.ends_with('\n') {
-            text.push('\n');
-        }
-        text.push_str(&format!(
-            "\n-- Omgato plugin shortcuts. Safe to delete along with the plugin.\n{REQUIRE_LINE}\n"
-        ));
-        fs::write(&user, text).map_err(|e| format!("write {}: {e}", user.display()))?;
+    let original = match fs::read_to_string(&user) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("read {}: {e}", user.display())),
+    };
+    let text = source_text(&original, true);
+    if text != original {
+        write_text_atomic(&user, &text)?;
     }
+    remove_file(&legacy_bindings_path())?;
     reload();
     Ok(())
 }
 
 pub fn uninstall() -> Result<(), String> {
     let user = user_bindings_path();
-    if let Ok(text) = fs::read_to_string(&user) {
-        let kept: String = text
-            .lines()
-            .filter(|line| !line.contains(REQUIRE_LINE) && !line.contains("Omgato plugin shortcuts"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let _ = fs::write(&user, kept + "\n");
+    match fs::read_to_string(&user) {
+        Ok(text) => {
+            let kept = source_text(&text, false);
+            if kept != text {
+                write_text_atomic(&user, &kept)?;
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("read {}: {e}", user.display())),
     }
-    let _ = fs::remove_file(bindings_path());
+    remove_file(&bindings_path())?;
+    remove_file(&legacy_bindings_path())?;
     reload();
     Ok(())
 }
 
 fn write_bindings(configured: &Bindings) -> Result<(), String> {
     let path = bindings_path();
-    fs::write(&path, render(configured)).map_err(|e| format!("write {}: {e}", path.display()))
+    write_text_atomic(&path, &render(configured))
 }
 
 /// Rebinds one action and regenerates the file, if it is already installed.
@@ -283,7 +297,8 @@ pub fn set(id: &str, keys: &str) -> Result<(), String> {
     } else {
         configured.insert(id.to_owned(), keys.trim().to_owned());
     }
-    state::write_state(SETTINGS, &configured);
+    state::write_state_checked(SETTINGS, &configured)
+        .map_err(|e| format!("write shortcut settings: {e}"))?;
     if bindings_path().exists() {
         write_bindings(&configured)?;
         reload();
@@ -293,4 +308,76 @@ pub fn set(id: &str, keys: &str) -> Result<(), String> {
 
 fn reload() {
     sh::run(&["hyprctl", "reload"]);
+}
+
+fn source_text(text: &str, install: bool) -> String {
+    let mut kept: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            let line = line.trim();
+            line != REQUIRE_LINE
+                && line != LEGACY_REQUIRE_LINE
+                && line != SOURCE_COMMENT
+                && line != LEGACY_SOURCE_COMMENT
+        })
+        .collect();
+    while kept.last() == Some(&"") {
+        kept.pop();
+    }
+    if install {
+        if !kept.is_empty() {
+            kept.push("");
+        }
+        kept.push(SOURCE_COMMENT);
+        kept.push(REQUIRE_LINE);
+    }
+    let mut out = kept.join("\n");
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out
+}
+
+fn write_text_atomic(path: &std::path::Path, text: &str) -> Result<(), String> {
+    let parent = path.parent().ok_or_else(|| format!("{} has no parent", path.display()))?;
+    fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("bindings");
+    let tmp = parent.join(format!(".{name}.{}.tmp", std::process::id()));
+    let mut file = fs::File::create(&tmp).map_err(|e| format!("write {}: {e}", path.display()))?;
+    file.write_all(text.as_bytes()).map_err(|e| format!("write {}: {e}", path.display()))?;
+    if let Ok(meta) = fs::metadata(path) {
+        let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(meta.permissions().mode()));
+    }
+    file.sync_all().ok();
+    fs::rename(&tmp, path).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+fn remove_file(path: &std::path::Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("remove {}: {e}", path.display())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_replaces_legacy_and_duplicate_source_lines() {
+        let input = format!(
+            "o.bind({{}})\n{LEGACY_SOURCE_COMMENT}\n{LEGACY_REQUIRE_LINE}\n{SOURCE_COMMENT}\n{REQUIRE_LINE}\n"
+        );
+        assert_eq!(
+            source_text(&input, true),
+            format!("o.bind({{}})\n\n{SOURCE_COMMENT}\n{REQUIRE_LINE}\n")
+        );
+    }
+
+    #[test]
+    fn uninstall_removes_both_generations_of_source_line() {
+        let input = format!("before\n{LEGACY_REQUIRE_LINE}\n{REQUIRE_LINE}\nafter\n");
+        assert_eq!(source_text(&input, false), "before\nafter\n");
+    }
 }

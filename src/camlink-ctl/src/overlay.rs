@@ -18,12 +18,68 @@ pub fn find_device(pattern: &str) -> Option<PathBuf> {
     None
 }
 
-pub fn is_running() -> bool {
-    read_pid().is_some_and(pid_alive)
+pub fn is_running(title: &str) -> bool {
+    if let Some(process) = read_process()
+        && process_alive(process)
+    {
+        if process.start.is_some() {
+            return true;
+        }
+        let tracked_window = hypr::find_window(title)
+            .ok()
+            .flatten()
+            .is_some_and(|client| client.pid == process.pid);
+        if tracked_window
+            && let Some(upgraded) = process_ref(process.pid)
+        {
+            write_process(upgraded);
+            return true;
+        }
+    }
+    state::remove(&state::pid_file());
+    let process = hypr::find_window(title)
+        .ok()
+        .flatten()
+        .filter(|client| client.pid > 0 && pid_alive(client.pid))
+        .and_then(|client| process_ref(client.pid));
+    if let Some(process) = process {
+        write_process(process);
+        true
+    } else {
+        false
+    }
 }
 
-pub fn read_pid() -> Option<u32> {
-    state::read(&state::pid_file()).and_then(|s| s.trim().parse().ok())
+#[derive(Clone, Copy)]
+struct ProcessRef {
+    pid: u32,
+    start: Option<u64>,
+}
+
+fn read_process() -> Option<ProcessRef> {
+    let text = state::read(&state::pid_file())?;
+    let mut fields = text.split_whitespace();
+    Some(ProcessRef {
+        pid: fields.next()?.parse().ok()?,
+        start: fields.next().and_then(|value| value.parse().ok()),
+    })
+}
+
+fn process_ref(pid: u32) -> Option<ProcessRef> {
+    pid_alive(pid).then(|| ProcessRef { pid, start: process_start(pid) })
+}
+
+fn process_alive(process: ProcessRef) -> bool {
+    pid_alive(process.pid)
+        && process.start.is_none_or(|wanted| process_start(process.pid) == Some(wanted))
+}
+
+fn write_process(process: ProcessRef) {
+    let value = match process.start {
+        Some(start) => format!("{} {start}", process.pid),
+        None => process.pid.to_string(),
+    };
+    let _ = state::write_atomic(&state::pid_file(), &value);
 }
 
 pub fn spawn(cfg: &Config) -> Result<u32, String> {
@@ -96,7 +152,11 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
     };
     let pid = child.id();
     std::mem::forget(child);
-    state::write_atomic(&state::pid_file(), &pid.to_string()).ok();
+    if let Some(process) = process_ref(pid) {
+        write_process(process);
+    } else {
+        state::write_atomic(&state::pid_file(), &pid.to_string()).ok();
+    }
     Ok(pid)
 }
 
@@ -106,27 +166,38 @@ fn nix_setsid() {
     }
 }
 
-pub fn kill_running() -> bool {
-    let pid = match read_pid() {
-        Some(p) => p,
+pub fn kill_running(title: &str) -> bool {
+    if !is_running(title) {
+        return false;
+    }
+    let process = match read_process() {
+        Some(process) => process,
         None => return false,
     };
-    if !pid_alive(pid) {
+    if !process_alive(process) {
         state::remove(&state::pid_file());
         return false;
     }
+    let pid = process.pid;
     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
-        if !pid_alive(pid) {
+        if !process_alive(process) {
             state::remove(&state::pid_file());
             return true;
         }
         std::thread::sleep(Duration::from_millis(5));
     }
     unsafe { libc::kill(pid as i32, libc::SIGKILL); }
-    state::remove(&state::pid_file());
-    true
+    let deadline = Instant::now() + Duration::from_millis(600);
+    while Instant::now() < deadline {
+        if !process_alive(process) {
+            state::remove(&state::pid_file());
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    false
 }
 
 pub enum WaitResult {
@@ -182,6 +253,12 @@ fn pid_alive(pid: u32) -> bool {
     std::fs::read_to_string(format!("/proc/{pid}/comm"))
         .map(|comm| comm.trim() == "mpv")
         .unwrap_or(false)
+}
+
+fn process_start(pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_, after_comm) = stat.rsplit_once(") ")?;
+    after_comm.split_whitespace().nth(19)?.parse().ok()
 }
 
 #[allow(non_camel_case_types, non_snake_case)]

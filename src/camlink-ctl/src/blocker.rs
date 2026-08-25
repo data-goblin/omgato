@@ -3,12 +3,13 @@ use crate::state;
 use std::fs;
 use std::path::PathBuf;
 
+const LEASE_MILLIS: u64 = 15_000;
+
 /// Rectangles that panels have claimed, one file per owner.
 ///
 /// A single shared file could not describe two panels, or the same panel on two
-/// monitors, and a shell that died left its claim behind for good. Each claim is
-/// therefore its own file carrying the pid that made it, so a claim whose owner
-/// is gone is ignored and cleaned up rather than blocking the overlay forever.
+/// monitors, and a vanished panel left its claim behind for good. Each claim is
+/// therefore its own renewable lease carrying the process that made it.
 pub fn dir() -> PathBuf {
     let p = state::run_dir().join("blockers");
     let _ = fs::create_dir_all(&p);
@@ -39,14 +40,62 @@ fn owning_pid() -> u32 {
         .unwrap_or_else(std::process::id)
 }
 
-fn alive(pid: u32) -> bool {
-    PathBuf::from(format!("/proc/{pid}")).exists()
+fn start_time(pid: u32) -> Option<u64> {
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_, after_comm) = stat.rsplit_once(") ")?;
+    after_comm.split_whitespace().nth(19)?.parse().ok()
+}
+
+fn identity(pid: u32) -> String {
+    match start_time(pid) {
+        Some(start) => format!("{pid} {start}"),
+        None => pid.to_string(),
+    }
+}
+
+fn monotonic_millis() -> Option<u64> {
+    let uptime = fs::read_to_string("/proc/uptime").ok()?;
+    let seconds: f64 = uptime.split_whitespace().next()?.parse().ok()?;
+    Some((seconds * 1000.0) as u64)
+}
+
+fn fresh(path: &std::path::Path, issued: Option<&str>) -> bool {
+    if let (Some(now), Some(issued)) = (
+        monotonic_millis(),
+        issued.and_then(|value| value.parse::<u64>().ok()),
+    ) {
+        return issued <= now && now - issued <= LEASE_MILLIS;
+    }
+    path.metadata()
+        .and_then(|meta| meta.modified())
+        .and_then(|modified| modified.elapsed().map_err(std::io::Error::other))
+        .is_ok_and(|age| age.as_millis() <= LEASE_MILLIS as u128)
+}
+
+fn alive(line: &str) -> bool {
+    let mut fields = line.split_whitespace();
+    let Some(pid) = fields.next().and_then(|v| v.parse::<u32>().ok()) else {
+        return false;
+    };
+    match fields.next() {
+        Some(wanted) => start_time(pid).is_some_and(|actual| wanted == actual.to_string()),
+        None => PathBuf::from(format!("/proc/{pid}")).exists(),
+    }
 }
 
 pub fn claim(owner: &str, rect: &Placement) -> std::io::Result<()> {
     let path = dir().join(safe_name(owner));
-    let body = format!("{}\n{}\n", positioning::rect_to_position(rect), owning_pid());
-    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    let body = format!(
+        "{}\n{}\n{}\n",
+        positioning::rect_to_position(rect),
+        identity(owning_pid()),
+        monotonic_millis().unwrap_or_default()
+    );
+    let tmp = path.with_file_name(format!(
+        "{}.{}.tmp",
+        path.file_name().and_then(|n| n.to_str()).unwrap_or("panel"),
+        std::process::id()
+    ));
     fs::write(&tmp, body)?;
     fs::rename(&tmp, &path)
 }
@@ -55,8 +104,8 @@ pub fn release(owner: &str) {
     let _ = fs::remove_file(dir().join(safe_name(owner)));
 }
 
-/// Every claim whose owner is still running. Claims from a dead owner are
-/// deleted on the way past, so a crashed shell cleans itself up.
+/// Every fresh claim whose owner is still running. Expired and dead claims are
+/// deleted on the way past.
 pub fn live() -> Vec<Placement> {
     let Ok(entries) = fs::read_dir(dir()) else {
         return Vec::new();
@@ -73,12 +122,14 @@ pub fn live() -> Vec<Placement> {
             let _ = fs::remove_file(&path);
             continue;
         };
-        let owner_pid: Option<u32> = lines.next().and_then(|p| p.trim().parse().ok());
-        match owner_pid {
-            Some(pid) if !alive(pid) => {
-                let _ = fs::remove_file(&path);
-            }
-            _ => out.push(rect),
+        let Some(owner) = lines.next() else {
+            let _ = fs::remove_file(&path);
+            continue;
+        };
+        if alive(owner) && fresh(&path, lines.next()) {
+            out.push(rect);
+        } else {
+            let _ = fs::remove_file(&path);
         }
     }
     out
@@ -91,10 +142,10 @@ pub fn obstruction(overlay: &Placement) -> Option<Placement> {
     let overlapping: Vec<Placement> = live()
         .into_iter()
         .filter(|b| {
-            overlay.x < b.x + b.w
-                && b.x < overlay.x + overlay.w
-                && overlay.y < b.y + b.h
-                && b.y < overlay.y + overlay.h
+            overlay.x < b.x.saturating_add(b.w)
+                && b.x < overlay.x.saturating_add(overlay.w)
+                && overlay.y < b.y.saturating_add(b.h)
+                && b.y < overlay.y.saturating_add(overlay.h)
         })
         .collect();
     if overlapping.is_empty() {
@@ -102,7 +153,26 @@ pub fn obstruction(overlay: &Placement) -> Option<Placement> {
     }
     let left = overlapping.iter().map(|b| b.x).min()?;
     let top = overlapping.iter().map(|b| b.y).min()?;
-    let right = overlapping.iter().map(|b| b.x + b.w).max()?;
-    let bottom = overlapping.iter().map(|b| b.y + b.h).max()?;
-    Some(Placement { x: left, y: top, w: right - left, h: bottom - top })
+    let right = overlapping.iter().map(|b| b.x.saturating_add(b.w)).max()?;
+    let bottom = overlapping.iter().map(|b| b.y.saturating_add(b.h)).max()?;
+    Some(Placement {
+        x: left,
+        y: top,
+        w: right.saturating_sub(left),
+        h: bottom.saturating_sub(top),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lease_identity_rejects_malformed_and_reused_processes() {
+        let pid = std::process::id();
+        let current = identity(pid);
+        assert!(alive(&current));
+        assert!(!alive("not-a-pid"));
+        assert!(!alive(&format!("{pid} 0")));
+    }
 }
