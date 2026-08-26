@@ -151,29 +151,37 @@ fn travel_lights(step: i64) -> Result<(), String> {
     Ok(())
 }
 
-fn report(result: Result<(), String>) {
+fn report(result: Result<(), String>) -> u8 {
     if let Err(e) = result {
         eprintln!("omgato-panel: {e}");
-        std::process::exit(1);
+        1
+    } else {
+        0
     }
 }
 
-fn main() {
+fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     if let Err(e) = state::init_dirs() {
         eprintln!("omgato-panel: {e}");
-        std::process::exit(1);
+        return std::process::ExitCode::FAILURE;
     }
     let _lock = match state::command_lock() {
         Ok(lock) => lock,
         Err(e) => {
             eprintln!("omgato-panel: could not lock panel state: {e}");
-            std::process::exit(1);
+            return std::process::ExitCode::FAILURE;
         }
     };
-    match cli.cmd {
-        None | Some(Cmd::Status) => status(cli.lights_only, cli.with_conflicts, cli.with_record),
-        Some(Cmd::Sync) => lights::sync(),
+    let code = match cli.cmd {
+        None | Some(Cmd::Status) => {
+            status(cli.lights_only, cli.with_conflicts, cli.with_record);
+            0
+        }
+        Some(Cmd::Sync) => {
+            lights::sync();
+            0
+        }
         Some(Cmd::SaveDefault) => report(lights::save_default().map(|n| {
             println!("saved {n} lights as the default");
         })),
@@ -191,6 +199,7 @@ fn main() {
                 aliases.insert(ip, name.to_owned());
             }
             state::save_aliases(&aliases);
+            0
         }
         Some(Cmd::Order { ips }) => {
             let order: Vec<String> = ips
@@ -200,13 +209,26 @@ fn main() {
                 .map(str::to_owned)
                 .collect();
             state::save_order(&order);
+            0
         }
-        Some(Cmd::DeckUndo) => deck::travel(-1),
-        Some(Cmd::DeckRedo) => deck::travel(1),
+        Some(Cmd::DeckUndo) => {
+            deck::travel(-1);
+            0
+        }
+        Some(Cmd::DeckRedo) => {
+            deck::travel(1);
+            0
+        }
         Some(Cmd::CamUndo) => report(camera::travel(-1)),
         Some(Cmd::CamRedo) => report(camera::travel(1)),
-        Some(Cmd::ScopeUndo) => record::travel(-1),
-        Some(Cmd::ScopeRedo) => record::travel(1),
+        Some(Cmd::ScopeUndo) => {
+            record::travel(-1);
+            0
+        }
+        Some(Cmd::ScopeRedo) => {
+            record::travel(1);
+            0
+        }
         Some(Cmd::InstallShortcuts) => report(shortcuts::install()),
         Some(Cmd::UninstallShortcuts) => report(shortcuts::uninstall()),
         Some(Cmd::SetShortcut { id, keys }) => report(shortcuts::set(&id, &keys)),
@@ -216,6 +238,8 @@ fn main() {
             } else {
                 record::start(&target, record::Options { desktop_audio, mic });
             }
+            0
         }
-    }
+    };
+    std::process::ExitCode::from(code)
 }
