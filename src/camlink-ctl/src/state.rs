@@ -45,6 +45,9 @@ fn secure_run_dir() -> Result<PathBuf, String> {
     if let Some(legacy) = legacy {
         migrate_entries(&legacy, &p);
     }
+    // An older migration could have moved a symlink into this name. Validate it
+    // at startup before blocker reads or writes use it.
+    secure_private_dir(&p.join("blockers"))?;
     Ok(p)
 }
 
@@ -185,7 +188,6 @@ pub fn write_atomic(path: &PathBuf, value: &str) -> std::io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     {
-        let _ = fs::remove_file(&tmp);
         let mut f = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
         f.write_all(value.as_bytes())?;
         f.write_all(b"\n")?;

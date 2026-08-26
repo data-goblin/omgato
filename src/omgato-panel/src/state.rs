@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -232,7 +233,10 @@ pub fn write_state_checked<T: Serialize>(file: &str, value: &T) -> std::io::Resu
     fs::create_dir_all(parent)?;
     let tmp = target.with_extension(format!("{}.tmp", std::process::id()));
     let text = serde_json::to_string(value).map_err(std::io::Error::other)?;
-    fs::write(&tmp, text)?;
+    let mut file = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all().ok();
+    drop(file);
     fs::rename(&tmp, &target)
 }
 
@@ -249,9 +253,15 @@ fn write_json<T: Serialize>(path: &PathBuf, value: &T) {
     let Ok(text) = serde_json::to_string(value) else {
         return;
     };
-    if fs::write(&tmp, text).is_ok() {
-        let _ = fs::rename(&tmp, path);
+    let Ok(mut file) = fs::OpenOptions::new().create_new(true).write(true).open(&tmp) else {
+        return;
+    };
+    if file.write_all(text.as_bytes()).is_err() {
+        return;
     }
+    file.sync_all().ok();
+    drop(file);
+    let _ = fs::rename(&tmp, path);
 }
 
 unsafe extern "C" {

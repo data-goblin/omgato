@@ -63,16 +63,16 @@ pub fn config_path() -> PathBuf {
 }
 
 fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
-    if to.exists() || !from.is_file() {
+    if std::fs::symlink_metadata(to).is_ok()
+        || !std::fs::symlink_metadata(from).is_ok_and(|meta| meta.file_type().is_file())
+    {
         return;
     }
     let Some(parent) = to.parent() else { return };
     if std::fs::create_dir_all(parent).is_err() {
         return;
     }
-    if std::fs::rename(from, to).is_err() && !to.exists() {
-        let _ = std::fs::copy(from, to);
-    }
+    let _ = std::fs::rename(from, to);
 }
 
 pub fn load() -> Config {

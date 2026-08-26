@@ -3,6 +3,7 @@ use crate::state::{self, History, DECK_HISTORY};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const SERVICES: [&str; 2] = ["streamdeck-ctl.service", "streamdeck-ctl-deck.service"];
@@ -454,7 +455,16 @@ pub fn travel(step: i64) {
     let text = &snapshot.text;
     let path = config_path();
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-    if fs::write(&tmp, text).is_err() || fs::rename(&tmp, &path).is_err() {
+    let written = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&tmp)
+        .and_then(|mut file| {
+            file.write_all(text.as_bytes())?;
+            file.sync_all().ok();
+            Ok(())
+        });
+    if written.is_err() || fs::rename(&tmp, &path).is_err() {
         return;
     }
     history.commit_pos(DECK_HISTORY, pos);
