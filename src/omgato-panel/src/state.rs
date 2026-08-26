@@ -150,8 +150,8 @@ pub fn save_order(order: &[String]) {
 pub fn dir() -> PathBuf {
     dirs::state_dir()
         .or_else(dirs::data_local_dir)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("omgato-panel")
+        .map(|d| d.join("omgato-panel"))
+        .unwrap_or_else(|| crate::privdir::temp_fallback("omgato-panel"))
 }
 
 fn path(file: &str) -> PathBuf {
@@ -164,8 +164,8 @@ fn path(file: &str) -> PathBuf {
 fn legacy_dir() -> PathBuf {
     dirs::state_dir()
         .or_else(dirs::data_local_dir)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("elgato-panel")
+        .map(|d| d.join("elgato-panel"))
+        .unwrap_or_else(|| crate::privdir::temp_fallback("elgato-panel"))
 }
 
 fn migrate_file(from: &std::path::Path, to: &std::path::Path) {

@@ -149,7 +149,9 @@ mod tests {
 
     #[test]
     fn rejects_ambiguous_same_resolution_sources() {
-        let path = std::env::temp_dir().join(format!("omgato-obs-test-{}.json", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omgato-obs-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("scene.json");
         let scene = r#"{
             "sources": [{
                 "id": "scene",
@@ -161,6 +163,6 @@ mod tests {
         }"#;
         fs::write(&path, scene).unwrap();
         assert!(find_region_for_monitor(&path, &monitor()).is_none());
-        fs::remove_file(path).unwrap();
+        fs::remove_dir_all(dir).unwrap();
     }
 }

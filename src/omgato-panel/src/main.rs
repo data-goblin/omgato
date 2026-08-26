@@ -8,6 +8,7 @@ use serde::Serialize;
 mod camera;
 mod deck;
 mod lights;
+mod privdir;
 mod record;
 mod shortcuts;
 mod sh;

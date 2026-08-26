@@ -149,8 +149,8 @@ pub fn config_path() -> PathBuf {
 
 fn preview_dir() -> PathBuf {
     dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("omgato-panel/deck")
+        .map(|c| c.join("omgato-panel/deck"))
+        .unwrap_or_else(|| crate::privdir::temp_fallback("omgato-panel-deck"))
 }
 
 /// Re-renders the key previews when the config or the export settings changed.

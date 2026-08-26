@@ -14,6 +14,14 @@ All notable changes to this project are documented here. The format follows
 - Create the camera overlay log by exclusive creation after unlinking, so a
   symlink left at that path can no longer redirect the write and truncate
   another file
+- Apply the same ownership and permission check to the panel's state, legacy
+  state and Stream Deck preview directories, which fell back to predictable
+  shared temp paths when the XDG location was unavailable
+- Require `XDG_RUNTIME_DIR` to reach the compositor socket rather than falling
+  back to a world-writable `/tmp` path another user could answer on
+- Write every atomic temporary file by exclusive creation, and give the Stream
+  Deck config temporary file a per-process name so concurrent saves cannot
+  share it
 
 ## [0.1.1] - 2026-08-25
 

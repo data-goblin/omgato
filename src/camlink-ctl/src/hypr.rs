@@ -7,7 +7,11 @@ use std::time::Duration;
 fn socket_path() -> Result<PathBuf, String> {
     let sig = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
         .map_err(|_| "HYPRLAND_INSTANCE_SIGNATURE not set".to_string())?;
-    let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
+    // No /tmp fallback: that path is world-writable and predictable, so another
+    // local user could listen there and answer as the compositor, feeding this
+    // process invented monitor geometry and window addresses.
+    let xdg = std::env::var("XDG_RUNTIME_DIR")
+        .map_err(|_| "XDG_RUNTIME_DIR not set".to_string())?;
     Ok(PathBuf::from(xdg).join("hypr").join(sig).join(".socket.sock"))
 }
 

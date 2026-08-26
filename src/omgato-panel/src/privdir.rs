@@ -1,0 +1,113 @@
+use std::fs;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+
+/// A per-user directory under the temp directory, for use only when the XDG
+/// location it should have gone to is unavailable. The path is predictable, so
+/// an existing directory is verified rather than trusted: another local user
+/// who prepared it could otherwise plant symlinks that redirect every write.
+/// A directory that cannot be secured ends the process rather than being used.
+pub fn temp_fallback(name: &str) -> PathBuf {
+    let p = std::env::temp_dir().join(format!("{name}-{}", users_own_uid()));
+    match secure(&p) {
+        Ok(()) => p,
+        Err(e) => {
+            eprintln!("omgato-panel: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn secure(p: &Path) -> Result<(), String> {
+    match fs::DirBuilder::new().mode(0o700).create(p) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(p),
+        Err(e) => Err(format!("create {}: {e}", p.display())),
+    }
+}
+
+/// Accept an existing directory only if it is a real directory this user owns
+/// and no other user can enter. Reads metadata without following symlinks, so a
+/// link planted at the path is rejected rather than resolved to its target.
+fn verify_private_dir(p: &Path) -> Result<(), String> {
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("stat {}: {e}", p.display()))?;
+    if !meta.is_dir() {
+        return Err(format!("{} exists but is not a directory", p.display()));
+    }
+    let uid = users_own_uid();
+    if meta.uid() != uid {
+        return Err(format!(
+            "{} is owned by uid {}, not {uid}; refusing to use it",
+            p.display(),
+            meta.uid()
+        ));
+    }
+    let mode = meta.permissions().mode() & 0o7777;
+    if mode & 0o077 != 0 {
+        return Err(format!(
+            "{} is reachable by other users (mode {mode:o}); refusing to use it",
+            p.display()
+        ));
+    }
+    Ok(())
+}
+
+fn users_own_uid() -> u32 {
+    unsafe { getuid() }
+}
+
+unsafe extern "C" {
+    fn getuid() -> u32;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    fn scratch(name: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("omgato-privdir-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&p);
+        let _ = fs::remove_file(&p);
+        p
+    }
+
+    #[test]
+    fn creates_a_directory_only_this_user_can_enter() {
+        let p = scratch("fresh");
+        secure(&p).unwrap();
+        let mode = fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+        fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_directory_other_users_can_enter() {
+        let p = scratch("open");
+        fs::DirBuilder::new().mode(0o777).create(&p).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o777)).unwrap();
+        let err = secure(&p).unwrap_err();
+        assert!(err.contains("reachable by other users"), "{err}");
+        fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_symlink_planted_at_the_path() {
+        let target = scratch("link-target");
+        fs::DirBuilder::new().mode(0o700).create(&target).unwrap();
+        let p = scratch("link");
+        symlink(&target, &p).unwrap();
+        let err = secure(&p).unwrap_err();
+        assert!(err.contains("not a directory"), "{err}");
+        fs::remove_file(&p).unwrap();
+        fs::remove_dir_all(&target).unwrap();
+    }
+
+    #[test]
+    fn accepts_a_directory_it_created_earlier() {
+        let p = scratch("reuse");
+        secure(&p).unwrap();
+        secure(&p).unwrap();
+        fs::remove_dir_all(&p).unwrap();
+    }
+}

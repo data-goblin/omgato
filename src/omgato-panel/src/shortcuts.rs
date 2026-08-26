@@ -343,7 +343,14 @@ fn write_text_atomic(path: &std::path::Path, text: &str) -> Result<(), String> {
     fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("bindings");
     let tmp = parent.join(format!(".{name}.{}.tmp", std::process::id()));
-    let mut file = fs::File::create(&tmp).map_err(|e| format!("write {}: {e}", path.display()))?;
+    // Exclusive creation after unlinking, so a symlink left at the temporary
+    // name cannot redirect this write to a file elsewhere.
+    let _ = fs::remove_file(&tmp);
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&tmp)
+        .map_err(|e| format!("write {}: {e}", path.display()))?;
     file.write_all(text.as_bytes()).map_err(|e| format!("write {}: {e}", path.display()))?;
     if let Ok(meta) = fs::metadata(path) {
         let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(meta.permissions().mode()));

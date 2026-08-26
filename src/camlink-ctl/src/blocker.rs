@@ -12,7 +12,10 @@ const LEASE_MILLIS: u64 = 15_000;
 /// therefore its own renewable lease carrying the process that made it.
 pub fn dir() -> PathBuf {
     let p = state::run_dir().join("blockers");
-    let _ = fs::create_dir_all(&p);
+    if let Err(e) = fs::create_dir_all(&p) {
+        eprintln!("camlink-ctl: create {}: {e}", p.display());
+        std::process::exit(1);
+    }
     p
 }
 

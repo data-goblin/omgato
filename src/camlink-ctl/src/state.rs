@@ -183,3 +183,46 @@ fn migrate_entries(from: &Path, to: &Path) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    fn scratch(name: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("camlink-state-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&p);
+        let _ = fs::remove_file(&p);
+        p
+    }
+
+    #[test]
+    fn rejects_a_state_directory_other_users_can_enter() {
+        let p = scratch("open");
+        fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o777)).unwrap();
+        let err = verify_private_dir(&p).unwrap_err();
+        assert!(err.contains("reachable by other users"), "{err}");
+        fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_symlink_planted_at_the_state_directory() {
+        let target = scratch("link-target");
+        fs::DirBuilder::new().mode(0o700).create(&target).unwrap();
+        let p = scratch("link");
+        symlink(&target, &p).unwrap();
+        let err = verify_private_dir(&p).unwrap_err();
+        assert!(err.contains("not a directory"), "{err}");
+        fs::remove_file(&p).unwrap();
+        fs::remove_dir_all(&target).unwrap();
+    }
+
+    #[test]
+    fn accepts_a_private_state_directory() {
+        let p = scratch("ok");
+        fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
+        verify_private_dir(&p).unwrap();
+        fs::remove_dir_all(&p).unwrap();
+    }
+}
