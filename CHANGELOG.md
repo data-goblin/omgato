@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-08-26
+
+### Fixed
+
+- Restore every `camlink-ctl` command on a machine upgraded from an earlier
+  version. The blockers directory created under the previous umask was refused
+  as group-readable rather than narrowed, so every command exited with an error
+
 ## [0.1.3] - 2026-08-26
 
 ### Security
