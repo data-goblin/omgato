@@ -1,6 +1,7 @@
 use crate::positioning::{self, Placement};
 use crate::state;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 const LEASE_MILLIS: u64 = 15_000;
@@ -11,12 +12,7 @@ const LEASE_MILLIS: u64 = 15_000;
 /// monitors, and a vanished panel left its claim behind for good. Each claim is
 /// therefore its own renewable lease carrying the process that made it.
 pub fn dir() -> PathBuf {
-    let p = state::run_dir().join("blockers");
-    if let Err(e) = fs::create_dir_all(&p) {
-        eprintln!("camlink-ctl: create {}: {e}", p.display());
-        std::process::exit(1);
-    }
-    p
+    state::run_dir().join("blockers")
 }
 
 /// Keep an owner id to something that cannot escape the directory.
@@ -99,7 +95,10 @@ pub fn claim(owner: &str, rect: &Placement) -> std::io::Result<()> {
         path.file_name().and_then(|n| n.to_str()).unwrap_or("panel"),
         std::process::id()
     ));
-    fs::write(&tmp, body)?;
+    let mut file = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
+    file.write_all(body.as_bytes())?;
+    file.sync_all().ok();
+    drop(file);
     fs::rename(&tmp, &path)
 }
 
@@ -117,6 +116,10 @@ pub fn live() -> Vec<Placement> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().is_some_and(|e| e == "tmp") {
+            continue;
+        }
+        if !entry.file_type().is_ok_and(|kind| kind.is_file()) {
+            let _ = fs::remove_file(&path);
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else { continue };

@@ -56,7 +56,7 @@ pub fn run_all(cmds: &[Vec<String>]) -> Vec<String> {
     })
 }
 
-fn succeeds_owned(cmd: &[String]) -> bool {
+pub fn succeeds_owned(cmd: &[String]) -> bool {
     let Some((bin, args)) = cmd.split_first() else {
         return false;
     };

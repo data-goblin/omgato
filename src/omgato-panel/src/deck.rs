@@ -3,6 +3,7 @@ use crate::state::{self, History, DECK_HISTORY};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const SERVICES: [&str; 2] = ["streamdeck-ctl.service", "streamdeck-ctl-deck.service"];
@@ -150,7 +151,7 @@ pub fn config_path() -> PathBuf {
 fn preview_dir() -> PathBuf {
     dirs::cache_dir()
         .map(|c| c.join("omgato-panel/deck"))
-        .unwrap_or_else(|| crate::privdir::temp_fallback("omgato-panel-deck"))
+        .unwrap_or_else(|| crate::state::dir().join("cache/deck"))
 }
 
 /// Re-renders the key previews when the config or the export settings changed.
@@ -177,7 +178,14 @@ fn refresh_previews(key_count: u8, cols: u8) {
         PREVIEW_RADIUS,
     ]);
     if exported {
-        let _ = fs::write(&stamp, &want);
+        let tmp = stamp.with_extension(format!("{}.tmp", std::process::id()));
+        if let Ok(mut file) = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)
+            && file.write_all(want.as_bytes()).is_ok()
+        {
+            file.sync_all().ok();
+            drop(file);
+            let _ = fs::rename(&tmp, &stamp);
+        }
     }
 }
 
@@ -454,7 +462,16 @@ pub fn travel(step: i64) {
     let text = &snapshot.text;
     let path = config_path();
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-    if fs::write(&tmp, text).is_err() || fs::rename(&tmp, &path).is_err() {
+    let written = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&tmp)
+        .and_then(|mut file| {
+            file.write_all(text.as_bytes())?;
+            file.sync_all().ok();
+            Ok(())
+        });
+    if written.is_err() || fs::rename(&tmp, &path).is_err() {
         return;
     }
     history.commit_pos(DECK_HISTORY, pos);

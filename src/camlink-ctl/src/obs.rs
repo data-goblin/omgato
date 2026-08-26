@@ -94,7 +94,11 @@ fn expand(s: &str) -> PathBuf {
 /// logical desktop coordinates.
 pub fn find_region_for_monitor(scene_file: &Path, mon: &Monitor) -> Option<Region> {
     let raw = fs::read_to_string(scene_file).ok()?;
-    let scene: Scene = serde_json::from_str(&raw).ok()?;
+    find_region_in_scene(&raw, mon)
+}
+
+fn find_region_in_scene(raw: &str, mon: &Monitor) -> Option<Region> {
+    let scene: Scene = serde_json::from_str(raw).ok()?;
 
     let scene_source = scene.sources.iter().find(|s| s.id == "scene")?;
     let mw = mon.width as f32;
@@ -149,9 +153,6 @@ mod tests {
 
     #[test]
     fn rejects_ambiguous_same_resolution_sources() {
-        let dir = std::env::temp_dir().join(format!("omgato-obs-test-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("scene.json");
         let scene = r#"{
             "sources": [{
                 "id": "scene",
@@ -161,8 +162,6 @@ mod tests {
                 ]}
             }]
         }"#;
-        fs::write(&path, scene).unwrap();
-        assert!(find_region_for_monitor(&path, &monitor()).is_none());
-        fs::remove_dir_all(dir).unwrap();
+        assert!(find_region_in_scene(scene, &monitor()).is_none());
     }
 }

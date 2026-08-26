@@ -4,8 +4,15 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct Holder {
     pub pid: u32,
+    start: u64,
     pub command: String,
     pub unit: Option<String>,
+}
+
+fn start_time(pid: u32) -> Option<u64> {
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_, after_comm) = stat.rsplit_once(") ")?;
+    after_comm.split_whitespace().nth(19)?.parse().ok()
 }
 
 /// The systemd **user** unit a process belongs to, if any.
@@ -40,19 +47,40 @@ pub fn borrowable_unit(found: &[Holder]) -> Option<String> {
     found.iter().all(|h| h.unit.as_deref() == Some(&unit)).then_some(unit)
 }
 
-/// Stop a user unit and wait for the device to become free.
-pub fn borrow(unit: &str, device: &Path) -> Result<(), String> {
+fn same_processes(left: &[Holder], right: &[Holder]) -> bool {
+    let mut left: Vec<(u32, u64)> = left.iter().map(|holder| (holder.pid, holder.start)).collect();
+    let mut right: Vec<(u32, u64)> = right.iter().map(|holder| (holder.pid, holder.start)).collect();
+    left.sort_unstable();
+    right.sort_unstable();
+    left == right
+}
+
+/// Stop a user unit and wait for the device to become free. Returns false when
+/// the holder disappeared before the stop, in which case no service was touched.
+pub fn borrow(unit: &str, device: &Path, expected: &[Holder]) -> Result<bool, String> {
+    let current = holders(device);
+    if current.is_empty() {
+        return Ok(false);
+    }
+    if !same_processes(expected, &current)
+        || borrowable_unit(&current).as_deref() != Some(unit)
+    {
+        return Err("the camera holders changed while they were being inspected; retry".into());
+    }
+    crate::state::write_atomic(&crate::state::borrowed_unit(), unit)
+        .map_err(|e| format!("could not record the borrowed unit: {e}"))?;
     let stopped = std::process::Command::new("systemctl")
         .args(["--user", "stop", "--", unit])
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
     if !stopped {
+        crate::state::remove(&crate::state::borrowed_unit());
         return Err(format!("could not stop {unit}"));
     }
     for _ in 0..40 {
         if holders(device).is_empty() {
-            return Ok(());
+            return Ok(true);
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -109,12 +137,22 @@ pub fn holders(device: &Path) -> Vec<Holder> {
         if pid == me {
             continue;
         }
+        let Some(start) = start_time(pid) else {
+            continue;
+        };
         let Ok(fds) = fs::read_dir(entry.path().join("fd")) else {
             continue;
         };
         for fd in fds.flatten() {
             if fs::read_link(fd.path()).is_ok_and(|link| link == target) {
-                found.push(Holder { pid, command: command_of(pid), unit: unit_of(pid) });
+                let command = command_of(pid);
+                let unit = unit_of(pid);
+                // All three /proc reads must describe the same process. Without
+                // this second check a reused pid could lend an unrelated unit to
+                // the device holder found through the already-open fd directory.
+                if start_time(pid) == Some(start) {
+                    found.push(Holder { pid, start, command, unit });
+                }
                 break;
             }
         }
@@ -159,7 +197,7 @@ mod tests {
     use super::*;
 
     fn holder(unit: Option<&str>) -> Holder {
-        Holder { pid: 1, command: "camera".into(), unit: unit.map(str::to_owned) }
+        Holder { pid: 1, start: 1, command: "camera".into(), unit: unit.map(str::to_owned) }
     }
 
     #[test]
@@ -173,5 +211,13 @@ mod tests {
             None
         );
         assert_eq!(borrowable_unit(&[holder(Some("camera.service")), holder(None)]), None);
+    }
+
+    #[test]
+    fn compares_both_pid_and_process_start() {
+        let first = holder(Some("camera.service"));
+        let mut reused = first.clone();
+        reused.start += 1;
+        assert!(!same_processes(&[first], &[reused]));
     }
 }

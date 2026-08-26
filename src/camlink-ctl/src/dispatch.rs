@@ -125,21 +125,22 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
             }
             return 1;
         }
-        if let Err(e) = state::write_atomic(&state::borrowed_unit(), &unit) {
-            eprintln!("camlink-ctl: could not record the borrowed unit: {e}");
-            return 1;
+        let borrowed = match crate::holder::borrow(&unit, &dev, &busy) {
+            Ok(borrowed) => borrowed,
+            Err(e) => {
+                let returned = return_borrowed(false);
+                let msg = match returned {
+                    Ok(()) => e,
+                    Err(give_back) => format!("{e}; {give_back}"),
+                };
+                eprintln!("camlink-ctl: {msg}");
+                notify(&msg);
+                return 1;
+            }
+        };
+        if borrowed {
+            notify(&format!("Paused {unit} to use the camera"));
         }
-        if let Err(e) = crate::holder::borrow(&unit, &dev) {
-            let returned = return_borrowed(false);
-            let msg = match returned {
-                Ok(()) => e,
-                Err(give_back) => format!("{e}; {give_back}"),
-            };
-            eprintln!("camlink-ctl: {msg}");
-            notify(&msg);
-            return 1;
-        }
-        notify(&format!("Paused {unit} to use the camera"));
     }
 
     if state::exists(&state::needs_reset_flag()) {

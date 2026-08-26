@@ -4,24 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2026-08-25
+## [0.1.3] - 2026-08-26
 
 ### Security
 
-- Refuse a camera state directory that this user does not own or that other
-  users can enter, instead of silently accepting one another local user
-  prepared at the predictable temp-directory fallback path
-- Create the camera overlay log by exclusive creation after unlinking, so a
-  symlink left at that path can no longer redirect the write and truncate
-  another file
-- Apply the same ownership and permission check to the panel's state, legacy
-  state and Stream Deck preview directories, which fell back to predictable
-  shared temp paths when the XDG location was unavailable
+- Anchor every private runtime and fallback directory below trusted ancestors,
+  rejecting symlinks, foreign ownership and non-sticky shared parents before
+  any state file is opened
+- Refuse unsafe legacy migration sources and move only real files and secured
+  directories, without a copy fallback that could follow a replaced symlink
+- Publish the camera log and every atomic state or configuration update from an
+  exclusively created per-process inode rather than unlinking a predictable name
+- Reserve screen recording, processed-video and Stream Deck export paths before
+  external tools can open them, preventing predictable names in shared output
+  directories from following attacker-planted symlinks
 - Require `XDG_RUNTIME_DIR` to reach the compositor socket rather than falling
   back to a world-writable `/tmp` path another user could answer on
-- Write every atomic temporary file by exclusive creation, and give the Stream
-  Deck config temporary file a per-process name so concurrent saves cannot
-  share it
+- Bind saved and discovered processes to their `/proc` start time, rescan camera
+  holders before stopping a systemd user unit, and signal overlays through a
+  pidfd so PID reuse cannot redirect an action
+
+### Fixed
+
+- Initialise and cache secured state paths before acquiring resources, and
+  return normally from panel commands so Rust cleanup guards always run
+- Reject Stream Deck page names that could escape a caller-selected export root
 
 ## [0.1.1] - 2026-08-25
 

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,16 +32,16 @@ pub fn cache_path() -> PathBuf {
 }
 
 fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
-    if to.exists() || !from.is_file() {
+    if fs::symlink_metadata(to).is_ok()
+        || !fs::symlink_metadata(from).is_ok_and(|meta| meta.file_type().is_file())
+    {
         return;
     }
     let Some(parent) = to.parent() else { return };
     if fs::create_dir_all(parent).is_err() {
         return;
     }
-    if fs::rename(from, to).is_err() && !to.exists() {
-        let _ = fs::copy(from, to);
-    }
+    let _ = fs::rename(from, to);
 }
 
 pub fn load() -> Cache {
@@ -58,7 +59,10 @@ pub fn save(cache: &Cache) -> std::io::Result<()> {
     }
     let s = toml::to_string_pretty(cache).expect("serialize");
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-    fs::write(&tmp, s)?;
+    let mut file = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
+    file.write_all(s.as_bytes())?;
+    file.sync_all()?;
+    drop(file);
     fs::rename(&tmp, &path)
 }
 

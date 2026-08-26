@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 pub const HISTORY_MAX: usize = 11; // baseline + 10 undoable changes
 
@@ -13,6 +15,34 @@ pub const DECK_HISTORY: &str = "deck-history.json";
 pub const CAMERA_HISTORY: &str = "camera-history.json";
 pub const SCOPE_HISTORY: &str = "scope-history.json";
 pub const LIGHTS_DEFAULT: &str = "lights-default.json";
+
+struct StateDirs {
+    current: PathBuf,
+    legacy: Option<PathBuf>,
+}
+
+static STATE_DIRS: OnceLock<StateDirs> = OnceLock::new();
+
+pub fn init_dirs() -> Result<(), String> {
+    if STATE_DIRS.get().is_some() {
+        return Ok(());
+    }
+    let resolved = match dirs::state_dir().or_else(dirs::data_local_dir) {
+        Some(base) => StateDirs {
+            current: base.join("omgato-panel"),
+            legacy: Some(base.join("elgato-panel")),
+        },
+        None => StateDirs {
+            current: crate::privdir::temp_fallback("omgato-panel")?,
+            // The old fallback was the global /tmp/elgato-panel. Importing from
+            // it would reintroduce the shared-directory trust problem.
+            legacy: None,
+        },
+    };
+    STATE_DIRS
+        .set(resolved)
+        .map_err(|_| "panel state directories were initialized concurrently".to_string())
+}
 
 pub struct CommandLock(fs::File);
 
@@ -148,37 +178,40 @@ pub fn save_order(order: &[String]) {
 }
 
 pub fn dir() -> PathBuf {
-    dirs::state_dir()
-        .or_else(dirs::data_local_dir)
-        .map(|d| d.join("omgato-panel"))
-        .unwrap_or_else(|| crate::privdir::temp_fallback("omgato-panel"))
+    STATE_DIRS
+        .get()
+        .expect("state::init_dirs must run before dispatch")
+        .current
+        .clone()
 }
 
 fn path(file: &str) -> PathBuf {
     let target = dir().join(file);
-    let legacy = legacy_dir().join(file);
-    migrate_file(&legacy, &target);
+    if let Some(legacy) = legacy_dir() {
+        migrate_file(&legacy.join(file), &target);
+    }
     target
 }
 
-fn legacy_dir() -> PathBuf {
-    dirs::state_dir()
-        .or_else(dirs::data_local_dir)
-        .map(|d| d.join("elgato-panel"))
-        .unwrap_or_else(|| crate::privdir::temp_fallback("elgato-panel"))
+fn legacy_dir() -> Option<&'static std::path::Path> {
+    STATE_DIRS
+        .get()
+        .expect("state::init_dirs must run before dispatch")
+        .legacy
+        .as_deref()
 }
 
 fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
-    if to.exists() || !from.is_file() {
+    if fs::symlink_metadata(to).is_ok()
+        || !fs::symlink_metadata(from).is_ok_and(|meta| meta.file_type().is_file())
+    {
         return;
     }
     let Some(parent) = to.parent() else { return };
     if fs::create_dir_all(parent).is_err() {
         return;
     }
-    if fs::rename(from, to).is_err() && !to.exists() {
-        let _ = fs::copy(from, to);
-    }
+    let _ = fs::rename(from, to);
 }
 
 /// Reads and writes an arbitrary small document in the panel's state directory.
@@ -200,7 +233,10 @@ pub fn write_state_checked<T: Serialize>(file: &str, value: &T) -> std::io::Resu
     fs::create_dir_all(parent)?;
     let tmp = target.with_extension(format!("{}.tmp", std::process::id()));
     let text = serde_json::to_string(value).map_err(std::io::Error::other)?;
-    fs::write(&tmp, text)?;
+    let mut file = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all().ok();
+    drop(file);
     fs::rename(&tmp, &target)
 }
 
@@ -217,9 +253,15 @@ fn write_json<T: Serialize>(path: &PathBuf, value: &T) {
     let Ok(text) = serde_json::to_string(value) else {
         return;
     };
-    if fs::write(&tmp, text).is_ok() {
-        let _ = fs::rename(&tmp, path);
+    let Ok(mut file) = fs::OpenOptions::new().create_new(true).write(true).open(&tmp) else {
+        return;
+    };
+    if file.write_all(text.as_bytes()).is_err() {
+        return;
     }
+    file.sync_all().ok();
+    drop(file);
+    let _ = fs::rename(&tmp, path);
 }
 
 unsafe extern "C" {

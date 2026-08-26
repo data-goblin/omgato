@@ -7,23 +7,54 @@ use std::path::{Path, PathBuf};
 /// an existing directory is verified rather than trusted: another local user
 /// who prepared it could otherwise plant symlinks that redirect every write.
 /// A directory that cannot be secured ends the process rather than being used.
-pub fn temp_fallback(name: &str) -> PathBuf {
-    let p = std::env::temp_dir().join(format!("{name}-{}", users_own_uid()));
-    match secure(&p) {
-        Ok(()) => p,
-        Err(e) => {
-            eprintln!("omgato-panel: {e}");
-            std::process::exit(1);
-        }
-    }
+pub fn temp_fallback(name: &str) -> Result<PathBuf, String> {
+    let temp = std::env::temp_dir();
+    verify_trusted_directory(&temp, "temporary directory")?;
+    let p = temp.join(format!("{name}-{}", users_own_uid()));
+    secure(&p)?;
+    Ok(p)
 }
 
 fn secure(p: &Path) -> Result<(), String> {
     match fs::DirBuilder::new().mode(0o700).create(p) {
-        Ok(()) => Ok(()),
+        Ok(()) => verify_private_dir(p),
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(p),
         Err(e) => Err(format!("create {}: {e}", p.display())),
     }
+}
+
+pub fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
+    if !p.is_absolute() {
+        return Err(format!("{label} must be an absolute path: {}", p.display()));
+    }
+    let own_uid = users_own_uid();
+    let root_uid = fs::symlink_metadata("/")
+        .map_err(|e| format!("stat /: {e}"))?
+        .uid();
+    let mut current = PathBuf::from("/");
+    for component in p.components().skip(1) {
+        current.push(component.as_os_str());
+        let meta = fs::symlink_metadata(&current)
+            .map_err(|e| format!("stat {}: {e}", current.display()))?;
+        if !meta.is_dir() {
+            return Err(format!("{} is not a real directory", current.display()));
+        }
+        if meta.uid() != own_uid && meta.uid() != root_uid {
+            return Err(format!(
+                "{} is owned by untrusted uid {}; refusing to use {label}",
+                current.display(),
+                meta.uid()
+            ));
+        }
+        let mode = meta.permissions().mode() & 0o7777;
+        if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+            return Err(format!(
+                "{} is writable by other users without the sticky bit (mode {mode:o}); refusing to use {label}",
+                current.display(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Accept an existing directory only if it is a real directory this user owns
@@ -108,6 +139,16 @@ mod tests {
         let p = scratch("reuse");
         secure(&p).unwrap();
         secure(&p).unwrap();
+        fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_non_sticky_writable_temp_parent() {
+        let p = scratch("writable-parent");
+        fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o777)).unwrap();
+        let err = verify_trusted_directory(&p, "test temp").unwrap_err();
+        assert!(err.contains("without the sticky bit"), "{err}");
         fs::remove_dir_all(&p).unwrap();
     }
 }

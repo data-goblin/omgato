@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use crate::config::Config;
 use crate::{hypr, state};
+use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 
 pub fn find_device(pattern: &str) -> Option<PathBuf> {
     let dir = PathBuf::from("/dev/v4l/by-id");
@@ -105,15 +106,20 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
     let win_w = cfg.size[0];
     let win_h = cfg.size[1];
 
-    // Unlink then create exclusively rather than truncating in place:
-    // remove_file drops a symlink itself instead of following it, and O_EXCL
-    // refuses to open one at all, so the log cannot redirect a write elsewhere.
-    let log_path = state::run_dir().join("mpv.log");
-    let _ = std::fs::remove_file(&log_path);
+    // Create a separate inode exclusively, then rename it over the public log
+    // name. The open cannot follow a symlink and rename replaces a symlink rather
+    // than opening its target.
+    let run_dir = state::run_dir();
+    let log_path = run_dir.join("mpv.log");
+    let log_tmp = run_dir.join(format!(".mpv.log.{}.tmp", std::process::id()));
     let log = std::fs::OpenOptions::new()
         .create_new(true).write(true)
-        .open(&log_path)
+        .open(&log_tmp)
         .map_err(|e| format!("open log: {e}"))?;
+    if let Err(e) = std::fs::rename(&log_tmp, &log_path) {
+        let _ = std::fs::remove_file(&log_tmp);
+        return Err(format!("publish log: {e}"));
+    }
 
     let geometry = format!("--geometry={}x{}", win_w, win_h);
     let autofit = format!("--autofit={}x{}", win_w, win_h);
@@ -182,8 +188,12 @@ pub fn kill_running(title: &str) -> bool {
         state::remove(&state::pid_file());
         return false;
     }
-    let pid = process.pid;
-    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+    let Some(pidfd) = process_pidfd(process) else {
+        return false;
+    };
+    if pidfd_send_signal(&pidfd, Signal::TERM).is_err() {
+        return false;
+    }
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
         if !process_alive(process) {
@@ -192,7 +202,9 @@ pub fn kill_running(title: &str) -> bool {
         }
         std::thread::sleep(Duration::from_millis(5));
     }
-    unsafe { libc::kill(pid as i32, libc::SIGKILL); }
+    if pidfd_send_signal(&pidfd, Signal::KILL).is_err() {
+        return false;
+    }
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
         if !process_alive(process) {
@@ -202,6 +214,16 @@ pub fn kill_running(title: &str) -> bool {
         std::thread::sleep(Duration::from_millis(5));
     }
     false
+}
+
+/// Open a stable handle, then repeat the start-time check. If the numeric pid
+/// was reused during `pidfd_open`, the handle and saved identity disagree and no
+/// signal is sent.
+fn process_pidfd(process: ProcessRef) -> Option<std::os::fd::OwnedFd> {
+    let start = process.start?;
+    let pid = Pid::from_raw(i32::try_from(process.pid).ok()?)?;
+    let pidfd = pidfd_open(pid, PidfdFlags::empty()).ok()?;
+    (process_start(process.pid) == Some(start) && pid_alive(process.pid)).then_some(pidfd)
 }
 
 pub enum WaitResult {
@@ -270,8 +292,5 @@ mod libc {
     pub type pid_t = i32;
     unsafe extern "C" {
         pub fn setsid() -> pid_t;
-        pub fn kill(pid: pid_t, sig: i32) -> i32;
     }
-    pub const SIGTERM: i32 = 15;
-    pub const SIGKILL: i32 = 9;
 }
