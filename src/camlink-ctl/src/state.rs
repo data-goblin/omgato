@@ -8,9 +8,6 @@ use std::sync::OnceLock;
 
 static RUN_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-/// Resolve and secure the state directory before any command acquires resources
-/// that need cleanup. A fatal error later in a path helper used to call
-/// `process::exit`, which could strand a borrowed camera service.
 pub fn init_run_dir() -> Result<(), String> {
     if RUN_DIR.get().is_some() {
         return Ok(());
@@ -45,8 +42,6 @@ fn secure_run_dir() -> Result<PathBuf, String> {
     if let Some(legacy) = legacy {
         migrate_entries(&legacy, &p);
     }
-    // An older migration could have moved a symlink into this name. Validate it
-    // at startup before blocker reads or writes use it.
     secure_private_dir(&p.join("blockers"))?;
     Ok(p)
 }
@@ -54,9 +49,21 @@ fn secure_run_dir() -> Result<PathBuf, String> {
 fn secure_private_dir(p: &Path) -> Result<(), String> {
     match fs::DirBuilder::new().mode(0o700).create(p) {
         Ok(()) => verify_private_dir(p),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(p),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            tighten_if_ours(p)?;
+            verify_private_dir(p)
+        }
         Err(e) => Err(format!("create {}: {e}", p.display())),
     }
+}
+
+fn tighten_if_ours(p: &Path) -> Result<(), String> {
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("stat {}: {e}", p.display()))?;
+    if !meta.is_dir() || meta.uid() != users_own_uid() || meta.permissions().mode() & 0o077 == 0 {
+        return Ok(());
+    }
+    fs::set_permissions(p, fs::Permissions::from_mode(0o700))
+        .map_err(|e| format!("tighten {}: {e}", p.display()))
 }
 
 fn verify_private_base(p: &Path, label: &str) -> Result<(), String> {
@@ -68,9 +75,6 @@ fn verify_private_base(p: &Path, label: &str) -> Result<(), String> {
     verify_private_dir(p)
 }
 
-/// Every component leading to a shared fallback must be controlled by this user
-/// or the system. Writable components are accepted only with the sticky bit,
-/// which prevents another user from replacing an entry they do not own.
 fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
     if !p.is_absolute() {
         return Err(format!("{label} must be an absolute path: {}", p.display()));
@@ -105,9 +109,6 @@ fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Accept an existing state directory only if it is a real directory this user
-/// owns and no other user can enter. Reads metadata without following symlinks,
-/// so a link planted at the path is rejected rather than resolved to its target.
 fn verify_private_dir(p: &Path) -> Result<(), String> {
     let meta = fs::symlink_metadata(p).map_err(|e| format!("stat {}: {e}", p.display()))?;
     if !meta.is_dir() {
@@ -134,20 +135,11 @@ fn verify_private_dir(p: &Path) -> Result<(), String> {
 pub fn position_file() -> PathBuf { run_dir().join("position") }
 pub fn fullscreen_flag() -> PathBuf { run_dir().join("fullscreen") }
 pub fn pid_file() -> PathBuf { run_dir().join("ffplay.pid") }
-/// Set after the overlay has been hidden at least once. Triggers an
-/// auto-reset before the next `show` to clear the UVC wedge that the
-/// Cam Link enters when the V4L2 fd closes mid-stream. Lives in
-/// XDG_RUNTIME_DIR so it clears on reboot.
 pub fn needs_reset_flag() -> PathBuf { run_dir().join("needs_reset") }
-/// A user unit that was stopped so the overlay could take the capture device.
-/// Started again when the overlay is hidden, so borrowing is always paid back.
 pub fn borrowed_unit() -> PathBuf { run_dir().join("borrowed_unit") }
 
 pub struct CommandLock(fs::File);
 
-/// Serialise state-changing commands from the panel, shortcuts and display
-/// hooks. Each CLI invocation is a separate process, so atomic files alone do
-/// not prevent a hide from overtaking a show or a release from overtaking avoid.
 pub fn command_lock() -> std::io::Result<CommandLock> {
     let file = OpenOptions::new()
         .create(true)
@@ -181,8 +173,6 @@ pub fn read(path: &PathBuf) -> Option<String> {
 }
 
 pub fn write_atomic(path: &PathBuf, value: &str) -> std::io::Result<()> {
-    // Include the pid: two camlink-ctl processes writing at once would otherwise
-    // share one temporary file and could rename each other's half-written state.
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -226,8 +216,6 @@ fn migrate_file(from: &Path, to: &Path) {
     if fs::create_dir_all(parent).is_err() {
         return;
     }
-    // Both names are below one XDG base and therefore on the same filesystem.
-    // Do not fall back to `copy`, which follows a source symlink after the check.
     let _ = fs::rename(from, to);
 }
 
@@ -282,6 +270,16 @@ mod tests {
         assert!(err.contains("not a directory"), "{err}");
         fs::remove_file(&p).unwrap();
         fs::remove_dir_all(&target).unwrap();
+    }
+
+    #[test]
+    fn tightens_a_loose_directory_this_user_owns() {
+        let p = scratch("loose");
+        fs::DirBuilder::new().mode(0o755).create(&p).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o755)).unwrap();
+        secure_private_dir(&p).unwrap();
+        assert_eq!(fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o700);
+        fs::remove_dir_all(&p).unwrap();
     }
 
     #[test]
