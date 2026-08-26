@@ -7,8 +7,6 @@ use std::time::Duration;
 const VENDOR: &str = "0fd9";
 const PRODUCT: &str = "007b";
 
-/// Walk /sys/bus/usb/devices and find the device whose idVendor/idProduct
-/// match the Cam Link 4K. Returns the sysfs directory path.
 pub fn find_usb_path() -> Option<PathBuf> {
     let dir = Path::new("/sys/bus/usb/devices");
     let entries = fs::read_dir(dir).ok()?;
@@ -24,9 +22,6 @@ pub fn find_usb_path() -> Option<PathBuf> {
     None
 }
 
-/// Toggle `authorized` on the Cam Link USB device: 0, settle, 1.
-/// Forces the kernel to re-bind UVC, clearing wedged state from a prior
-/// capture. Requires sudo - the sysfs `authorized` file is root-write.
 pub fn reset() -> Result<PathBuf, String> {
     let path = find_usb_path()
         .ok_or_else(|| format!("Cam Link 4K (USB {VENDOR}:{PRODUCT}) not found"))?;

@@ -7,14 +7,12 @@ use crate::hypr::Monitor;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Region {
-    /// Logical desktop coordinates (matches Hyprland's monitor.x/y space).
     pub x: i32,
     pub y: i32,
     pub w: i32,
     pub h: i32,
 }
 
-/// Top-level OBS scene JSON we care about.
 #[derive(Deserialize)]
 struct Scene {
     #[serde(default)]
@@ -31,7 +29,6 @@ struct Source {
 
 #[derive(Deserialize, Default)]
 struct SourceSettings {
-    /// Present on the synthetic `scene` source - holds the scene items.
     #[serde(default)]
     items: Vec<SceneItem>,
 }
@@ -58,9 +55,6 @@ struct Xy {
     y: f32,
 }
 
-/// Resolve the OBS scene JSON path. If `override_path` is provided use it
-/// verbatim; otherwise pick the most recently modified `*.json` in
-/// `~/.config/obs-studio/basic/scenes/`.
 pub fn scene_path(override_path: Option<&str>) -> Option<PathBuf> {
     if let Some(p) = override_path {
         return Some(expand(p));
@@ -89,9 +83,6 @@ fn expand(s: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// Find an OBS scene item whose source resolution (`scale_ref`) matches the
-/// monitor's physical pixel size. Returns the cropped recording region as
-/// logical desktop coordinates.
 pub fn find_region_for_monitor(scene_file: &Path, mon: &Monitor) -> Option<Region> {
     let raw = fs::read_to_string(scene_file).ok()?;
     find_region_in_scene(&raw, mon)

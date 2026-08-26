@@ -10,8 +10,6 @@ pub fn run(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Reload a daemon's config in-place via SIGHUP. Cheap and has no rate-limit.
-/// Returns Ok(()) if the unit isn't active (nothing to reload).
 pub fn reload(unit: &str) -> Result<()> {
     if !is_active(unit) {
         return Ok(());
@@ -19,7 +17,6 @@ pub fn reload(unit: &str) -> Result<()> {
     run(&["--user", "kill", "--signal=SIGHUP", unit])
 }
 
-/// Nudge a daemon to re-apply brightness only, skipping the page re-render.
 pub fn refresh_brightness(unit: &str) -> Result<()> {
     if !is_active(unit) {
         return Ok(());

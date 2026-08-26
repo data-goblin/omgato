@@ -7,8 +7,8 @@ use crate::state;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CamState {
-    On(String),       // reason, e.g. "ffplay" or "PipeWire client"
-    Off(String),      // pw state, e.g. "suspended"
+    On(String),
+    Off(String),
     Disconnected,
     Disabled,
 }

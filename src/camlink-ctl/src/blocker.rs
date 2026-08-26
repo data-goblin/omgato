@@ -6,16 +6,10 @@ use std::path::PathBuf;
 
 const LEASE_MILLIS: u64 = 15_000;
 
-/// Rectangles that panels have claimed, one file per owner.
-///
-/// A single shared file could not describe two panels, or the same panel on two
-/// monitors, and a vanished panel left its claim behind for good. Each claim is
-/// therefore its own renewable lease carrying the process that made it.
 pub fn dir() -> PathBuf {
     state::run_dir().join("blockers")
 }
 
-/// Keep an owner id to something that cannot escape the directory.
 fn safe_name(owner: &str) -> String {
     let cleaned: String = owner
         .chars()
@@ -24,10 +18,6 @@ fn safe_name(owner: &str) -> String {
     if cleaned.is_empty() { "panel".to_string() } else { cleaned }
 }
 
-/// The process to hold the claim against. camlink-ctl is spawned by the shell, so
-/// its parent is the process whose life the claim should follow. Read from
-/// /proc/self/status rather than /proc/self/stat, whose comm field can itself
-/// contain spaces and brackets.
 fn owning_pid() -> u32 {
     fs::read_to_string("/proc/self/status")
         .ok()
@@ -106,8 +96,6 @@ pub fn release(owner: &str) {
     let _ = fs::remove_file(dir().join(safe_name(owner)));
 }
 
-/// Every fresh claim whose owner is still running. Expired and dead claims are
-/// deleted on the way past.
 pub fn live() -> Vec<Placement> {
     let Ok(entries) = fs::read_dir(dir()) else {
         return Vec::new();
@@ -141,9 +129,6 @@ pub fn live() -> Vec<Placement> {
     out
 }
 
-/// The single rectangle to dodge: the bounding box of every live claim that the
-/// overlay actually overlaps. Dodging each in turn could bounce the overlay
-/// between two panels without ever clearing either.
 pub fn obstruction(overlay: &Placement) -> Option<Placement> {
     let overlapping: Vec<Placement> = live()
         .into_iter()

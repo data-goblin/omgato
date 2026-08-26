@@ -19,12 +19,8 @@ pub struct Config {
     pub device_pattern: String,
     #[serde(default = "default_window_title")]
     pub window_title: String,
-    /// When true, corner placement and fullscreen on a monitor that matches
-    /// an OBS screen-capture source are constrained to OBS's cropped region.
     #[serde(default = "default_obs_aware")]
     pub obs_aware: bool,
-    /// Optional override for the OBS scene JSON path. If None, the most
-    /// recently modified `~/.config/obs-studio/basic/scenes/*.json` is used.
     #[serde(default)]
     pub obs_scene_path: Option<String>,
 }

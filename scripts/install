@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Build the workspace, put the four binaries on PATH, and install the unit files
-# and udev rule the Stream Deck daemons need.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,8 +9,6 @@ deck_config="${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml"
 with_preset=1
 with_skill=1
 
-# Decided before anything can create the file: reading the configuration writes
-# a default one, which would make an untouched machine look configured.
 first_install=0
 [ -f "$deck_config" ] || first_install=1
 

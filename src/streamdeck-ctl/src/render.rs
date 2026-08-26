@@ -107,8 +107,6 @@ impl Renderer {
         draw_text_mut(img, fg, x, y, scale, &self.glyph_font, glyph);
     }
 
-    /// Fits the label to the key: shrinks the type, then wraps to two lines,
-    /// and ellipsizes only when neither is enough.
     fn draw_label(&self, img: &mut RgbImage, label: &str, fg: Rgb<u8>) {
         let s = self.size as f32;
         let budget = s * LABEL_WIDTH_BUDGET;
@@ -163,7 +161,6 @@ const LABEL_SCALE_MIN: f32 = 0.10;
 const LABEL_SCALE_STEP: f32 = 0.01;
 const LABEL_WIDTH_BUDGET: f32 = 0.92;
 
-/// Splits a label at the space closest to the middle, for two-line layout.
 fn split_label(label: &str) -> Option<(String, String)> {
     let mid = label.chars().count() / 2;
     let breaks: Vec<usize> = label
@@ -182,8 +179,6 @@ fn split_label(label: &str) -> Option<(String, String)> {
     Some((head, tail))
 }
 
-/// Reads a configured font, asking fontconfig for a stand-in when the path does
-/// not exist. The defaults name Arch paths, which no other distribution has.
 fn read_font(path: &str, fallback_family: &str) -> Result<Vec<u8>> {
     if let Ok(bytes) = fs::read(path) {
         return Ok(bytes);

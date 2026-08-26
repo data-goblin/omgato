@@ -101,8 +101,6 @@ Panel {
     return Qt.rgba(channel(r), channel(g), channel(b), 1)
   }
 
-  // Identifies this panel to camlink-ctl. Including the screen keeps the claim of a
-  // panel on one monitor separate from the same plugin's panel on another.
   readonly property string claimOwner: {
     var name = panel.screen ? String(panel.screen.name || "") : ""
     return name === "" ? root.moduleName : root.moduleName + "." + name
@@ -115,7 +113,6 @@ Panel {
     act(["camlink-ctl", "release", "--owner", owner])
   }
 
-  // Tell camlink-ctl the exact rectangle this panel occupies on its own output.
   function claimSpace() {
     var screenName = panel.screen ? String(panel.screen.name || "") : ""
     var width = Math.round(panel.contentWidth)
@@ -132,8 +129,6 @@ Panel {
     act(["camlink-ctl", "avoid", geometry, "--monitor", screenName, "--owner", owner])
   }
 
-  // A detached release survives this QML object being torn down during a plugin
-  // reload or display removal.
   Component.onDestruction: if (claimedOwner !== "")
     Quickshell.execDetached(["camlink-ctl", "release", "--owner", claimedOwner])
 
@@ -481,7 +476,6 @@ Panel {
       interacting = false
       cancelOrder()
     }
-    // Keep the camera overlay from disappearing under this panel.
     if (opened) {
       if (settings.showCamera !== false) Qt.callLater(root.claimSpace)
     } else {

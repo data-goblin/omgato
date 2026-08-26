@@ -26,10 +26,6 @@ pub fn placement(
     obs_region: Option<Region>,
 ) -> Placement {
     let screen = usable_from_monitor(mon);
-    // An OBS capture region constrains where the overlay may sit, but it is
-    // expressed over the raw screen and so knows nothing about the space a bar
-    // reserves. Intersecting the two keeps the overlay inside the captured area
-    // without letting it slide under the bar when OBS is capturing the lot.
     let usable = match obs_region.and_then(|r| screen.intersection(Rect {
         left: r.x,
         top: r.y,
@@ -108,9 +104,6 @@ fn monitor_rect(mon: &Monitor) -> Rect {
     }
 }
 
-/// Preserve an explicit rectangle while it still fits its monitor. A display
-/// removal can make persisted desktop coordinates unreachable, in which case
-/// the whole rectangle is brought back onto the monitor Hyprland chose.
 fn keep_visible(rect: Placement, bounds: Rect) -> Placement {
     if rect.x >= bounds.left
         && rect.y >= bounds.top
@@ -129,8 +122,6 @@ fn keep_visible(rect: Placement, bounds: Rect) -> Placement {
     }
 }
 
-/// A panel hanging from the bar at the right edge, given only its size. The
-/// bar widget lives on the right, so that is where its panel appears.
 pub fn panel_rect(mon: &Monitor, w: i32, h: i32) -> Placement {
     let usable = usable_from_monitor(mon);
     let w = w.min(usable.width()).max(1);
@@ -145,9 +136,6 @@ fn overlaps(a: &Placement, b: &Placement) -> bool {
         && b.y < a.y.saturating_add(a.h)
 }
 
-/// Slide the overlay clear of `blocker`, trying each side while keeping the
-/// whole window on the monitor. Returns None when it already misses the blocker
-/// or there is no position that can clear it.
 pub fn dodge(
     overlay: &Placement,
     blocker: &Placement,
@@ -200,8 +188,6 @@ fn usable_from_monitor(mon: &Monitor) -> Rect {
     }
 }
 
-/// Reads a pinned rectangle back out of the persisted position, which holds
-/// "rect:X,Y,W,H" when the overlay was placed by hand rather than by corner.
 pub fn parse_rect(position: &str) -> Option<Placement> {
     let parts: Vec<i32> = position
         .strip_prefix("rect:")?
@@ -213,12 +199,10 @@ pub fn parse_rect(position: &str) -> Option<Placement> {
         .then_some(Placement { x, y, w, h })
 }
 
-/// Renders a placement back into the persisted "rect:X,Y,W,H" form.
 pub fn rect_to_position(p: &Placement) -> String {
     format!("rect:{},{},{},{}", p.x, p.y, p.w, p.h)
 }
 
-/// Reads a bare "WxH" size, which is how a panel reports itself.
 pub fn size_from_text(text: &str) -> Option<(i32, i32)> {
     let (w, h) = text.trim().split_once('x')?;
     let w: i32 = w.trim().parse().ok()?;
@@ -226,7 +210,6 @@ pub fn size_from_text(text: &str) -> Option<(i32, i32)> {
     (w > 0 && h > 0).then_some((w, h))
 }
 
-/// Normalises slurp's "X,Y WxH" into the persisted "rect:X,Y,W,H" form.
 pub fn rect_from_geometry(geometry: &str) -> Option<String> {
     let (origin, size) = geometry.trim().split_once(char::is_whitespace)?;
     let (x, y) = origin.split_once(',')?;

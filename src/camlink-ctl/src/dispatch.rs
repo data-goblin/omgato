@@ -100,9 +100,6 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
         state::remove(&state::fullscreen_flag());
     }
 
-    // The Cam Link is single-open. If a user service is sitting on it, stop that
-    // service and note it down, rather than making the user work out what to run.
-    // cmd_hide starts it again, so the device is always handed back.
     let busy = crate::holder::holders(&dev);
     if !busy.is_empty() {
         let Some(unit) = crate::holder::borrowable_unit(&busy) else {
@@ -164,10 +161,6 @@ fn cmd_show(cfg: &Config, override_position: Option<&str>) -> i32 {
     match overlay::wait_for_window(&cfg.window_title, pid, Duration::from_secs(4)) {
         overlay::WaitResult::Mapped(_addr) => {
             let _ = place_now(cfg);
-            // A bar registers its exclusive zone slightly after it maps, so a
-            // placement made the instant the overlay appears can be computed
-            // against a reserved area of zero and sit under the bar. Place once
-            // more when the layout has settled.
             std::thread::sleep(Duration::from_millis(700));
             place_now(cfg)
         }
@@ -222,9 +215,6 @@ fn cmd_place(cfg: &Config, geometry: &str) -> i32 {
     place_now(cfg)
 }
 
-/// Push the overlay out from under a panel that has just opened over it, and
-/// remember where it was so `release` can put it back. Doing nothing when the
-/// two do not overlap keeps a deliberate placement intact.
 fn cmd_avoid(cfg: &Config, geometry: &str, monitor: Option<&str>, owner: &str) -> i32 {
     let mon = match monitor {
         Some(name) => match hypr::named_monitor(name) {
@@ -285,9 +275,6 @@ fn cmd_release(cfg: &Config, owner: &str) -> i32 {
     place_now(cfg)
 }
 
-/// Re-apply the current placement. The reserved area a bar claims changes when
-/// the shell restarts or the display is reconfigured, and the overlay is
-/// otherwise left wherever it was put.
 fn cmd_replace(cfg: &Config) -> i32 {
     if !overlay::is_running(&cfg.window_title) {
         return 0;
@@ -334,10 +321,6 @@ fn cmd_status(cfg: &Config) -> i32 {
         CamState::Disabled       => ("disabled", "disabled", "Camera monitor paused. Click to resume.".into()),
     };
 
-    // Whether the overlay window is up is a different question from whether the
-    // capture device is producing frames. A Cam Link showing "no signal" has the
-    // overlay running and nothing streaming, so a caller that wants to know
-    // about the window has to be told about the window.
     let json = serde_json::json!({
         "text": "",
         "alt": alt,
@@ -376,9 +359,6 @@ fn place_once(cfg: &Config) -> Result<(), String> {
         Err(e) => return Err(e),
     };
 
-    // The monitor the overlay actually sits on, not whichever happens to have
-    // focus. Placing against the focused monitor moves the window using another
-    // screen's geometry the moment the two differ.
     let mon = match hypr::monitor_for_address(&win.address) {
         Ok(Some(m)) => m,
         _ => hypr::focused_monitor()?,
@@ -398,9 +378,6 @@ fn place_once(cfg: &Config) -> Result<(), String> {
     {
         persist_position(&positioning::rect_to_position(&p));
     }
-    // A panel that is currently open claims a rectangle. Dodging here rather
-    // than when the panel opened means an overlay shown afterwards also lands
-    // clear of it, and the position the user chose is never overwritten.
     if !full
         && let Some(blocker) = crate::blocker::obstruction(&p)
         && let Some(moved) = positioning::dodge(&p, &blocker, &mon, cfg.margin as i32)

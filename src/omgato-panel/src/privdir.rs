@@ -2,11 +2,6 @@ use std::fs;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-/// A per-user directory under the temp directory, for use only when the XDG
-/// location it should have gone to is unavailable. The path is predictable, so
-/// an existing directory is verified rather than trusted: another local user
-/// who prepared it could otherwise plant symlinks that redirect every write.
-/// A directory that cannot be secured ends the process rather than being used.
 pub fn temp_fallback(name: &str) -> Result<PathBuf, String> {
     let temp = std::env::temp_dir();
     verify_trusted_directory(&temp, "temporary directory")?;
@@ -57,9 +52,6 @@ pub fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Accept an existing directory only if it is a real directory this user owns
-/// and no other user can enter. Reads metadata without following symlinks, so a
-/// link planted at the path is rejected rather than resolved to its target.
 fn verify_private_dir(p: &Path) -> Result<(), String> {
     let meta = fs::symlink_metadata(p).map_err(|e| format!("stat {}: {e}", p.display()))?;
     if !meta.is_dir() {

@@ -1,6 +1,3 @@
-//! Screen recording. The area being recorded is remembered as a "scope", so a
-//! second recording can reuse the last one, and the scopes can be stepped
-//! through like any other history in the panel.
 use crate::sh;
 use crate::state::{self, History, SCOPE_HISTORY};
 use serde::{Deserialize, Serialize};
@@ -9,7 +6,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 const OPTIONS_FILE: &str = "record.json";
-const USER_HZ: u64 = 100; // fixed for /proc regardless of kernel HZ
+const USER_HZ: u64 = 100;
 const PICKER: &str = "omarchy-capture-region";
 const PID_FILE: &str = "recorder-pid.json";
 
@@ -27,7 +24,6 @@ pub struct Status {
     pub seconds: u64,
     pub options: Options,
     pub directory: String,
-    /// What the next recording will capture, in a form a person can read.
     pub scope: String,
     pub history: state::Flags,
 }
@@ -57,9 +53,6 @@ fn absolute(path: PathBuf) -> Result<PathBuf, String> {
     }
 }
 
-/// Reserve the final filename before handing it to the recorder. This turns a
-/// predictable name in a sticky shared directory into either our regular file
-/// or a safe refusal, never an open of somebody else's symlink.
 fn reserve_recording_path() -> Result<PathBuf, String> {
     let dir = absolute(output_dir())?;
     fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
@@ -80,8 +73,6 @@ fn reserve_recording_path() -> Result<PathBuf, String> {
     Err("could not reserve a unique recording filename".into())
 }
 
-/// The same question the omarchy script asks, so both agree on what "recording"
-/// means.
 fn known_pid() -> Option<u32> {
     let pid = state::read_state::<u32>(PID_FILE).filter(|pid| *pid > 0)?;
     fs::metadata(format!("/proc/{pid}")).ok().map(|_| pid)
@@ -126,7 +117,6 @@ fn scopes() -> History<String> {
     History::load(SCOPE_HISTORY)
 }
 
-/// "monitor:DP-1" and "region:1920x1080+0+0" as gpu-screen-recorder wants them.
 fn current_scope() -> Option<String> {
     scopes().current().cloned()
 }
@@ -142,7 +132,6 @@ fn readable(scope: &str) -> String {
     }
 }
 
-/// Runs the shared picker and folds what it returns into the scope history.
 fn pick_scope() -> Option<String> {
     let picked = sh::run(&[PICKER, "smart", "--match-monitor"]);
     let picked = picked.trim();
@@ -183,7 +172,6 @@ pub fn status(search: bool) -> Status {
     }
 }
 
-/// Steps the remembered scopes without starting anything.
 pub fn travel(step: i64) {
     let history = scopes();
     if let Some((pos, _)) = history.seek(step) {
@@ -191,8 +179,6 @@ pub fn travel(step: i64) {
     }
 }
 
-/// `pick` chooses an area, `last` reuses the remembered one, `screen` takes the
-/// focused monitor. Each choice is remembered so the next recording can repeat it.
 pub fn start(target: &str, options: Options) {
     state::write_state(OPTIONS_FILE, &options);
     let scope = match target {
@@ -277,8 +263,6 @@ pub fn stop() {
     }
 }
 
-/// Trims the warm-up frame and levels the audio, matching what omarchy's own
-/// capture does on the way out.
 fn finalize(file: &str) {
     let source = Path::new(file);
     let Ok(meta) = fs::symlink_metadata(source) else {

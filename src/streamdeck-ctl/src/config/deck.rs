@@ -17,7 +17,6 @@ pub struct DeckConfig {
     pub bg_color: String,
     #[serde(default = "default_auto_paginate")]
     pub auto_paginate: bool,
-    /// Display blanked without losing the configured brightness level.
     #[serde(default)]
     pub display_off: bool,
     #[serde(default = "default_prev_glyph")]
@@ -31,9 +30,6 @@ pub struct DeckConfig {
 }
 
 impl DeckConfig {
-    /// Return the canonical ordered page list: the pages named in page_order
-    /// first, then any page it does not mention, so no page can be hidden by an
-    /// incomplete order.
     pub fn ordered_pages(&self) -> Vec<String> {
         let mut names: Vec<String> = self
             .page_order
@@ -59,8 +55,6 @@ impl DeckConfig {
         (prev, next)
     }
 
-    /// Auto-paginated synthetic button for a slot, when no user button claims it.
-    /// idx 10 = previous-page arrow (or None on first/missing); idx 14 = next-page arrow.
     pub fn synthetic_button(&self, page: &str, idx: u8, key_count: u8, cols: u8) -> Option<Button> {
         let (prev_idx, next_idx) = pagination_indices(key_count, cols)?;
         let (prev, next) = self.neighbours(page);
@@ -74,8 +68,6 @@ impl DeckConfig {
     }
 }
 
-/// The two ends of the bottom row. On a 5x3 that is 10 and 14, which is where
-/// these used to be pinned; on any other grid it is wherever the bottom row is.
 pub fn pagination_indices(key_count: u8, cols: u8) -> Option<(u8, u8)> {
     if key_count == 0 || cols == 0 || key_count < cols {
         return None;
@@ -143,10 +135,10 @@ fn default_auto_paginate() -> bool {
     true
 }
 fn default_prev_glyph() -> String {
-    "\u{f0141}".into() // mdi chevron-left
+    "\u{f0141}".into()
 }
 fn default_next_glyph() -> String {
-    "\u{f0142}".into() // mdi chevron-right
+    "\u{f0142}".into()
 }
 
 impl Default for DeckConfig {
@@ -181,7 +173,6 @@ impl Default for DeckConfig {
 }
 
 impl DeckConfig {
-    /// Level to push to the device: zero while the display is switched off.
     pub fn active_brightness(&self) -> u8 {
         if self.display_off { 0 } else { self.brightness }
     }

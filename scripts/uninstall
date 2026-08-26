@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Reverse scripts/install. Device configuration is left alone: this removes what
-# the plugin put on your system, not what you configured with it.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

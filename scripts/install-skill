@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Link the plugin's agent skill into the user-level agent directories.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

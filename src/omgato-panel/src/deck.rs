@@ -9,8 +9,6 @@ use std::path::{Path, PathBuf};
 pub const SERVICES: [&str; 2] = ["streamdeck-ctl.service", "streamdeck-ctl-deck.service"];
 const GESTURES: [&str; 3] = ["tap", "long", "double"];
 const POSITIONS: [&str; 3] = ["left", "center", "right"];
-/// Reported by `streamdeck-ctl ls --json`, which reads it from the device
-/// library, so every model lays out correctly without a table here.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Device {
     pub kind: String,
@@ -28,7 +26,6 @@ pub struct Device {
     pub pedal: bool,
 }
 
-/// The two ends of the bottom row, matching streamdeck-ctl's own placement.
 fn pagination_indices(keys: u8, cols: u8) -> Option<(u8, u8)> {
     if keys == 0 || cols == 0 || keys < cols {
         return None;
@@ -39,7 +36,6 @@ fn pagination_indices(keys: u8, cols: u8) -> Option<(u8, u8)> {
 #[derive(Serialize)]
 pub struct Key {
     pub index: u8,
-    /// "button" for a configured key, "page" for a pagination arrow, "blank" otherwise
     pub kind: String,
     pub preview: String,
     pub label: String,
@@ -54,7 +50,6 @@ pub struct Key {
 #[derive(Serialize)]
 pub struct Binding {
     pub action: String,
-    /// What the gesture will actually do, in words.
     pub label: String,
 }
 
@@ -127,8 +122,6 @@ fn no_index() -> i64 {
     -1
 }
 
-// Mirrors streamdeck-ctl's own defaults; diverging here made the panel draw
-// blank keys where the device drew page arrows.
 impl Default for DeckConfig {
     fn default() -> Self {
         Self {
@@ -154,7 +147,6 @@ fn preview_dir() -> PathBuf {
         .unwrap_or_else(|| crate::state::dir().join("cache/deck"))
 }
 
-/// Re-renders the key previews when the config or the export settings changed.
 fn refresh_previews(key_count: u8, cols: u8) {
     let dir = preview_dir();
     let stamp = dir.join(".stamp");
@@ -189,7 +181,6 @@ fn refresh_previews(key_count: u8, cols: u8) {
     }
 }
 
-/// Identifies the configuration the previews were built from.
 fn config_revision() -> String {
     let Ok(meta) = fs::metadata(config_path()) else {
         return "none".to_owned();
@@ -209,7 +200,6 @@ fn devices(listing: &str) -> Vec<Device> {
     serde_json::from_str(listing).unwrap_or_default()
 }
 
-/// Turns an action into the name of the thing it starts.
 fn describe(action: &str) -> String {
     let action = action.trim();
     if action.is_empty() || action == "noop" {
@@ -282,8 +272,6 @@ fn ordered_pages(cfg: &DeckConfig) -> Vec<String> {
         .collect()
 }
 
-/// Mirrors streamdeck-ctl: with auto-pagination on, key 10 walks to the previous
-/// page and key 14 to the next, unless a configured button already claims them.
 fn neighbours(cfg: &DeckConfig, page: &str) -> (Option<String>, Option<String>) {
     if !cfg.auto_paginate {
         return (None, None);
@@ -382,9 +370,6 @@ fn pages(cfg: &DeckConfig, count: u8, cols: u8) -> Vec<Page> {
     pages
 }
 
-/// A remembered configuration. Brightness and display power are left out of the
-/// comparison so dragging the brightness slider cannot evict real key edits from
-/// the eleven slots, while the stored text still restores them.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Snapshot {
     pub text: String,
@@ -453,7 +438,6 @@ pub fn status() -> Status {
     }
 }
 
-/// Restores a remembered config and restarts both daemons so the device follows.
 pub fn travel(step: i64) {
     let history: History<Snapshot> = History::load(DECK_HISTORY);
     let Some((pos, snapshot)) = history.seek(step) else {

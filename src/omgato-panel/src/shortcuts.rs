@@ -1,6 +1,3 @@
-//! Keyboard shortcuts the plugin owns. They live in a Lua file of their own,
-//! sourced by one guarded line, so the user's own bindings file is never
-//! rewritten and removing the plugin cannot break their config.
 use crate::sh;
 use crate::state;
 use serde::{Deserialize, Serialize};
@@ -12,17 +9,12 @@ use std::path::PathBuf;
 
 const SETTINGS: &str = "shortcuts.json";
 const MARKER: &str = "Omgato:";
-/// The marker written before the plugin was renamed. Still matched when reading
-/// so shortcuts installed under the old name are recognised and can be removed
-/// or replaced rather than left orphaned in the user's bindings.
 const LEGACY_MARKER: &str = "Elgato:";
 const REQUIRE_LINE: &str = r#"pcall(require, "hypr.omgato-bindings")"#;
 const LEGACY_REQUIRE_LINE: &str = r#"pcall(require, "hypr.elgato-bindings")"#;
 const SOURCE_COMMENT: &str = "-- Omgato plugin shortcuts. Safe to delete along with the plugin.";
 const LEGACY_SOURCE_COMMENT: &str = "-- Omarchy Elgato plugin shortcuts. Safe to delete along with the plugin.";
 
-/// One bindable action: which panel view it belongs to, what it runs, and the
-/// combination it is bound to.
 pub struct Action {
     pub id: &'static str,
     pub view: &'static str,
@@ -31,8 +23,6 @@ pub struct Action {
     pub default_keys: &'static str,
 }
 
-/// An empty default leaves the action unbound: it is offered in the panel but
-/// claims no combination until the user gives it one.
 pub const ACTIONS: &[Action] = &[
     Action { id: "lights.toggle", view: "lights", label: "Toggle all lights", command: "keylight-ctl click", default_keys: "SUPER + ALT + L" },
     Action { id: "lights.brighter", view: "lights", label: "Lights brighter", command: "keylight-ctl brightness +10", default_keys: "" },
@@ -53,7 +43,6 @@ pub const ACTIONS: &[Action] = &[
     Action { id: "record.stop", view: "camera", label: "Stop recording", command: "omgato-panel record --stop", default_keys: "SUPER + ALT + SHIFT + R" },
 ];
 
-/// Hypr spells punctuation out; a shortcut list should show the key on the cap.
 fn symbol(key: &str) -> &str {
     match key {
         "semicolon" => ";",
@@ -74,7 +63,6 @@ fn symbol(key: &str) -> &str {
     }
 }
 
-/// The same combination written for a person to read.
 fn pretty(keys: &str) -> String {
     if keys.trim().is_empty() {
         return String::new();
@@ -93,9 +81,7 @@ pub struct Shortcut {
     pub view: String,
     pub label: String,
     pub keys: String,
-    /// The same combination with punctuation shown as the key it is printed on.
     pub display: String,
-    /// Description of the binding that already owns this combination, if any.
     pub conflict: String,
 }
 
@@ -134,7 +120,6 @@ fn keys_for(action: &Action, configured: &Bindings) -> String {
         .unwrap_or_else(|| action.default_keys.to_owned())
 }
 
-/// X11 modifier bits, as Hyprland reports them in `hyprctl binds`.
 fn modmask(keys: &str) -> u32 {
     keys.split('+')
         .map(str::trim)
@@ -170,7 +155,6 @@ fn current_binds() -> Vec<Bind> {
     serde_json::from_str(&sh::run(&["hyprctl", "binds", "-j"])).unwrap_or_default()
 }
 
-/// Names the binding that already owns a combination, ignoring the plugin's own.
 fn conflict_for(keys: &str, binds: &[Bind]) -> String {
     let (mask, key) = (modmask(keys), key_of(keys));
     if key.is_empty() {
@@ -242,7 +226,6 @@ fn render(configured: &Bindings) -> String {
     out
 }
 
-/// Writes the bindings file and adds the one guarded line that sources it.
 pub fn install() -> Result<(), String> {
     let dir = hypr_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
@@ -286,7 +269,6 @@ fn write_bindings(configured: &Bindings) -> Result<(), String> {
     write_text_atomic(&path, &render(configured))
 }
 
-/// Rebinds one action and regenerates the file, if it is already installed.
 pub fn set(id: &str, keys: &str) -> Result<(), String> {
     if !ACTIONS.iter().any(|a| a.id == id) {
         return Err(format!("unknown shortcut: {id}"));

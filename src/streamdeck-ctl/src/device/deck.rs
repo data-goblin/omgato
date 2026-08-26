@@ -1,5 +1,3 @@
-// elgato_streamdeck exposes get_reader only on Arc<StreamDeck>, so the handle
-// has to be an Arc even though it never leaves this thread.
 #![allow(clippy::arc_with_non_send_sync)]
 
 use anyhow::{anyhow, Result};

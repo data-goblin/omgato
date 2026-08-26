@@ -8,8 +8,6 @@ struct CamOut {
     alt: String,
     #[serde(default)]
     tooltip: String,
-    /// Whether the overlay window is up. Distinct from `alt`, which reports
-    /// whether the capture device is streaming.
     #[serde(default)]
     overlay: bool,
     #[serde(default)]
@@ -18,8 +16,6 @@ struct CamOut {
     paused: bool,
 }
 
-/// The slice of overlay state the panel can step through: whether it is up, and
-/// camlink-ctl's own placement string, which is either a corner or "rect:X,Y,W,H".
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Placement {
     pub overlay: bool,
@@ -37,7 +33,6 @@ pub struct Status {
     pub history: state::Flags,
 }
 
-/// Short code the panel highlights with: a corner, or "area" for a free rectangle.
 fn corner_of(position: &str) -> String {
     match position {
         "top-left" => "tl",
@@ -50,8 +45,6 @@ fn corner_of(position: &str) -> String {
     .to_owned()
 }
 
-/// Returns false when the step could not be carried out, so the caller can
-/// leave the history pointer where it was rather than losing a step to nothing.
 fn apply(placement: &Placement) -> bool {
     if !placement.overlay {
         return sh::succeeded(&["camlink-ctl", "hide"]);
@@ -77,8 +70,6 @@ fn apply(placement: &Placement) -> bool {
     }
 }
 
-/// One compact phrase for the panel, since camlink-ctl's tooltip repeats the state
-/// word it is shown next to.
 fn detail(alt: &str, tooltip: &str) -> String {
     match alt {
         "disconnected" => "not detected".to_owned(),

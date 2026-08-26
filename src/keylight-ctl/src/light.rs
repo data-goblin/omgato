@@ -53,10 +53,6 @@ fn agent() -> &'static ureq::Agent {
     })
 }
 
-/// These lights sit on wifi and drop the odd request. One lost packet must not
-/// read as a light that is gone, so a failure is retried before it is believed.
-/// A light that is really absent fails by timeout and exhausts the budget on its
-/// first try, so it still gives up quickly.
 fn retrying<T>(mut attempt: impl FnMut() -> Result<T, String>) -> Result<T, String> {
     let started = Instant::now();
     let budget = Duration::from_millis(RETRY_BUDGET_MS);
@@ -104,7 +100,6 @@ pub fn apply(light: &Light, patch: &LightPatch) -> Result<LightState, String> {
     })
 }
 
-/// Runs `f` against every light at once and returns the results in input order.
 pub fn each<T, F>(lights: &[Light], f: F) -> Vec<T>
 where
     F: Fn(&Light) -> T + Sync,

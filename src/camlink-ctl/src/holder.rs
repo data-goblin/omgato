@@ -15,12 +15,6 @@ fn start_time(pid: u32) -> Option<u64> {
     after_comm.split_whitespace().nth(19)?.parse().ok()
 }
 
-/// The systemd **user** unit a process belongs to, if any.
-///
-/// Only a user unit counts. A user unit sits under `user@<uid>.service` and can
-/// be stopped and started again without privilege, which is what makes it safe
-/// to borrow the capture device from. A system unit looks the same at the end of
-/// the cgroup path but is not ours to touch.
 fn unit_of(pid: u32) -> Option<String> {
     let cgroup = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
     let marker = format!("/user@{}.service/", users_own_uid());
@@ -33,15 +27,12 @@ fn unit_of(pid: u32) -> Option<String> {
 }
 
 fn users_own_uid() -> u32 {
-    // Safe: getuid never fails and touches no memory we own.
     unsafe extern "C" {
         fn getuid() -> u32;
     }
     unsafe { getuid() }
 }
 
-/// The one user unit that owns every holder. Stopping only one of several owners
-/// would disrupt it without making the device available.
 pub fn borrowable_unit(found: &[Holder]) -> Option<String> {
     let unit = found.first()?.unit.clone()?;
     found.iter().all(|h| h.unit.as_deref() == Some(&unit)).then_some(unit)
@@ -55,8 +46,6 @@ fn same_processes(left: &[Holder], right: &[Holder]) -> bool {
     left == right
 }
 
-/// Stop a user unit and wait for the device to become free. Returns false when
-/// the holder disappeared before the stop, in which case no service was touched.
 pub fn borrow(unit: &str, device: &Path, expected: &[Holder]) -> Result<bool, String> {
     let current = holders(device);
     if current.is_empty() {
@@ -88,7 +77,6 @@ pub fn borrow(unit: &str, device: &Path, expected: &[Holder]) -> Result<bool, St
     Err(format!("the camera stayed held by {still_busy}"))
 }
 
-/// Start a unit that was stopped to free the device.
 pub fn give_back(unit: &str) -> Result<(), String> {
     let started = std::process::Command::new("systemctl")
         .args(["--user", "start", "--", unit])
@@ -116,11 +104,6 @@ fn command_of(pid: u32) -> String {
     }
 }
 
-/// Find every process holding the capture device open.
-///
-/// The Cam Link is single-open, so anything already on it stops the overlay from
-/// starting. Scanning /proc for descriptors pointing at the resolved device says
-/// which process to blame, rather than leaving a bare "resource busy".
 pub fn holders(device: &Path) -> Vec<Holder> {
     let Ok(target) = fs::canonicalize(device) else {
         return Vec::new();
@@ -147,9 +130,6 @@ pub fn holders(device: &Path) -> Vec<Holder> {
             if fs::read_link(fd.path()).is_ok_and(|link| link == target) {
                 let command = command_of(pid);
                 let unit = unit_of(pid);
-                // All three /proc reads must describe the same process. Without
-                // this second check a reused pid could lend an unrelated unit to
-                // the device holder found through the already-open fd directory.
                 if start_time(pid) == Some(start) {
                     found.push(Holder { pid, start, command, unit });
                 }
@@ -160,7 +140,6 @@ pub fn holders(device: &Path) -> Vec<Holder> {
     found
 }
 
-/// How to actually free the device, given who is holding it.
 pub fn remedy(found: &[Holder]) -> String {
     match found.iter().find_map(|h| h.unit.as_ref()) {
         Some(unit) => format!("stop it with: systemctl --user stop {unit}"),
@@ -171,13 +150,10 @@ pub fn remedy(found: &[Holder]) -> String {
     }
 }
 
-/// A one-line summary naming what to stop, short enough for a notification.
 pub fn describe(found: &[Holder]) -> String {
     found
         .iter()
         .map(|h| {
-            // Truncating by bytes panics when the cut lands inside a multibyte
-            // character, which a path or argument can easily contain.
             let cmd: String = if h.command.chars().count() > 60 {
                 h.command.chars().take(57).chain("...".chars()).collect()
             } else {

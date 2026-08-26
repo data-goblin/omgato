@@ -198,8 +198,6 @@ fn set_power(state: &str) -> Result<()> {
     apply_brightness(&cfg)
 }
 
-/// Pushes the level straight to the device when nothing else holds it, and
-/// otherwise asks the daemon to, so the change lands without a re-render.
 fn apply_brightness(cfg: &Config) -> Result<()> {
     let level = cfg.deck.active_brightness();
     if let Ok(d) = device::deck::open_first() {
@@ -289,8 +287,6 @@ fn unset_button(page: String, index: u8) -> Result<()> {
     Ok(())
 }
 
-/// Page names end up as directory names when previews are exported, so they may
-/// not be empty or reach outside the directory they are written into.
 fn validate_colour(field: &str, value: Option<&str>) -> Result<()> {
     let Some(value) = value.map(str::trim).filter(|v| !v.is_empty()) else {
         return Ok(());

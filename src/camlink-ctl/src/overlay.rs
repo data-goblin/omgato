@@ -88,8 +88,6 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
         .ok_or_else(|| format!("device matching '{}' not found in /dev/v4l/by-id", cfg.device_pattern))?;
     let dev_str = dev.to_string_lossy().into_owned();
 
-    // The Cam Link is single-open. Say which process to stop rather than
-    // letting mpv fail later with a bare "resource busy".
     let busy = crate::holder::holders(&dev);
     if !busy.is_empty() {
         return Err(format!(
@@ -106,9 +104,6 @@ pub fn spawn(cfg: &Config) -> Result<u32, String> {
     let win_w = cfg.size[0];
     let win_h = cfg.size[1];
 
-    // Create a separate inode exclusively, then rename it over the public log
-    // name. The open cannot follow a symlink and rename replaces a symlink rather
-    // than opening its target.
     let run_dir = state::run_dir();
     let log_path = run_dir.join("mpv.log");
     let log_tmp = run_dir.join(format!(".mpv.log.{}.tmp", std::process::id()));
@@ -216,9 +211,6 @@ pub fn kill_running(title: &str) -> bool {
     false
 }
 
-/// Open a stable handle, then repeat the start-time check. If the numeric pid
-/// was reused during `pidfd_open`, the handle and saved identity disagree and no
-/// signal is sent.
 fn process_pidfd(process: ProcessRef) -> Option<std::os::fd::OwnedFd> {
     let start = process.start?;
     let pid = Pid::from_raw(i32::try_from(process.pid).ok()?)?;
@@ -232,12 +224,6 @@ pub enum WaitResult {
     Timeout,
 }
 
-/// Wait up to `timeout` for the overlay window to appear in Hyprland and
-/// return its address. mpv with `--force-window=immediate` maps a window
-/// before the first frame, so this normally resolves in <500ms. If the
-/// spawned process exits before mapping (e.g. Cam Link receiving no HDMI
-/// signal -> libavformat fails to probe), return `Died` so the caller
-/// can surface a clear error instead of silently waiting out the timeout.
 pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -259,11 +245,6 @@ pub fn wait_for_window(title: &str, pid: u32, timeout: Duration) -> WaitResult {
     WaitResult::Timeout
 }
 
-/// True if `pid` is running or sleeping. False for zombies (`Z`), dead (`X`)
-/// or missing /proc entries. mpv becomes a zombie when it exits early because
-/// we `mem::forget` the Child without reaping it, so a plain /proc/PID exists
-/// check would lie. /proc/PID/stat is a single line; field 2 (the comm) may
-/// contain spaces wrapped in parens, so split on the closing paren first.
 fn pid_alive(pid: u32) -> bool {
     let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
         Ok(s) => s,

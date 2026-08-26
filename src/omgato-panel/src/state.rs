@@ -8,7 +8,7 @@ use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-pub const HISTORY_MAX: usize = 11; // baseline + 10 undoable changes
+pub const HISTORY_MAX: usize = 11;
 
 pub const LIGHTS_HISTORY: &str = "history.json";
 pub const DECK_HISTORY: &str = "deck-history.json";
@@ -34,8 +34,6 @@ pub fn init_dirs() -> Result<(), String> {
         },
         None => StateDirs {
             current: crate::privdir::temp_fallback("omgato-panel")?,
-            // The old fallback was the global /tmp/elgato-panel. Importing from
-            // it would reintroduce the shared-directory trust problem.
             legacy: None,
         },
     };
@@ -128,8 +126,6 @@ impl<T: PartialEq + Serialize + DeserializeOwned> History<T> {
         usize::try_from(self.pos).ok().and_then(|p| self.stack.get(p))
     }
 
-    /// Folds a freshly read state into the stack, dropping the redo tail on a
-    /// new change and keeping at most HISTORY_MAX entries.
     pub fn fold(&mut self, file: &str, value: T) {
         if self.current() == Some(&value) {
             return;
@@ -168,7 +164,6 @@ pub fn save_aliases(aliases: &Aliases) {
     write_json(&path("aliases.json"), aliases);
 }
 
-/// Display order as a list of light addresses; anything absent sorts last.
 pub fn load_order() -> Vec<String> {
     read_json(&path("order.json")).unwrap_or_default()
 }
@@ -214,7 +209,6 @@ fn migrate_file(from: &std::path::Path, to: &std::path::Path) {
     let _ = fs::rename(from, to);
 }
 
-/// Reads and writes an arbitrary small document in the panel's state directory.
 pub fn read_state<T: DeserializeOwned>(file: &str) -> Option<T> {
     read_json(&path(file))
 }
@@ -223,8 +217,6 @@ pub fn write_state<T: Serialize>(file: &str, value: &T) {
     write_json(&path(file), value);
 }
 
-/// Same as `write_state`, but says whether it worked. Anything the user is told
-/// succeeded needs this rather than the silent form.
 pub fn write_state_checked<T: Serialize>(file: &str, value: &T) -> std::io::Result<()> {
     let target = path(file);
     let parent = target

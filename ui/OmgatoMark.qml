@@ -1,9 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
 
-// The Omarchy square O, redrawn square rather than tall, with a play triangle in
-// its counter. Orthogonal edges and two-step chamfered corners are what make the
-// Omarchy mark recognisable, so the same grid is used here.
 Item {
   id: root
 
@@ -21,7 +18,6 @@ Item {
     layer.enabled: true
     layer.samples: 4
 
-    // ring: outer chamfered square with a square counter punched out
     ShapePath {
       fillColor: root.color
       strokeColor: "transparent"
@@ -42,7 +38,6 @@ Item {
       }
     }
 
-    // play triangle sitting inside the counter
     ShapePath {
       fillColor: root.color
       strokeColor: "transparent"

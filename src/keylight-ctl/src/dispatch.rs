@@ -140,8 +140,6 @@ fn same_light(a: &Light, b: &Light) -> bool {
     a.ip == b.ip
 }
 
-/// Folds a scan into the cache. A light that is merely asleep or off the network
-/// keeps its entry, so one scan at a bad moment cannot drop it from the rig.
 fn merge(found: Vec<Light>, prune: bool) -> (Cache, Vec<Light>) {
     let mut lights = found;
     let mut kept = Vec::new();
@@ -185,15 +183,12 @@ fn cmd_discover(prune: bool) -> i32 {
     0
 }
 
-/// Parses an absolute value, or an offset written as +N or -N.
 fn offset_or_absolute(value: &str) -> Option<(bool, i32)> {
     let trimmed = value.trim();
     let relative = trimmed.starts_with('+') || trimmed.starts_with('-');
     trimmed.parse::<i32>().ok().map(|n| (relative, n))
 }
 
-/// Applies a level per light, so an offset moves each from where it actually is
-/// rather than forcing them all to one value.
 fn apply_levels(target: &str, out: &Out, level: impl Fn(&LightState) -> LightPatch + Sync) -> i32 {
     let lights = match select_or_die(target) {
         Ok(v) => v,

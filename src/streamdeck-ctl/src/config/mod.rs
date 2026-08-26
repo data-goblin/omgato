@@ -48,8 +48,6 @@ pub fn save(cfg: &Config) -> Result<()> {
     use std::io::Write;
     let path = config_path()?;
     let serialized = toml::to_string_pretty(cfg)?;
-    // The pid keeps two concurrent saves off one temporary file, and exclusive
-    // creation stops a symlink there redirecting the write.
     let tmp = path.with_extension(format!("toml.{}.tmp", std::process::id()));
     {
         let mut f = std::fs::OpenOptions::new().create_new(true).write(true).open(&tmp)?;

@@ -10,7 +10,6 @@ use ratatui::{
 
 const TABS: [Tab; 2] = [Tab::Pedal, Tab::Deck];
 
-/// Returns true when the key was handled and the tab handler should be skipped.
 pub fn handle_global_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> bool {
     if app.modal_open() {
         return false;

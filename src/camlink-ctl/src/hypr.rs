@@ -7,9 +7,6 @@ use std::time::Duration;
 fn socket_path() -> Result<PathBuf, String> {
     let sig = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
         .map_err(|_| "HYPRLAND_INSTANCE_SIGNATURE not set".to_string())?;
-    // No /tmp fallback: that path is world-writable and predictable, so another
-    // local user could listen there and answer as the compositor, feeding this
-    // process invented monitor geometry and window addresses.
     let xdg = std::env::var("XDG_RUNTIME_DIR")
         .map_err(|_| "XDG_RUNTIME_DIR not set".to_string())?;
     Ok(PathBuf::from(xdg).join("hypr").join(sig).join(".socket.sock"))
@@ -38,9 +35,6 @@ pub struct Client {
     #[serde(default)]
     pub mapped: bool,
     pub monitor: i32,
-    /// A pinned floating window stays visible across workspace switches, which
-    /// is what makes the overlay a picture-in-picture rather than a window that
-    /// disappears the moment you move workspace.
     #[serde(default)]
     pub pinned: bool,
 }
@@ -65,8 +59,6 @@ pub struct Monitor {
     pub height: i32,
     pub scale: f32,
     pub focused: bool,
-    /// Layer-shell reserved space: [left, top, right, bottom] in logical pixels.
-    /// E.g. a top waybar with exclusive_zone=26 reports [0, 26, 0, 0].
     #[serde(default)]
     pub reserved: [i32; 4],
 }
@@ -94,10 +86,6 @@ pub fn monitor_for_address(addr: &str) -> Result<Option<Monitor>, String> {
     Ok(monitors()?.into_iter().find(|m| m.id == c.monitor))
 }
 
-
-// Hyprland 0.56 replaced the flat dispatcher strings with a Lua API, and the
-// old "movewindowpixel exact ..." form now fails to parse, silently leaving the
-// overlay wherever it was mapped.
 pub fn move_window_pixel(addr: &str, x: i32, y: i32) -> Result<(), String> {
     dispatch_action(&format!(
         "/dispatch hl.dsp.window.move({{ x = {x}, y = {y}, exact = true, window = \"address:{addr}\" }})"
@@ -110,11 +98,6 @@ pub fn resize_window_pixel(addr: &str, w: i32, h: i32) -> Result<(), String> {
     ))
 }
 
-/// Keeps the overlay visible across workspace switches.
-///
-/// The dispatcher toggles, so calling it on an already pinned window unpins it.
-/// Every reposition used to call this, which left the overlay pinned only on an
-/// even number of moves and stranded on one workspace the rest of the time.
 pub fn pin_window(addr: &str) -> Result<(), String> {
     dispatch_action(&format!(
         "/dispatch hl.dsp.window.pin({{ window = \"address:{addr}\" }})"

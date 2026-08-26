@@ -43,11 +43,8 @@ impl Field {
     }
 }
 
-/// Fallback when no deck is attached to ask; a Mk2's fifteen keys.
 pub const ROWS_PER_PAGE: u8 = 15;
 
-/// Key count of the attached deck, so the table neither hides keys on an XL nor
-/// offers keys a Mini does not have.
 pub fn rows_per_page() -> u8 {
     crate::device::list_decks()
         .ok()
@@ -129,9 +126,6 @@ impl DeckView {
     }
 }
 
-/// Pages in `page_order` first (in that order), then any remaining pages
-/// alphabetically. Lets the TUI cycle through ordered pages naturally and
-/// still see un-ordered ones at the end.
 fn ordered_pages_with_unordered_appended(cfg: &Config) -> Vec<String> {
     let mut out: Vec<String> = cfg.deck.ordered_pages();
     for k in cfg.deck.pages.keys() {

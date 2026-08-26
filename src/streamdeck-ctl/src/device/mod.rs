@@ -5,8 +5,6 @@ use serde::Serialize;
 pub mod deck;
 pub mod pedal;
 
-/// Everything a caller needs to lay out a device, taken from the library so no
-/// consumer has to recognise a model by name.
 #[derive(Debug, Clone, Serialize)]
 pub struct DeviceInfo {
     pub kind: String,

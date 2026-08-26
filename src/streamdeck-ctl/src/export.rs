@@ -12,8 +12,6 @@ const FALLBACK_SIZE: u32 = 72;
 const FALLBACK_KEYS: u8 = 15;
 const FALLBACK_COLS: u8 = 5;
 
-/// Writes every key of every page as `<out>/<page>/<index>.png`, using the same
-/// renderer the daemon pushes to the device.
 pub fn run(
     cfg: &Config,
     out: &Path,
@@ -90,9 +88,6 @@ fn validate_page_name(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Reject symlinked, attacker-owned, or replaceable output components. A sticky
-/// shared ancestor such as /tmp is safe because entries below it cannot be
-/// replaced by a different unprivileged user.
 fn verify_trusted_directory(path: &Path) -> Result<()> {
     let own_uid = users_own_uid();
     let root_uid = fs::symlink_metadata("/").context("stat /")?.uid();
@@ -148,8 +143,6 @@ unsafe extern "C" {
     fn getuid() -> u32;
 }
 
-/// Feathers the key corners to transparent, for previews drawn on a surface
-/// rather than pushed to the device's square LCD.
 fn round_corners(image: &DynamicImage, radius: f32) -> DynamicImage {
     let source = image.to_rgba8();
     let (width, height) = source.dimensions();
