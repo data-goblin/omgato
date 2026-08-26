@@ -15,5 +15,9 @@ mod status;
 
 fn main() {
     let parsed = cli::Cli::parse();
+    if let Err(e) = state::init_run_dir() {
+        eprintln!("camlink-ctl: {e}");
+        std::process::exit(1);
+    }
     std::process::exit(dispatch::run(parsed.cmd));
 }

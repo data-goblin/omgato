@@ -160,6 +160,10 @@ fn report(result: Result<(), String>) {
 
 fn main() {
     let cli = Cli::parse();
+    if let Err(e) = state::init_dirs() {
+        eprintln!("omgato-panel: {e}");
+        std::process::exit(1);
+    }
     let _lock = match state::command_lock() {
         Ok(lock) => lock,
         Err(e) => {

@@ -4,43 +4,102 @@ use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-/// The directory holding this user's overlay state, created private to the
-/// user. A directory that already exists is verified rather than trusted: the
-/// temp-directory fallback is a predictable path, so another local user could
-/// otherwise pre-create it and plant symlinks that redirect every state write.
-/// A directory that cannot be secured ends the process instead of downgrading
-/// to an unsafe one.
-pub fn run_dir() -> PathBuf {
-    match secure_run_dir() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("camlink-ctl: {e}");
-            std::process::exit(1);
-        }
+static RUN_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Resolve and secure the state directory before any command acquires resources
+/// that need cleanup. A fatal error later in a path helper used to call
+/// `process::exit`, which could strand a borrowed camera service.
+pub fn init_run_dir() -> Result<(), String> {
+    if RUN_DIR.get().is_some() {
+        return Ok(());
     }
+    let path = secure_run_dir()?;
+    RUN_DIR
+        .set(path)
+        .map_err(|_| "overlay state directory was initialized concurrently".to_string())
+}
+
+pub fn run_dir() -> PathBuf {
+    RUN_DIR
+        .get()
+        .expect("state::init_run_dir must run before dispatch")
+        .clone()
 }
 
 fn secure_run_dir() -> Result<PathBuf, String> {
     let (p, legacy) = match std::env::var("XDG_RUNTIME_DIR") {
         Ok(xdg) => {
             let runtime = PathBuf::from(xdg);
+            verify_private_base(&runtime, "XDG_RUNTIME_DIR")?;
             (runtime.join("camlink-ctl"), Some(runtime.join("camctl")))
         }
-        Err(_) => (
-            std::env::temp_dir().join(format!("camlink-ctl-{}", users_own_uid())),
-            None,
-        ),
+        Err(_) => {
+            let temp = std::env::temp_dir();
+            verify_trusted_directory(&temp, "temporary directory")?;
+            (temp.join(format!("camlink-ctl-{}", users_own_uid())), None)
+        }
     };
-    match fs::DirBuilder::new().mode(0o700).create(&p) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(&p)?,
-        Err(e) => return Err(format!("create {}: {e}", p.display())),
-    }
+    secure_private_dir(&p)?;
     if let Some(legacy) = legacy {
         migrate_entries(&legacy, &p);
     }
     Ok(p)
+}
+
+fn secure_private_dir(p: &Path) -> Result<(), String> {
+    match fs::DirBuilder::new().mode(0o700).create(p) {
+        Ok(()) => verify_private_dir(p),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => verify_private_dir(p),
+        Err(e) => Err(format!("create {}: {e}", p.display())),
+    }
+}
+
+fn verify_private_base(p: &Path, label: &str) -> Result<(), String> {
+    if !p.is_absolute() {
+        return Err(format!("{label} must be an absolute path: {}", p.display()));
+    }
+    let parent = p.parent().ok_or_else(|| format!("{label} has no parent"))?;
+    verify_trusted_directory(parent, &format!("{label} parent"))?;
+    verify_private_dir(p)
+}
+
+/// Every component leading to a shared fallback must be controlled by this user
+/// or the system. Writable components are accepted only with the sticky bit,
+/// which prevents another user from replacing an entry they do not own.
+fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
+    if !p.is_absolute() {
+        return Err(format!("{label} must be an absolute path: {}", p.display()));
+    }
+    let own_uid = users_own_uid();
+    let root_uid = fs::symlink_metadata("/")
+        .map_err(|e| format!("stat /: {e}"))?
+        .uid();
+    let mut current = PathBuf::from("/");
+    for component in p.components().skip(1) {
+        current.push(component.as_os_str());
+        let meta = fs::symlink_metadata(&current)
+            .map_err(|e| format!("stat {}: {e}", current.display()))?;
+        if !meta.is_dir() {
+            return Err(format!("{} is not a real directory", current.display()));
+        }
+        if meta.uid() != own_uid && meta.uid() != root_uid {
+            return Err(format!(
+                "{} is owned by untrusted uid {}; refusing to use {label}",
+                current.display(),
+                meta.uid()
+            ));
+        }
+        let mode = meta.permissions().mode() & 0o7777;
+        if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+            return Err(format!(
+                "{} is writable by other users without the sticky bit (mode {mode:o}); refusing to use {label}",
+                current.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Accept an existing state directory only if it is a real directory this user
@@ -156,30 +215,35 @@ const LOCK_EX: i32 = 2;
 const LOCK_UN: i32 = 8;
 
 fn migrate_file(from: &Path, to: &Path) {
-    if to.exists() || !from.is_file() {
+    if fs::symlink_metadata(to).is_ok()
+        || !fs::symlink_metadata(from).is_ok_and(|meta| meta.file_type().is_file())
+    {
         return;
     }
     let Some(parent) = to.parent() else { return };
     if fs::create_dir_all(parent).is_err() {
         return;
     }
-    if fs::rename(from, to).is_err() && !to.exists() {
-        let _ = fs::copy(from, to);
-    }
+    // Both names are below one XDG base and therefore on the same filesystem.
+    // Do not fall back to `copy`, which follows a source symlink after the check.
+    let _ = fs::rename(from, to);
 }
 
 fn migrate_entries(from: &Path, to: &Path) {
-    if !from.is_dir() || fs::create_dir_all(to).is_err() {
+    if !fs::symlink_metadata(from).is_ok_and(|meta| meta.file_type().is_dir()) {
         return;
     }
     let Ok(entries) = fs::read_dir(from) else { return };
     for entry in entries.flatten() {
         let source = entry.path();
         let target = to.join(entry.file_name());
-        if source.is_dir() && target.is_dir() {
-            migrate_entries(&source, &target);
-        } else if !target.exists() {
-            let _ = fs::rename(source, target);
+        let Ok(kind) = entry.file_type() else { continue };
+        if kind.is_dir() {
+            if secure_private_dir(&target).is_ok() {
+                migrate_entries(&source, &target);
+            }
+        } else if kind.is_file() && fs::symlink_metadata(&target).is_err() {
+            let _ = fs::rename(&source, &target);
         }
     }
 }
@@ -224,5 +288,36 @@ mod tests {
         fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
         verify_private_dir(&p).unwrap();
         fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_non_sticky_writable_temp_parent() {
+        let p = scratch("writable-parent");
+        fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o777)).unwrap();
+        let err = verify_trusted_directory(&p, "test temp").unwrap_err();
+        assert!(err.contains("without the sticky bit"), "{err}");
+        fs::remove_dir_all(&p).unwrap();
+    }
+
+    #[test]
+    fn migration_does_not_import_symlinks() {
+        let from = scratch("migration-from");
+        let to = scratch("migration-to");
+        let outside = scratch("migration-outside");
+        fs::DirBuilder::new().mode(0o700).create(&from).unwrap();
+        fs::DirBuilder::new().mode(0o700).create(&to).unwrap();
+        fs::DirBuilder::new().mode(0o700).create(&outside).unwrap();
+        fs::write(from.join("position"), "top-left").unwrap();
+        symlink(&outside, from.join("blockers")).unwrap();
+
+        migrate_entries(&from, &to);
+
+        assert_eq!(fs::read_to_string(to.join("position")).unwrap(), "top-left");
+        assert!(fs::symlink_metadata(to.join("blockers")).is_err());
+        assert!(fs::symlink_metadata(from.join("blockers")).unwrap().file_type().is_symlink());
+        fs::remove_dir_all(&from).unwrap();
+        fs::remove_dir_all(&to).unwrap();
+        fs::remove_dir_all(&outside).unwrap();
     }
 }
