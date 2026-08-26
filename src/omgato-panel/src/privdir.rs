@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 /// A directory that cannot be secured ends the process rather than being used.
 pub fn temp_fallback(name: &str) -> Result<PathBuf, String> {
     let temp = std::env::temp_dir();
-    verify_trusted_directory(&temp)?;
+    verify_trusted_directory(&temp, "temporary directory")?;
     let p = temp.join(format!("{name}-{}", users_own_uid()));
     secure(&p)?;
     Ok(p)
@@ -23,9 +23,9 @@ fn secure(p: &Path) -> Result<(), String> {
     }
 }
 
-fn verify_trusted_directory(p: &Path) -> Result<(), String> {
+pub fn verify_trusted_directory(p: &Path, label: &str) -> Result<(), String> {
     if !p.is_absolute() {
-        return Err(format!("temporary directory must be an absolute path: {}", p.display()));
+        return Err(format!("{label} must be an absolute path: {}", p.display()));
     }
     let own_uid = users_own_uid();
     let root_uid = fs::symlink_metadata("/")
@@ -41,7 +41,7 @@ fn verify_trusted_directory(p: &Path) -> Result<(), String> {
         }
         if meta.uid() != own_uid && meta.uid() != root_uid {
             return Err(format!(
-                "{} is owned by untrusted uid {}; refusing to use the temporary directory",
+                "{} is owned by untrusted uid {}; refusing to use {label}",
                 current.display(),
                 meta.uid()
             ));
@@ -49,8 +49,8 @@ fn verify_trusted_directory(p: &Path) -> Result<(), String> {
         let mode = meta.permissions().mode() & 0o7777;
         if mode & 0o022 != 0 && mode & 0o1000 == 0 {
             return Err(format!(
-                "{} is writable by other users without the sticky bit (mode {mode:o}); refusing to use it",
-                current.display()
+                "{} is writable by other users without the sticky bit (mode {mode:o}); refusing to use {label}",
+                current.display(),
             ));
         }
     }
@@ -147,7 +147,7 @@ mod tests {
         let p = scratch("writable-parent");
         fs::DirBuilder::new().mode(0o700).create(&p).unwrap();
         fs::set_permissions(&p, fs::Permissions::from_mode(0o777)).unwrap();
-        let err = verify_trusted_directory(&p).unwrap_err();
+        let err = verify_trusted_directory(&p, "test temp").unwrap_err();
         assert!(err.contains("without the sticky bit"), "{err}");
         fs::remove_dir_all(&p).unwrap();
     }

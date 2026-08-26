@@ -178,7 +178,14 @@ fn refresh_previews(key_count: u8, cols: u8) {
         PREVIEW_RADIUS,
     ]);
     if exported {
-        let _ = fs::write(&stamp, &want);
+        let tmp = stamp.with_extension(format!("{}.tmp", std::process::id()));
+        if let Ok(mut file) = fs::OpenOptions::new().create_new(true).write(true).open(&tmp)
+            && file.write_all(want.as_bytes()).is_ok()
+        {
+            file.sync_all().ok();
+            drop(file);
+            let _ = fs::rename(&tmp, &stamp);
+        }
     }
 }
 

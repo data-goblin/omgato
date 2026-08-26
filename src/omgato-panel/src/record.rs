@@ -5,6 +5,8 @@ use crate::sh;
 use crate::state::{self, History, SCOPE_HISTORY};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
 
 const OPTIONS_FILE: &str = "record.json";
 const USER_HZ: u64 = 100; // fixed for /proc regardless of kernel HZ
@@ -34,16 +36,48 @@ pub fn load_options() -> Options {
     state::read_state(OPTIONS_FILE).unwrap_or_default()
 }
 
-fn output_dir() -> String {
+fn output_dir() -> PathBuf {
     std::env::var("OMARCHY_SCREENRECORD_DIR")
         .ok()
         .or_else(|| std::env::var("XDG_VIDEOS_DIR").ok())
+        .map(PathBuf::from)
         .unwrap_or_else(|| {
             dirs::video_dir()
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Videos"))
-                .to_string_lossy()
-                .into_owned()
         })
+}
+
+fn absolute(path: PathBuf) -> Result<PathBuf, String> {
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(path))
+            .map_err(|e| format!("resolve recording directory: {e}"))
+    }
+}
+
+/// Reserve the final filename before handing it to the recorder. This turns a
+/// predictable name in a sticky shared directory into either our regular file
+/// or a safe refusal, never an open of somebody else's symlink.
+fn reserve_recording_path() -> Result<PathBuf, String> {
+    let dir = absolute(output_dir())?;
+    fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    crate::privdir::verify_trusted_directory(&dir, "recording directory")?;
+    let stamp = timestamp();
+    for collision in 0..100 {
+        let suffix = if collision == 0 { String::new() } else { format!("-{collision}") };
+        let path = dir.join(format!("screenrecording-{stamp}{suffix}.mp4"));
+        match fs::OpenOptions::new().create_new(true).write(true).open(&path) {
+            Ok(file) => {
+                drop(file);
+                return Ok(path);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("reserve {}: {e}", path.display())),
+        }
+    }
+    Err("could not reserve a unique recording filename".into())
 }
 
 /// The same question the omarchy script asks, so both agree on what "recording"
@@ -143,7 +177,7 @@ pub fn status(search: bool) -> Status {
         active: pid.is_some(),
         seconds: pid.map(elapsed_seconds).unwrap_or(0),
         options: load_options(),
-        directory: output_dir(),
+        directory: output_dir().to_string_lossy().into_owned(),
         scope: history.current().map(|s| readable(s)).unwrap_or_default(),
         history: history.flags(),
     }
@@ -174,7 +208,14 @@ pub fn start(target: &str, options: Options) {
         return;
     };
 
-    let filename = format!("{}/screenrecording-{}.mp4", output_dir(), timestamp());
+    let filename = match reserve_recording_path() {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("omgato-panel: {e}");
+            return;
+        }
+    };
+    let filename_text = filename.to_string_lossy().into_owned();
     let mut cmd: Vec<String> = ["gpu-screen-recorder", "-w"].iter().map(|s| s.to_string()).collect();
     cmd.push(scope.split_once(':').map(|(_, v)| v.to_owned()).unwrap_or(scope));
     cmd.extend(
@@ -182,7 +223,7 @@ pub fn start(target: &str, options: Options) {
             .iter()
             .map(|s| s.to_string()),
     );
-    cmd.push(filename.clone());
+    cmd.push(filename_text.clone());
 
     let mut sources = Vec::new();
     if options.desktop_audio {
@@ -197,13 +238,26 @@ pub fn start(target: &str, options: Options) {
         cmd.push("-ac".to_owned());
         cmd.push("aac".to_owned());
     }
-    state::write_state("recording.json", &filename);
-    let pid = sh::spawn_detached(&cmd).unwrap_or(0);
+    state::write_state("recording.json", &filename_text);
+    let pid = sh::spawn_detached(&cmd).unwrap_or_else(|| {
+        let _ = fs::remove_file(&filename);
+        0
+    });
     state::write_state(PID_FILE, &pid);
 }
 
 fn timestamp() -> String {
-    sh::run(&["date", "+%Y-%m-%d_%H-%M-%S"]).trim().to_owned()
+    let value = sh::run(&["date", "+%Y-%m-%d_%H-%M-%S"]).trim().to_owned();
+    if !value.is_empty()
+        && value.chars().all(|c| c.is_ascii_digit() || c == '-' || c == '_')
+    {
+        value
+    } else {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs().to_string())
+            .unwrap_or_else(|_| "unknown-time".into())
+    }
 }
 
 pub fn stop() {
@@ -226,7 +280,15 @@ pub fn stop() {
 /// Trims the warm-up frame and levels the audio, matching what omarchy's own
 /// capture does on the way out.
 fn finalize(file: &str) {
-    if !std::path::Path::new(file).exists() {
+    let source = Path::new(file);
+    let Ok(meta) = fs::symlink_metadata(source) else {
+        return;
+    };
+    if !meta.file_type().is_file() || meta.uid() != users_own_uid() {
+        return;
+    }
+    let Some(parent) = source.parent() else { return };
+    if crate::privdir::verify_trusted_directory(parent, "recording directory").is_err() {
         return;
     }
     let has_audio = !sh::run(&[
@@ -236,7 +298,13 @@ fn finalize(file: &str) {
     .trim()
     .is_empty();
 
-    let processed = file.replace(".mp4", "-processed.mp4");
+    let stem = source.file_stem().and_then(|name| name.to_str()).unwrap_or("recording");
+    let processed = parent.join(format!("{stem}-processed-{}.mp4", std::process::id()));
+    let Ok(reserved) = fs::OpenOptions::new().create_new(true).write(true).open(&processed) else {
+        return;
+    };
+    drop(reserved);
+    let processed_text = processed.to_string_lossy().into_owned();
     let mut cmd: Vec<String> = ["ffmpeg", "-y", "-ss", "0.1", "-i", file, "-c:v", "copy"]
         .iter()
         .map(|s| s.to_string())
@@ -249,9 +317,18 @@ fn finalize(file: &str) {
         );
     }
     cmd.extend(["-loglevel", "quiet"].iter().map(|s| s.to_string()));
-    cmd.push(processed.clone());
-    sh::run_owned(&cmd);
-    if std::path::Path::new(&processed).exists() {
-        let _ = fs::rename(&processed, file);
+    cmd.push(processed_text);
+    if sh::succeeds_owned(&cmd) {
+        let _ = fs::rename(&processed, source);
+    } else {
+        let _ = fs::remove_file(&processed);
     }
+}
+
+fn users_own_uid() -> u32 {
+    unsafe { getuid() }
+}
+
+unsafe extern "C" {
+    fn getuid() -> u32;
 }
