@@ -141,10 +141,17 @@ fn same_light(a: &Light, b: &Light) -> bool {
 }
 
 fn merge(found: Vec<Light>, prune: bool) -> (Cache, Vec<Light>) {
-    let mut lights = found;
+    let mut lights: Vec<Light> = found
+        .into_iter()
+        .filter(|light| light.validate().is_ok())
+        .take(config::MAX_LIGHTS)
+        .collect();
     let mut kept = Vec::new();
     if !prune {
         for old in config::load().lights {
+            if lights.len() >= config::MAX_LIGHTS {
+                break;
+            }
             if !lights.iter().any(|l| same_light(l, &old)) {
                 kept.push(old.clone());
                 lights.push(old);

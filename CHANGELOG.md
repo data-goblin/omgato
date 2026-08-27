@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-08-27
+
+### Security
+
+- Bound Key Light discovery output, unique mDNS services, ARP entries, retained
+  device metadata and the on-disk cache so a noisy or malicious LAN peer cannot
+  grow discovery state without limit
+- Read Key Light HTTP responses through a 16 KiB cap before parsing JSON and
+  reject responses containing an unexpected number of light states
+- Probe and update lights through a fixed pool of at most four worker threads,
+  preserving result order without creating one OS thread per discovered device
+
 ## [0.1.4] - 2026-08-26
 
 ### Fixed
