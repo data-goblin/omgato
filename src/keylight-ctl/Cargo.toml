@@ -13,4 +13,5 @@ dirs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+rustix.workspace = true
 ureq = { version = "2", features = ["json"] }

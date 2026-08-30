@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::net::Ipv4Addr;
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 pub const MAX_LIGHTS: usize = 32;
@@ -98,8 +99,18 @@ pub fn save(cache: &Cache) -> std::io::Result<()> {
 }
 
 fn read_cache(path: &std::path::Path) -> io::Result<String> {
-    let file = fs::File::open(path)?;
-    if file.metadata()?.len() > MAX_CACHE_BYTES {
+    let fd = rustix::fs::open(
+        path,
+        rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::CLOEXEC
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::NONBLOCK,
+        rustix::fs::Mode::empty(),
+    )?;
+    let file = fs::File::from(fd);
+    let metadata = file.metadata()?;
+    validate_cache_metadata(&metadata, rustix::process::getuid().as_raw())?;
+    if metadata.len() > MAX_CACHE_BYTES {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "light cache is too large"));
     }
     let mut contents = String::new();
@@ -108,6 +119,25 @@ fn read_cache(path: &std::path::Path) -> io::Result<String> {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "light cache is too large"));
     }
     Ok(contents)
+}
+
+fn validate_cache_metadata(metadata: &fs::Metadata, expected_uid: u32) -> io::Result<()> {
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "light cache is not a regular file",
+        ));
+    }
+    if metadata.uid() != expected_uid {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "light cache is owned by uid {}, not {expected_uid}",
+                metadata.uid()
+            ),
+        ));
+    }
+    Ok(())
 }
 
 fn bounded(mut cache: Cache) -> Cache {
@@ -155,6 +185,34 @@ pub fn select<'a>(cache: &'a Cache, target: &str) -> Vec<&'a Light> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::symlink;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new(label: &str) -> Self {
+            let sequence = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "keylight-ctl-{label}-{}-{sequence}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn join(&self, name: &str) -> PathBuf { self.0.join(name) }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 
     fn light(index: usize) -> Light {
         Light {
@@ -184,5 +242,58 @@ mod tests {
         candidate = light(0);
         candidate.mac = "not a mac".into();
         assert!(candidate.validate().is_err());
+    }
+
+    #[test]
+    fn reads_owned_regular_cache() {
+        let dir = TestDir::new("regular-cache");
+        let path = dir.join("lights.toml");
+        let contents = "lights = []\n";
+        fs::write(&path, contents).unwrap();
+
+        assert_eq!(read_cache(&path).unwrap(), contents);
+    }
+
+    #[test]
+    fn rejects_symlinked_cache() {
+        let dir = TestDir::new("symlink-cache");
+        let target = dir.join("target.toml");
+        let path = dir.join("lights.toml");
+        fs::write(&target, "lights = []\n").unwrap();
+        symlink(&target, &path).unwrap();
+
+        assert!(read_cache(&path).is_err());
+    }
+
+    #[test]
+    fn rejects_fifo_cache_without_blocking() {
+        let dir = TestDir::new("fifo-cache");
+        let path = dir.join("lights.toml");
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            &path,
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+
+        let (sender, receiver) = mpsc::channel();
+        let reader = std::thread::spawn(move || sender.send(read_cache(&path)).unwrap());
+        let result = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("opening the FIFO cache blocked");
+        assert!(result.is_err());
+        reader.join().unwrap();
+    }
+
+    #[test]
+    fn rejects_cache_owned_by_another_uid() {
+        let dir = TestDir::new("owner-cache");
+        let path = dir.join("lights.toml");
+        fs::write(&path, "lights = []\n").unwrap();
+        let metadata = fs::File::open(&path).unwrap().metadata().unwrap();
+        let other_uid = metadata.uid() ^ 1;
+
+        let error = validate_cache_metadata(&metadata, other_uid).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     }
 }

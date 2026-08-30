@@ -322,9 +322,11 @@ temp dir, also 0700.
 with `avahi-browse` (`_elg._tcp`). No other code in the plugin makes network calls.
 Discovery accepts at most 32 unique services from 256 KiB of browse output, and
 each HTTP JSON response is limited to 16 KiB. Device names, addresses and the
-64 KiB cache are validated before retention. Live probes use a fixed pool of at
-most four threads, so an untrusted or noisy LAN peer cannot grow memory, cached
-device state or worker creation without bound.
+64 KiB cache are validated before retention. The cache is opened without
+following symlinks or blocking on special files, then accepted only when that
+same descriptor is a regular file owned by the current user. Live probes use a
+fixed pool of at most four threads, so an untrusted or noisy LAN peer cannot grow
+memory, cached device state or worker creation without bound.
 The daemons are ordinary systemd user services; no second Quickshell process is
 ever started.
 

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-08-30
+
+### Security
+
+- Open the mutable Key Light cache once with no-follow and nonblocking semantics,
+  validate that same descriptor as a regular file owned by the current user, and
+  read only the capped bytes from it
+- Add regression coverage proving symlinked caches are refused and FIFO caches
+  cannot block the process before validation
+
 ## [0.1.5] - 2026-08-27
 
 ### Security
