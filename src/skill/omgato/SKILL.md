@@ -32,6 +32,7 @@ streamdeck-ctl deck pages | show | order
 streamdeck-ctl deck set PAGE INDEX --label L --glyph G --icon PATH \
                                    --bg '#rrggbb' --fg '#rrggbb' --action 'exec:firefox'
 streamdeck-ctl deck unset PAGE INDEX
+streamdeck-ctl deck move PAGE FROM TO [--to-page PAGE]  # swaps if TO is taken
 streamdeck-ctl deck page-add NAME | page-rm NAME | default NAME
 streamdeck-ctl deck brightness 0-100
 streamdeck-ctl deck power on | off | toggle       # blanks the display, keeps the level

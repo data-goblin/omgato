@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `streamdeck-ctl deck move PAGE FROM TO` relocates a whole button in one write,
+  swapping with the destination key when one is already there, and taking
+  `--to-page` to send it to another page
+- Drag and drop in the panel's key grid, so keys are rearranged by moving them
+  rather than by clearing one and retyping every field on another
+- `m` in the TUI picks a key up and `Enter` drops it where the cursor sits,
+  crossing pages with `[` and `]`, with `Esc` to put it back
+
 ## [0.1.6] - 2026-08-30
 
 ### Security

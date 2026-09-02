@@ -32,11 +32,17 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         Constraint::Length(6),
         Constraint::Min(20),
     ];
+    let held = match &app.deck.move_from {
+        Some((page, index)) if *page == app.deck.current_page => format!("  ·  moving #{index}"),
+        Some((page, index)) => format!("  ·  moving {page} #{index}"),
+        None => String::new(),
+    };
     let title = format!(
-        " {} ({}/{}) ",
+        " {} ({}/{}){} ",
         app.deck.current_page,
         app.deck.selected_index() + 1,
-        ROWS_PER_PAGE
+        ROWS_PER_PAGE,
+        held
     );
     let table = Table::new(rows, widths)
         .header(header)
@@ -55,10 +61,23 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 fn build_row(index: u8, app: &App) -> Row<'static> {
     let page = app.cfg.deck.pages.get(&app.deck.current_page);
     let button = page.and_then(|p| p.buttons.iter().find(|b| b.index == index));
-    match button {
+    let row = match button {
         Some(b) => button_row(index, b),
         None => empty_row(index),
+    };
+    let held = app
+        .deck
+        .move_from
+        .as_ref()
+        .is_some_and(|(page, at)| *page == app.deck.current_page && *at == index);
+    if held {
+        return row.style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::DIM | Modifier::ITALIC),
+        );
     }
+    row
 }
 
 fn button_row(index: u8, b: &Button) -> Row<'static> {

@@ -100,6 +100,15 @@ pub enum DeckCmd {
     },
     /// Remove a button from a page
     Unset { page: String, index: u8 },
+    /// Move a button to another index, swapping with whatever is already there
+    Move {
+        page: String,
+        from: u8,
+        to: u8,
+        /// Move onto a different page instead of within this one
+        #[arg(long)]
+        to_page: Option<String>,
+    },
     /// List all pages
     Pages,
     /// Add an empty page; without a name it is called Page N
