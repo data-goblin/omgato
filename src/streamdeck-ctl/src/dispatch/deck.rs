@@ -3,7 +3,7 @@ use crate::action;
 use crate::cli::DeckCmd;
 use crate::config::{self, Button, Config, Page};
 use crate::render::Renderer;
-use crate::{daemon, device, units};
+use crate::{daemon, device, theme, units};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -28,6 +28,7 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
             action,
         } => set_button(page, index, label, glyph, icon, bg, fg, action),
         DeckCmd::Unset { page, index } => unset_button(page, index),
+        DeckCmd::PageBg { page, color } => set_page_bg(page, color),
         DeckCmd::Pages => list_pages(&config::load()?),
         DeckCmd::PageAdd { name } => page_add(name),
         DeckCmd::PageRm { name } => page_rm(name),
@@ -36,6 +37,10 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Order => show_order(&config::load()?),
         DeckCmd::OrderSet { names } => set_order(names),
         DeckCmd::AutoPaginate { enabled } => set_auto_paginate(enabled),
+        DeckCmd::Theme { dry_run, force, strength, colors } => {
+            apply_theme(dry_run, force, strength, colors.as_deref())
+        }
+        DeckCmd::FollowTheme { enabled } => set_follow_theme(enabled),
         DeckCmd::Preset { name, replace } => apply_preset(&name, replace),
         DeckCmd::Export { out, page, size, keys, radius } => {
             crate::export::run(&config::load()?, &out, page, size, keys, radius)
@@ -76,6 +81,48 @@ fn set_order(names: Vec<String>) -> Result<()> {
     Ok(())
 }
 
+fn set_follow_theme(enabled: bool) -> Result<()> {
+    let mut cfg = config::load()?;
+    cfg.deck.follow_theme = enabled;
+    config::save(&cfg)?;
+    Ok(())
+}
+
+fn apply_theme(
+    dry_run: bool,
+    force: bool,
+    strength: Option<f32>,
+    colors: Option<&std::path::Path>,
+) -> Result<()> {
+    let mut cfg = config::load()?;
+    if !cfg.deck.follow_theme && !force && !dry_run {
+        println!("follow_theme is off; enable it with 'deck follow-theme true'");
+        return Ok(());
+    }
+    let strength = f64::from(strength.unwrap_or(cfg.deck.theme_strength)).clamp(0.0, 1.0);
+    let palette = theme::load(colors)?;
+    let scheme = theme::scheme(&cfg.deck, &palette, strength);
+
+    let how = match scheme.separation {
+        theme::Separation::Hue => "distinct palette colours",
+        theme::Separation::Lightness => "one accent at increasing strengths",
+    };
+    println!(
+        "background {}  text {}  ({}, closest dE {:.1})",
+        scheme.background, scheme.foreground, how, scheme.closest
+    );
+    for (name, colour) in &scheme.pages {
+        println!("  {name:<12} {colour}");
+    }
+    if dry_run {
+        return Ok(());
+    }
+    theme::apply(&mut cfg, &scheme);
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
 fn set_auto_paginate(enabled: bool) -> Result<()> {
     let mut cfg = config::load()?;
     cfg.deck.auto_paginate = enabled;
@@ -105,7 +152,10 @@ fn show(cfg: &Config) -> Result<()> {
     println!();
     println!("pages:");
     for (name, page) in &cfg.deck.pages {
-        println!("  [{}]", name);
+        match &page.bg {
+            Some(bg) => println!("  [{}]  bg={}", name, bg),
+            None => println!("  [{}]", name),
+        }
         for b in &page.buttons {
             let visual = match (&b.icon, &b.glyph) {
                 (Some(p), _) => format!("icon={p}"),
@@ -166,9 +216,10 @@ fn render_once(cfg: &Config) -> Result<()> {
     d.deck.set_brightness(cfg.deck.brightness)?;
     for i in 0..key_count {
         if let Some(btn) = by_idx.get(&i) {
-            d.deck.set_button_image(i, renderer.render_button(btn)?)?;
+            d.deck
+                .set_button_image(i, renderer.render_button(btn, page.bg.as_deref())?)?;
         } else if let Some(synth) = cfg.deck.synthetic_button(&cfg.deck.default_page, i, key_count, d.kind.column_count()) {
-            d.deck.set_button_image(i, renderer.render_button(&synth)?)?;
+            d.deck.set_button_image(i, renderer.render_button(&synth, None)?)?;
         } else {
             d.deck.set_button_image(i, renderer.blank())?;
         }
@@ -282,6 +333,19 @@ fn unset_button(page: String, index: u8) -> Result<()> {
     if let Some(p) = cfg.deck.pages.get_mut(&page) {
         p.buttons.retain(|b| b.index != index);
     }
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
+fn set_page_bg(page: String, color: Option<String>) -> Result<()> {
+    validate_page_name(&page)?;
+    validate_colour("bg", color.as_deref())?;
+    let mut cfg = config::load()?;
+    let Some(entry) = cfg.deck.pages.get_mut(&page) else {
+        anyhow::bail!("page '{}' does not exist", page);
+    };
+    entry.bg = color.filter(|c| !c.trim().is_empty());
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);
     Ok(())

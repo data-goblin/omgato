@@ -1,0 +1,14 @@
+#!/bin/bash
+# Installed by Omgato. Omarchy runs this when the theme changes, with the
+# theme name as $1.
+#
+# It does nothing until you opt in:
+#
+#   streamdeck-ctl deck follow-theme true
+#
+# Preview a theme without switching to it:
+#
+#   streamdeck-ctl deck theme --dry-run --colors ~/.config/omarchy/themes/nord/colors.toml
+
+command -v streamdeck-ctl >/dev/null || exit 0
+exec streamdeck-ctl deck theme

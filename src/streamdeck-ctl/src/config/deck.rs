@@ -24,6 +24,10 @@ pub struct DeckConfig {
     #[serde(default = "default_next_glyph")]
     pub next_glyph: String,
     #[serde(default)]
+    pub follow_theme: bool,
+    #[serde(default = "default_theme_strength")]
+    pub theme_strength: f32,
+    #[serde(default)]
     pub page_order: Vec<String>,
     #[serde(default)]
     pub pages: BTreeMap<String, Page>,
@@ -89,6 +93,10 @@ fn synth(index: u8, glyph: &str, target_page: &str) -> Button {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Page {
+    /// Background for this page's own buttons, overriding `bg_color`. Must be
+    /// serialised before `buttons`, since TOML emits values before tables.
+    #[serde(default)]
+    pub bg: Option<String>,
     #[serde(default)]
     pub buttons: Vec<Button>,
 }
@@ -134,6 +142,9 @@ fn default_action() -> String {
 fn default_auto_paginate() -> bool {
     true
 }
+fn default_theme_strength() -> f32 {
+    0.38
+}
 fn default_prev_glyph() -> String {
     "\u{f0141}".into()
 }
@@ -163,6 +174,8 @@ impl Default for DeckConfig {
             text_color: default_text_color(),
             bg_color: default_bg_color(),
             auto_paginate: default_auto_paginate(),
+            follow_theme: false,
+            theme_strength: default_theme_strength(),
             display_off: false,
             prev_glyph: default_prev_glyph(),
             next_glyph: default_next_glyph(),
@@ -175,5 +188,60 @@ impl Default for DeckConfig {
 impl DeckConfig {
     pub fn active_brightness(&self) -> u8 {
         if self.display_off { 0 } else { self.brightness }
+    }
+}
+
+#[cfg(test)]
+mod page_bg_tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn page_with_bg() -> Config {
+        let mut cfg = Config::default();
+        cfg.deck.pages.clear();
+        cfg.deck.pages.insert(
+            "main".to_owned(),
+            Page {
+                bg: Some("#101820".to_owned()),
+                buttons: vec![Button {
+                    index: 0,
+                    label: "a".to_owned(),
+                    glyph: None,
+                    icon: None,
+                    bg: None,
+                    fg: None,
+                    action: "noop".to_owned(),
+                }],
+            },
+        );
+        cfg
+    }
+
+    /// TOML requires a table's plain values before its sub-tables, so `bg` has
+    /// to be declared ahead of `buttons`. Serialising is what catches a
+    /// reordering of the struct fields.
+    #[test]
+    fn a_page_colour_survives_a_round_trip() {
+        let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
+        let back: Config = toml::from_str(&text).expect("parses");
+        assert_eq!(back.deck.pages["main"].bg.as_deref(), Some("#101820"));
+        assert_eq!(back.deck.pages["main"].buttons.len(), 1);
+    }
+
+    #[test]
+    fn the_colour_is_written_before_the_buttons() {
+        let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
+        let bg = text.find("bg = \"#101820\"").expect("bg is written");
+        let buttons = text.find("[[deck.pages.main.buttons]]").expect("buttons written");
+        assert!(bg < buttons, "bg must precede the button tables:\n{text}");
+    }
+
+    #[test]
+    fn a_page_without_a_colour_writes_no_bg_key() {
+        let mut cfg = page_with_bg();
+        cfg.deck.pages.get_mut("main").unwrap().bg = None;
+        let text = toml::to_string_pretty(&cfg).expect("serialises");
+        let deck_section = text.split("[[deck.pages.main.buttons]]").next().unwrap();
+        assert!(!deck_section.contains("\nbg = "), "unset bg leaks a key:\n{text}");
     }
 }

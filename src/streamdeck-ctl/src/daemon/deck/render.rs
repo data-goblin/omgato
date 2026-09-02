@@ -20,10 +20,10 @@ pub fn render_page(
     }
     for i in 0..key_count {
         if let Some(pb) = by_index.get(&i) {
-            let img = renderer.render_button(&pb.btn)?;
+            let img = renderer.render_button(&pb.btn, page.bg.as_deref())?;
             deck.deck.set_button_image(i, img)?;
         } else if let Some(synth) = cfg.synthetic_button(page_name, i, key_count, cols) {
-            let img = renderer.render_button(&synth)?;
+            let img = renderer.render_button(&synth, None)?;
             deck.deck.set_button_image(i, img)?;
         } else {
             deck.deck.set_button_image(i, renderer.blank())?;

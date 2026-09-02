@@ -7,6 +7,7 @@ mod dispatch;
 mod export;
 mod render;
 mod synth;
+mod theme;
 mod tui;
 mod units;
 
