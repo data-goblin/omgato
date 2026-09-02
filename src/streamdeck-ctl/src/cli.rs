@@ -100,6 +100,8 @@ pub enum DeckCmd {
     },
     /// Remove a button from a page
     Unset { page: String, index: u8 },
+    /// Set the background for a whole page; omit COLOR to clear it
+    PageBg { page: String, color: Option<String> },
     /// List all pages
     Pages,
     /// Add an empty page; without a name it is called Page N

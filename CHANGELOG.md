@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A page can set `bg`, the background every key on it uses unless the key names
+  its own, with `streamdeck-ctl deck page-bg PAGE [COLOR]` to set or clear it.
+  Generated pagination keys and empty keys keep the deck-wide `bg_color`, so a
+  tinted page stays distinguishable from the navigation around it
+
 ## [0.1.6] - 2026-08-30
 
 ### Security
