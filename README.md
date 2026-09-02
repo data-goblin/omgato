@@ -224,6 +224,39 @@ Because the colour lives on the page rather than on every button, a script can
 recolour the deck without touching the layout — following the desktop theme
 from a hook, for instance.
 
+## Following the Omarchy theme
+
+The panel already retints itself when the theme changes. The keys can too:
+
+```bash
+streamdeck-ctl deck follow-theme true    # opt in; off by default
+streamdeck-ctl deck theme                # apply now
+streamdeck-ctl deck theme --dry-run      # print the colours, change nothing
+```
+
+The installer places a `theme-set` hook, so from then on the deck recolours
+itself whenever you switch theme. The hook is inert until you opt in.
+
+Colours come from `omarchy-theme-color`, so they resolve exactly as every other
+Omarchy consumer sees them. The deck background and text follow the theme's
+background and foreground; each page takes a colour of its own.
+
+Choosing those page colours is the fiddly part. Reading four fixed palette keys
+falls apart on a theme whose palette is warm or monochrome throughout, where
+they all land on the same colour. So the whole palette is considered and the
+entries furthest apart perceptually are chosen. Where a palette genuinely holds
+nothing distinct — Vantablack, say — the pages are separated by weight instead,
+one accent laid on progressively thicker. Either way each colour is eased back
+toward the background if it would not leave the label readable.
+
+`theme_strength` in the config, or `--strength`, sets how strongly a colour
+tints its page. It defaults to 0.38; lower is subtler.
+
+```bash
+streamdeck-ctl deck theme --dry-run --strength 0.5
+streamdeck-ctl deck theme --dry-run --colors ~/.config/omarchy/themes/nord/colors.toml
+```
+
 ## The camera overlay and the panel
 
 The panel opens over the top-right corner, which is where the camera overlay

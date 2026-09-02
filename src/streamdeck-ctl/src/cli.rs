@@ -117,7 +117,30 @@ pub enum DeckCmd {
     /// Set the page order array. Pages NOT listed are excluded from auto-pagination.
     OrderSet { names: Vec<String> },
     /// Toggle auto-pagination on/off
-    AutoPaginate { enabled: bool },
+    AutoPaginate {
+        #[arg(action = clap::ArgAction::Set)]
+        enabled: bool,
+    },
+    /// Recolour the pages from the current Omarchy theme
+    Theme {
+        /// Print the colours without writing them
+        #[arg(long)]
+        dry_run: bool,
+        /// Recolour even when follow_theme is off
+        #[arg(long)]
+        force: bool,
+        /// How strongly the theme colour tints a page, 0.0 to 1.0
+        #[arg(long)]
+        strength: Option<f32>,
+        /// Read a specific theme's colors.toml instead of the current theme
+        #[arg(long)]
+        colors: Option<std::path::PathBuf>,
+    },
+    /// Follow the Omarchy theme whenever it changes
+    FollowTheme {
+        #[arg(action = clap::ArgAction::Set)]
+        enabled: bool,
+    },
     /// Apply a bundled starter layout; existing pages of the same name are replaced
     Preset {
         #[arg(default_value = "omarchy")]

@@ -24,6 +24,10 @@ pub struct DeckConfig {
     #[serde(default = "default_next_glyph")]
     pub next_glyph: String,
     #[serde(default)]
+    pub follow_theme: bool,
+    #[serde(default = "default_theme_strength")]
+    pub theme_strength: f32,
+    #[serde(default)]
     pub page_order: Vec<String>,
     #[serde(default)]
     pub pages: BTreeMap<String, Page>,
@@ -138,6 +142,9 @@ fn default_action() -> String {
 fn default_auto_paginate() -> bool {
     true
 }
+fn default_theme_strength() -> f32 {
+    0.38
+}
 fn default_prev_glyph() -> String {
     "\u{f0141}".into()
 }
@@ -167,6 +174,8 @@ impl Default for DeckConfig {
             text_color: default_text_color(),
             bg_color: default_bg_color(),
             auto_paginate: default_auto_paginate(),
+            follow_theme: false,
+            theme_strength: default_theme_strength(),
             display_off: false,
             prev_glyph: default_prev_glyph(),
             next_glyph: default_next_glyph(),

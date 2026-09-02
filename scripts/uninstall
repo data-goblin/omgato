@@ -4,6 +4,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+hook_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks/theme-set.d"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omgato-panel"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omgato-panel"
 legacy_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/elgato-panel"
@@ -34,6 +35,11 @@ for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl camctl elgatoct
         echo "  bin      unlinked $tool"
     fi
 done
+
+if [ -f "$hook_dir/omgato-deck.hook" ]; then
+    rm -f "$hook_dir/omgato-deck.hook"
+    echo "  hook     removed $hook_dir/omgato-deck.hook"
+fi
 
 rm -rf "$cache_dir"
 echo "  cache    removed $cache_dir"

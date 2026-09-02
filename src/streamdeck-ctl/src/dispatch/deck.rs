@@ -3,7 +3,7 @@ use crate::action;
 use crate::cli::DeckCmd;
 use crate::config::{self, Button, Config, Page};
 use crate::render::Renderer;
-use crate::{daemon, device, units};
+use crate::{daemon, device, theme, units};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -37,6 +37,10 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Order => show_order(&config::load()?),
         DeckCmd::OrderSet { names } => set_order(names),
         DeckCmd::AutoPaginate { enabled } => set_auto_paginate(enabled),
+        DeckCmd::Theme { dry_run, force, strength, colors } => {
+            apply_theme(dry_run, force, strength, colors.as_deref())
+        }
+        DeckCmd::FollowTheme { enabled } => set_follow_theme(enabled),
         DeckCmd::Preset { name, replace } => apply_preset(&name, replace),
         DeckCmd::Export { out, page, size, keys, radius } => {
             crate::export::run(&config::load()?, &out, page, size, keys, radius)
@@ -72,6 +76,48 @@ fn set_order(names: Vec<String>) -> Result<()> {
         }
     }
     cfg.deck.page_order = names;
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
+fn set_follow_theme(enabled: bool) -> Result<()> {
+    let mut cfg = config::load()?;
+    cfg.deck.follow_theme = enabled;
+    config::save(&cfg)?;
+    Ok(())
+}
+
+fn apply_theme(
+    dry_run: bool,
+    force: bool,
+    strength: Option<f32>,
+    colors: Option<&std::path::Path>,
+) -> Result<()> {
+    let mut cfg = config::load()?;
+    if !cfg.deck.follow_theme && !force && !dry_run {
+        println!("follow_theme is off; enable it with 'deck follow-theme true'");
+        return Ok(());
+    }
+    let strength = f64::from(strength.unwrap_or(cfg.deck.theme_strength)).clamp(0.0, 1.0);
+    let palette = theme::load(colors)?;
+    let scheme = theme::scheme(&cfg.deck, &palette, strength);
+
+    let how = match scheme.separation {
+        theme::Separation::Hue => "distinct palette colours",
+        theme::Separation::Lightness => "one accent at increasing strengths",
+    };
+    println!(
+        "background {}  text {}  ({}, closest dE {:.1})",
+        scheme.background, scheme.foreground, how, scheme.closest
+    );
+    for (name, colour) in &scheme.pages {
+        println!("  {name:<12} {colour}");
+    }
+    if dry_run {
+        return Ok(());
+    }
+    theme::apply(&mut cfg, &scheme);
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);
     Ok(())

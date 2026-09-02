@@ -12,6 +12,16 @@ All notable changes to this project are documented here. The format follows
   its own, with `streamdeck-ctl deck page-bg PAGE [COLOR]` to set or clear it.
   Generated pagination keys and empty keys keep the deck-wide `bg_color`, so a
   tinted page stays distinguishable from the navigation around it
+- `streamdeck-ctl deck theme` colours the pages from the current Omarchy theme,
+  with `--dry-run`, `--strength` and `--colors` to preview one. A `theme-set`
+  hook placed by the installer keeps the deck in step with the theme, inert
+  until `deck follow-theme true`
+
+### Fixed
+
+- `deck auto-paginate true` failed with "0 values required for '[ENABLED]'".
+  clap's derive treats a bare `bool` as a flag, so the positional took no
+  value, and a bare `deck auto-paginate` quietly set it to false
 
 ## [0.1.6] - 2026-08-30
 

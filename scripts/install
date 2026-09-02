@@ -4,6 +4,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+hook_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks/theme-set.d"
 udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
 deck_config="${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml"
 with_preset=1
@@ -42,6 +43,15 @@ for unit in "$repo"/src/streamdeck-ctl/systemd/*.service; do
     echo "  unit   $unit_dir/$(basename "$unit")"
 done
 systemctl --user daemon-reload 2>/dev/null || true
+
+# Recolours the deck when the Omarchy theme changes. Inert until the user
+# runs `streamdeck-ctl deck follow-theme true`, so installing it changes
+# nothing on its own.
+if [ -d "$(dirname "$hook_dir")" ]; then
+    mkdir -p "$hook_dir"
+    install -m 0755 "$repo/src/streamdeck-ctl/hooks/omgato-deck.hook" "$hook_dir/omgato-deck.hook"
+    echo "  hook   $hook_dir/omgato-deck.hook (enable: streamdeck-ctl deck follow-theme true)"
+fi
 
 if [ ! -f "$udev_rule" ]; then
     echo
