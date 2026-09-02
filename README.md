@@ -201,6 +201,29 @@ omgato-panel undo              # or step back one change at a time
 Both are buttons in the Key Lights view. Restore is greyed out until a default
 has been saved.
 
+## Colouring a page
+
+A page can name its own background, which every key on that page picks up
+unless it sets `bg` itself:
+
+```bash
+streamdeck-ctl deck page-bg media '#221a2c'
+streamdeck-ctl deck page-bg media           # back to the deck-wide bg_color
+```
+
+```toml
+[deck.pages.media]
+bg = "#221a2c"
+```
+
+A tint per page makes the current page obvious at a glance. Generated
+pagination keys and empty keys deliberately keep the deck-wide `bg_color`, so
+they stay visually separate from the page's own keys.
+
+Because the colour lives on the page rather than on every button, a script can
+recolour the deck without touching the layout — following the desktop theme
+from a hook, for instance.
+
 ## The camera overlay and the panel
 
 The panel opens over the top-right corner, which is where the camera overlay

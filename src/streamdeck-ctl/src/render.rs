@@ -32,9 +32,12 @@ impl Renderer {
         })
     }
 
-    pub fn render_button(&self, btn: &Button) -> Result<DynamicImage> {
+    /// `page_bg` is the background of the page the button sits on, used when
+    /// the button does not name one of its own. Pass `None` for keys that are
+    /// not the page's own, such as generated pagination keys.
+    pub fn render_button(&self, btn: &Button, page_bg: Option<&str>) -> Result<DynamicImage> {
         let s = self.size;
-        let bg = colour_or(btn.bg.as_deref(), self.default_bg);
+        let bg = colour_or(btn.bg.as_deref().or(page_bg), self.default_bg);
         let fg = colour_or(btn.fg.as_deref(), self.default_fg);
 
         let mut img: RgbImage = ImageBuffer::from_pixel(s, s, bg);

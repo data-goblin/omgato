@@ -28,6 +28,7 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
             action,
         } => set_button(page, index, label, glyph, icon, bg, fg, action),
         DeckCmd::Unset { page, index } => unset_button(page, index),
+        DeckCmd::PageBg { page, color } => set_page_bg(page, color),
         DeckCmd::Pages => list_pages(&config::load()?),
         DeckCmd::PageAdd { name } => page_add(name),
         DeckCmd::PageRm { name } => page_rm(name),
@@ -105,7 +106,10 @@ fn show(cfg: &Config) -> Result<()> {
     println!();
     println!("pages:");
     for (name, page) in &cfg.deck.pages {
-        println!("  [{}]", name);
+        match &page.bg {
+            Some(bg) => println!("  [{}]  bg={}", name, bg),
+            None => println!("  [{}]", name),
+        }
         for b in &page.buttons {
             let visual = match (&b.icon, &b.glyph) {
                 (Some(p), _) => format!("icon={p}"),
@@ -166,9 +170,10 @@ fn render_once(cfg: &Config) -> Result<()> {
     d.deck.set_brightness(cfg.deck.brightness)?;
     for i in 0..key_count {
         if let Some(btn) = by_idx.get(&i) {
-            d.deck.set_button_image(i, renderer.render_button(btn)?)?;
+            d.deck
+                .set_button_image(i, renderer.render_button(btn, page.bg.as_deref())?)?;
         } else if let Some(synth) = cfg.deck.synthetic_button(&cfg.deck.default_page, i, key_count, d.kind.column_count()) {
-            d.deck.set_button_image(i, renderer.render_button(&synth)?)?;
+            d.deck.set_button_image(i, renderer.render_button(&synth, None)?)?;
         } else {
             d.deck.set_button_image(i, renderer.blank())?;
         }
@@ -282,6 +287,19 @@ fn unset_button(page: String, index: u8) -> Result<()> {
     if let Some(p) = cfg.deck.pages.get_mut(&page) {
         p.buttons.retain(|b| b.index != index);
     }
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
+fn set_page_bg(page: String, color: Option<String>) -> Result<()> {
+    validate_page_name(&page)?;
+    validate_colour("bg", color.as_deref())?;
+    let mut cfg = config::load()?;
+    let Some(entry) = cfg.deck.pages.get_mut(&page) else {
+        anyhow::bail!("page '{}' does not exist", page);
+    };
+    entry.bg = color.filter(|c| !c.trim().is_empty());
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);
     Ok(())

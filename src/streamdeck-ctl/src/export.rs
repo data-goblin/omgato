@@ -52,9 +52,9 @@ pub fn run(
         let by_index: HashMap<u8, &Button> = page.buttons.iter().map(|b| (b.index, b)).collect();
         for index in 0..key_count {
             let image = match by_index.get(&index) {
-                Some(btn) => renderer.render_button(btn)?,
+                Some(btn) => renderer.render_button(btn, page.bg.as_deref())?,
                 None => match cfg.deck.synthetic_button(&name, index, key_count, cols) {
-                    Some(synth) => renderer.render_button(&synth)?,
+                    Some(synth) => renderer.render_button(&synth, None)?,
                     None => renderer.blank(),
                 },
             };
