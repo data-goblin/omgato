@@ -35,6 +35,17 @@ pub enum Cmd {
     Disable,
 }
 
+impl Cmd {
+    /// True for the commands that stay running under systemd, which keep the
+    /// Rust default handling of `SIGPIPE`.
+    pub fn is_daemon(&self) -> bool {
+        matches!(
+            self,
+            Cmd::Pedal { cmd: PedalCmd::Run } | Cmd::Deck { cmd: DeckCmd::Run }
+        )
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub enum PedalCmd {
     /// Print pedal events to stdout without firing actions
@@ -138,4 +149,24 @@ pub enum DeckCmd {
         #[arg(long)]
         radius: Option<f32>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_long_running_commands_are_daemons() {
+        assert!(Cmd::Deck { cmd: DeckCmd::Run }.is_daemon());
+        assert!(Cmd::Pedal { cmd: PedalCmd::Run }.is_daemon());
+    }
+
+    #[test]
+    fn the_printing_commands_are_not_daemons() {
+        assert!(!Cmd::Deck { cmd: DeckCmd::Show }.is_daemon());
+        assert!(!Cmd::Deck { cmd: DeckCmd::Pages }.is_daemon());
+        assert!(!Cmd::Pedal { cmd: PedalCmd::Show }.is_daemon());
+        assert!(!Cmd::Ls { json: false }.is_daemon());
+        assert!(!Cmd::Tui.is_daemon());
+    }
 }
