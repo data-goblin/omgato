@@ -50,6 +50,8 @@ Panel {
   property bool wantConflicts: true
   property int dragFrom: -1
   property int dragTo: -1
+  property int keyDragFrom: -1
+  property int keyDragTo: -1
   property string claimedOwner: ""
 
   readonly property bool anyOn: lights.some(function(l) { return l.on })
@@ -362,6 +364,23 @@ Panel {
     act(["streamdeck-ctl", "deck", "set", pageName, String(index), "--" + field, value])
   }
 
+  function cancelKeyDrag() {
+    keyDragFrom = -1
+    keyDragTo = -1
+    interacting = false
+  }
+
+  function commitKeyDrag() {
+    var from = keyDragFrom
+    var to = keyDragTo
+    var pageName = page ? page.name : ""
+    cancelKeyDrag()
+    if (pageName === "" || from < 0 || to < 0 || from === to) return
+    selection = [to]
+    selectionAnchor = to
+    act(["streamdeck-ctl", "deck", "move", pageName, String(from), String(to)])
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -475,6 +494,7 @@ Panel {
       selection = []
       interacting = false
       cancelOrder()
+      cancelKeyDrag()
     }
     if (opened) {
       if (settings.showCamera !== false) Qt.callLater(root.claimSpace)
@@ -982,14 +1002,21 @@ Panel {
         opacity: root.deck.display_off ? 0.16 : 0.25 + 0.75 * (root.deckBrightness / 100)
         Behavior on opacity { NumberAnimation { duration: 120 } }
         readonly property real cell: (width - spacing * (columns - 1)) / columns
+        readonly property real dragThreshold: Math.max(6, cell * 0.2)
 
         Repeater {
           model: root.page ? root.page.keys : []
           Item {
             id: keyCell
             required property var modelData
+            readonly property int cellIndex: modelData.index
+            readonly property bool movable: modelData.kind === "button"
+            readonly property bool dropTarget: root.keyDragFrom >= 0
+                                               && root.keyDragTo === cellIndex
+                                               && root.keyDragFrom !== cellIndex
             width: keyGrid.cell
             height: keyGrid.cell
+            opacity: root.keyDragFrom === cellIndex ? 0.4 : 1
 
             Image {
               id: keyImage
@@ -1017,9 +1044,13 @@ Panel {
 
             Rectangle {
               anchors.fill: parent
-              color: "transparent"
               radius: Style.space(5)
-              border.width: root.selectionContains(keyCell.modelData.index) ? 2 : (keyArea.containsMouse ? 1 : 0)
+              color: keyCell.dropTarget
+                     ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.14)
+                     : "transparent"
+              border.width: keyCell.dropTarget || root.selectionContains(keyCell.cellIndex)
+                            ? 2
+                            : (keyArea.containsMouse && root.keyDragFrom < 0 ? 1 : 0)
               border.color: root.foreground
             }
 
@@ -1027,14 +1058,52 @@ Panel {
               id: keyArea
               anchors.fill: parent
               hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
+              cursorShape: root.keyDragFrom >= 0 ? Qt.SizeAllCursor : Qt.PointingHandCursor
               acceptedButtons: Qt.LeftButton
+              preventStealing: root.keyDragFrom === keyCell.cellIndex
+
+              property point pressAt
+              property bool dragged: false
+
+              onPressed: function(mouse) {
+                pressAt = Qt.point(mouse.x, mouse.y)
+                dragged = false
+              }
+
+              onPositionChanged: function(mouse) {
+                if (!pressed || !keyCell.movable || mouse.modifiers !== Qt.NoModifier) return
+                if (!dragged) {
+                  var far = Math.abs(mouse.x - pressAt.x) > keyGrid.dragThreshold
+                            || Math.abs(mouse.y - pressAt.y) > keyGrid.dragThreshold
+                  if (!far) return
+                  dragged = true
+                  root.interacting = true
+                  root.keyDragFrom = keyCell.cellIndex
+                  root.keyDragTo = keyCell.cellIndex
+                }
+                var point = mapToItem(keyGrid, mouse.x, mouse.y)
+                var over = keyGrid.childAt(point.x, point.y)
+                root.keyDragTo = over && over.cellIndex !== undefined ? over.cellIndex : -1
+              }
+
+              onReleased: {
+                if (!dragged) return
+                dragged = false
+                root.commitKeyDrag()
+              }
+
+              onCanceled: {
+                dragged = false
+                root.cancelKeyDrag()
+              }
+
               onClicked: function(mouse) {
+                if (dragged) return
                 if (keyCell.modelData.kind === "page" && mouse.modifiers === Qt.NoModifier) {
                   root.gotoPage(keyCell.modelData.target)
                   return
                 }
-                root.selectKey(keyCell.modelData.index, mouse.modifiers)
+                root.selectKey(keyCell.cellIndex, mouse.modifiers)
               }
             }
           }

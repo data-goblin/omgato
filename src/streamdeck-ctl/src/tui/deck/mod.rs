@@ -60,6 +60,8 @@ pub struct DeckView {
     pub edit_action_kind: ActionKind,
     pub edit_buffer: String,
     pub page_names: Vec<String>,
+    /// Page and index a button was picked up from, while a move is in flight.
+    pub move_from: Option<(String, u8)>,
 }
 
 impl DeckView {
@@ -82,6 +84,7 @@ impl DeckView {
             edit_action_kind: ActionKind::Key,
             edit_buffer: String::new(),
             page_names: names,
+            move_from: None,
         }
     }
 
@@ -114,8 +117,17 @@ impl DeckView {
         self.table.selected().unwrap_or(0) as u8
     }
 
+    pub fn moving(&self) -> bool {
+        self.move_from.is_some()
+    }
+
     pub fn reconcile_after_config_change(&mut self, cfg: &Config) {
         self.page_names = ordered_pages_with_unordered_appended(cfg);
+        if let Some((page, _)) = &self.move_from
+            && !cfg.deck.pages.contains_key(page)
+        {
+            self.move_from = None;
+        }
         if !cfg.deck.pages.contains_key(&self.current_page) {
             self.current_page = self
                 .page_names

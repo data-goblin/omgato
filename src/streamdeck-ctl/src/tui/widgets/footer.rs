@@ -18,6 +18,14 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn hints(app: &App) -> Vec<Span<'static>> {
+    if app.tab == Tab::Deck && app.deck.moving() {
+        return vec![
+            Span::raw("[\u{2191}\u{2193}] pick a spot  "),
+            Span::raw("[\u{005B}\u{005D}] page  "),
+            Span::raw("[Enter] drop  "),
+            Span::raw("[Esc] cancel"),
+        ];
+    }
     let common: Vec<Span<'static>> = vec![
         Span::raw("[Tab] switch  "),
         Span::raw("[\u{2191}\u{2193}] move  "),
@@ -30,7 +38,7 @@ fn hints(app: &App) -> Vec<Span<'static>> {
             Span::raw("[E/D] enable/disable  "),
         ],
         Tab::Deck => vec![
-            Span::raw("[e] edit  [D] delete  "),
+            Span::raw("[e] edit  [m] move  [D] delete  "),
             Span::raw("[\u{005B}\u{005D}] page  [P] +page  [X] -page  "),
             Span::raw("[t] toggle  [r] reload  [b] brightness  "),
         ],

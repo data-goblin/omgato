@@ -10,6 +10,9 @@ use std::process::Command;
 
 pub fn handle(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool> {
     app.clear_msg();
+    if app.deck.moving() {
+        return moving(app, code);
+    }
     match code {
         KeyCode::Char('q') | KeyCode::Esc => return Ok(true),
         KeyCode::Up | KeyCode::Char('k') => move_sel(app, -1),
@@ -17,6 +20,7 @@ pub fn handle(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool>
         KeyCode::Char('[') => page_select::prev(app),
         KeyCode::Char(']') => page_select::next(app),
         KeyCode::Char('e') | KeyCode::Enter => begin_edit(app),
+        KeyCode::Char('m') => pick_up(app),
         KeyCode::Char('D') => delete_button(app),
         KeyCode::Char('P') => begin_page_add(app),
         KeyCode::Char('X') => begin_page_remove(app),
@@ -26,6 +30,63 @@ pub fn handle(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool>
         _ => {}
     }
     Ok(false)
+}
+
+/// While a button is held, the deck tab is a two-key affair: move the cursor
+/// (or change page, which moves the button across pages), then drop or cancel.
+fn moving(app: &mut App, code: KeyCode) -> Result<bool> {
+    match code {
+        KeyCode::Up | KeyCode::Char('k') => move_sel(app, -1),
+        KeyCode::Down | KeyCode::Char('j') => move_sel(app, 1),
+        KeyCode::Char('[') => page_select::prev(app),
+        KeyCode::Char(']') => page_select::next(app),
+        KeyCode::Enter | KeyCode::Char('m') => drop_button(app),
+        KeyCode::Esc => cancel_move(app),
+        KeyCode::Char('q') => {
+            app.deck.move_from = None;
+            return Ok(true);
+        }
+        _ => app.flash("moving: Enter to drop, Esc to cancel", Color::Yellow),
+    }
+    Ok(false)
+}
+
+fn pick_up(app: &mut App) {
+    let idx = app.deck.selected_index();
+    let page = app.deck.current_page.clone();
+    if !app.cfg.deck.has_button(&page, idx) {
+        app.flash(format!("nothing to move at #{idx}"), Color::Yellow);
+        return;
+    }
+    app.flash(format!("moving #{idx} - Enter to drop, Esc to cancel"), Color::Cyan);
+    app.deck.move_from = Some((page, idx));
+}
+
+fn drop_button(app: &mut App) {
+    let Some((from_page, from)) = app.deck.move_from.take() else {
+        return;
+    };
+    let to_page = app.deck.current_page.clone();
+    let to = app.deck.selected_index();
+    if from_page == to_page && from == to {
+        app.flash("move cancelled", Color::Yellow);
+        return;
+    }
+    if let Err(e) = app.cfg.deck.move_button(&from_page, from, &to_page, to) {
+        app.flash(e, Color::Red);
+        return;
+    }
+    let msg = if from_page == to_page {
+        format!("moved #{from} to #{to} on {to_page}")
+    } else {
+        format!("moved {from_page} #{from} to {to_page} #{to}")
+    };
+    persist::save_and_restart(app, &msg);
+}
+
+fn cancel_move(app: &mut App) {
+    app.deck.move_from = None;
+    app.flash("move cancelled", Color::Yellow);
 }
 
 fn move_sel(app: &mut App, delta: i32) {

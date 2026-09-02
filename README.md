@@ -42,7 +42,7 @@ laid out correctly with no change here. All are USB vendor `0fd9`.
 
 | Device | Grid | USB ID | Supported | Tested | What the plugin does with it |
 | --- | :---: | :---: | :---: | :---: | --- |
-| Stream Deck MK.2 | 5x3 | `0080` | ✓ | ✓ | Key grid, pages, multi-key editing, brightness, display power |
+| Stream Deck MK.2 | 5x3 | `0080` | ✓ | ✓ | Key grid, drag to rearrange, pages, multi-key editing, brightness, display power |
 | Stream Deck | 5x3 | `0060` | ✓ | ✗ | Same grid and paging as the MK.2 |
 | Stream Deck V2 | 5x3 | `006d` | ✓ | ✗ | Same grid and paging as the MK.2 |
 | Stream Deck Scissor Keys | 5x3 | `00a5` | ✓ | ✗ | Same as the MK.2; only the key switches differ |
@@ -200,6 +200,24 @@ omgato-panel undo              # or step back one change at a time
 
 Both are buttons in the Key Lights view. Restore is greyed out until a default
 has been saved.
+
+## Rearranging deck keys
+
+Drag a key in the grid and drop it where you want it. Dropping on an empty key
+moves it there; dropping on another key swaps the two. Nothing is retyped, and
+the deck's undo button steps the move back. The same thing from a script:
+
+```bash
+streamdeck-ctl deck move omarchy 3 7              # 3 and 7 trade places
+streamdeck-ctl deck move omarchy 3 0 --to-page apps
+```
+
+A click still selects a key for editing, so only a drag of a few pixels starts a
+move, and only real keys move — the paging arrows are generated, not configured.
+
+`streamdeck-ctl tui` has the same move on the Deck tab: `m` picks the selected
+key up, the arrows and `[` `]` choose where it lands — including on another page
+— then `Enter` drops it and `Esc` puts it back.
 
 ## The camera overlay and the panel
 
