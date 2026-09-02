@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Piping a listing command into a reader that exits early, such as
+  `streamdeck-ctl deck show | head -1`, panicked with "failed printing to
+  stdout: Broken pipe" and exited 101; the one-shot commands now stop quietly
+  the way other shell tools do, while the daemons keep the default handling so
+  systemd still restarts them
+
 ## [0.1.6] - 2026-08-30
 
 ### Security
