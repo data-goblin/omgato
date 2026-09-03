@@ -1,6 +1,11 @@
 [Unit]
 Description=Stream Deck Pedal daemon (streamdeck-ctl)
 After=graphical-session.target
+# After= only orders against units in the same transaction. default.target
+# does not pull in graphical-session.target, so on boot this daemon started
+# before the session environment existed and every exec action failed to
+# reach the display. Binding to the session is what actually holds it back.
+PartOf=graphical-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=20
 
@@ -10,4 +15,4 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
