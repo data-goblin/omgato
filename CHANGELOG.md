@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The daemons started before the graphical session on boot, inheriting an
+  environment with no `WAYLAND_DISPLAY` or `HYPRLAND_INSTANCE_SIGNATURE`, so
+  every key rendered and every press was read but no `exec` action could reach
+  the display. `After=` alone did not order them, because `default.target` does
+  not pull in `graphical-session.target`; the units are now wanted by, and part
+  of, the graphical session
+
 ## [0.1.6] - 2026-08-30
 
 ### Security
