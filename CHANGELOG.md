@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Rediscover Key Lights over mDNS and retry once whenever every selected light
+  fails to answer, so a DHCP lease change no longer leaves `ls`, the panel and
+  every control command reporting `unreachable` until `discover` is run by hand.
+  The behaviour previously existed only on the Stream Deck `click` path and is
+  now shared by all of them
+
 ## [0.1.6] - 2026-08-30
 
 ### Security

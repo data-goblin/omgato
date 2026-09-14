@@ -101,36 +101,46 @@ pub fn run(cmd: Cmd, out: Out) -> i32 {
             }
             apply_each(&target, patch, &out)
         }
-        Cmd::Click { target } => cmd_click(&target, &out),
+        Cmd::Click { target } => cmd_toggle(&target, &out),
     }
 }
 
-fn cmd_click(target: &str, out: &Out) -> i32 {
-    let cache = config::load();
-    let selected: Vec<Light> = config::select(&cache, target).into_iter().cloned().collect();
-    let probes = light::probe(&selected);
-    let any_unreachable = probes.is_empty() || probes.iter().any(|r| r.is_err());
-    if any_unreachable {
-        match discover::run() {
-            Ok(c) => {
-                let (merged, _) = merge(c.lights, false);
-                if let Err(e) = config::save(&merged) {
-                    eprintln!("save failed: {e}");
-                }
-                if merged.lights.is_empty() {
-                    return 1;
-                }
-            }
-            Err(e) => {
-                eprintln!("discover: {e}");
-                return 1;
-            }
-        }
-        return cmd_toggle(target, out);
+fn rediscover() -> Result<(), String> {
+    let found = discover::run()?;
+    let (merged, _) = merge(found.lights, false);
+    if merged.lights.is_empty() {
+        return Err("no lights found".to_string());
     }
-    let any_on = probes.iter().any(|r| matches!(r, Ok(s) if s.on == 1));
-    let new_on = if any_on { 0 } else { 1 };
-    apply_each(target, LightPatch { on: Some(new_on), ..Default::default() }, out)
+    config::save(&merged).map_err(|e| format!("save failed: {e}"))
+}
+
+fn resolved(target: &str) -> Vec<Light> {
+    let cache = config::load();
+    config::select(&cache, target).into_iter().cloned().collect()
+}
+
+type Probed = (Vec<Light>, Vec<Result<LightState, String>>);
+
+fn attempt<F>(lights: Vec<Light>, target: &str, call: F) -> Probed
+where
+    F: Fn(&Light) -> Result<LightState, String> + Sync,
+{
+    let states = light::each(&lights, &call);
+    if lights.is_empty() || !states.iter().all(|state| state.is_err()) {
+        return (lights, states);
+    }
+    if let Err(error) = rediscover() {
+        eprintln!("discover: {error}");
+        return (lights, states);
+    }
+    let fresh = resolved(target);
+    if fresh.is_empty()
+        || (fresh.len() == lights.len() && fresh.iter().zip(&lights).all(|(a, b)| a.ip == b.ip))
+    {
+        return (lights, states);
+    }
+    let states = light::each(&fresh, &call);
+    (fresh, states)
 }
 
 fn same_light(a: &Light, b: &Light) -> bool {
@@ -206,7 +216,7 @@ fn apply_levels(target: &str, out: &Out, level: impl Fn(&LightState) -> LightPat
             return c;
         }
     };
-    let states = light::each(&lights, |l| {
+    let (lights, states) = attempt(lights, target, |l| {
         let current = light::get_state(l)?;
         light::apply(l, &level(&current))
     });
@@ -266,8 +276,8 @@ fn cmd_ls(out: &Out) -> i32 {
         }
         return 1;
     }
-    let states = light::probe(&cache.lights);
-    out.emit(&cache.lights, &states);
+    let (lights, states) = attempt(cache.lights, "all", light::get_state);
+    out.emit(&lights, &states);
     0
 }
 
@@ -291,7 +301,7 @@ fn apply_each(target: &str, patch: LightPatch, out: &Out) -> i32 {
             return c;
         }
     };
-    let states = light::each(&lights, |l| light::apply(l, &patch));
+    let (lights, states) = attempt(lights, target, |l| light::apply(l, &patch));
     let failed = states.iter().filter(|r| r.is_err()).count();
     out.emit(&lights, &states);
     if failed == lights.len() {
@@ -311,9 +321,8 @@ fn cmd_toggle(target: &str, out: &Out) -> i32 {
             return c;
         }
     };
-    let any_on = light::probe(&lights)
-        .iter()
-        .any(|r| matches!(r, Ok(s) if s.on == 1));
+    let (_, probes) = attempt(lights, target, light::get_state);
+    let any_on = probes.iter().any(|r| matches!(r, Ok(s) if s.on == 1));
     let new_on = if any_on { 0 } else { 1 };
     apply_each(target, LightPatch { on: Some(new_on), ..Default::default() }, out)
 }

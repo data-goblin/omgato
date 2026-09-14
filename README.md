@@ -358,9 +358,11 @@ Keys never update:        the daemons are not running. Check with
                           systemctl --user status streamdeck-ctl-deck
 No lights discovered:     run keylight-ctl discover. Key Lights answer over mDNS,
                           so the machine must be on the same subnet as the lights
-A light reads unreachable: probes retry inside a 500ms budget, so a light that
-                          still reports unreachable is genuinely not answering.
-                          Confirm with keylight-ctl ls --json
+A light reads unreachable: probes retry inside a 500ms budget, then every command
+                          rediscovers over mDNS once and retries against the
+                          addresses it finds, so a DHCP lease change heals itself.
+                          A light that still reports unreachable is genuinely not
+                          answering. Confirm with keylight-ctl ls --json
 Camera overlay is black:  the Cam Link is single-open. If a user service holds
                           it, the overlay borrows the device and gives it back
                           on hide. A plain process is named rather than killed.
