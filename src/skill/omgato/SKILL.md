@@ -62,8 +62,8 @@ omgato-panel sync                # every light to the average brightness and tem
 omgato-panel undo | redo         # light history
 omgato-panel deck-undo | deck-redo
 omgato-panel cam-undo | cam-redo
-omgato-panel rename --ip IP --name NAME
-omgato-panel order --ips a,b,c
+omgato-panel rename --mac MAC --name NAME
+omgato-panel order --macs a,b,c
 omgato-panel record --target pick | last | screen [--desktop-audio] [--mic]
 omgato-panel record --stop
 omgato-panel scope-undo | scope-redo

@@ -8,6 +8,7 @@ use serde::Serialize;
 struct Row {
     name: String,
     ip: String,
+    mac: String,
     reachable: bool,
     on: bool,
     brightness: u8,
@@ -28,6 +29,7 @@ impl Out {
                     Ok(s) => Row {
                         name: l.name.clone(),
                         ip: l.ip.clone(),
+                        mac: l.mac.clone(),
                         reachable: true,
                         on: s.on == 1,
                         brightness: s.brightness,
@@ -36,6 +38,7 @@ impl Out {
                     Err(_) => Row {
                         name: l.name.clone(),
                         ip: l.ip.clone(),
+                        mac: l.mac.clone(),
                         reachable: false,
                         on: false,
                         brightness: 0,

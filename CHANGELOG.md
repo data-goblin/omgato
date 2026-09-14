@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Key light display names, display order and undo history are keyed by MAC
+  instead of IPv4 address, so a DHCP lease change no longer orphans them.
+  `omgato-panel rename` takes `--mac` and `omgato-panel order` takes `--macs`;
+  `keylight-ctl ls --json` now reports `mac` alongside `ip`. Existing state is
+  migrated on first read: addresses that still resolve to a known light are
+  rewritten to its MAC, and entries matching no light are dropped
+
 ### Fixed
 
 - Rediscover Key Lights over mDNS and retry once whenever every selected light

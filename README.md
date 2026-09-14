@@ -243,8 +243,9 @@ scripts/uninstall      reverse the installer
 ```
 
 `omgato-panel` is the only crate the panel asks for state. It gathers one JSON
-document from the other three tools, keeps local light names and display order,
-and owns the undo histories. Device commands go straight from the panel to
+document from the other three tools, keeps local light names and display order
+keyed by MAC so a DHCP lease change cannot orphan them, and owns the undo
+histories. Device commands go straight from the panel to
 `keylight-ctl`, `streamdeck-ctl` and `camlink-ctl`, so nothing sits between a click and
 the hardware.
 
