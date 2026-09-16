@@ -4,24 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+This file was written by an agent.
+
 ## [Unreleased]
 
-### Changed
+## [0.1.7] - 2026-09-16
 
-- Key light display names, display order and undo history are keyed by MAC
-  instead of IPv4 address, so a DHCP lease change no longer orphans them.
-  `omgato-panel rename` takes `--mac` and `omgato-panel order` takes `--macs`;
-  `keylight-ctl ls --json` now reports `mac` alongside `ip`. Existing state is
-  migrated on first read: addresses that still resolve to a known light are
-  rewritten to its MAC, and entries matching no light are dropped
-
-### Fixed
-
-- Rediscover Key Lights over mDNS and retry once whenever every selected light
-  fails to answer, so a DHCP lease change no longer leaves `ls`, the panel and
-  every control command reporting `unreachable` until `discover` is run by hand.
-  The behaviour previously existed only on the Stream Deck `click` path and is
-  now shared by all of them
+- Replace the bar emblem with a larger, clearer play glyph.
+- Preserve light names, ordering, and history when network addresses change.
+- Automatically rediscover unreachable Key Lights and retry failed control commands.
+- Use MAC addresses for light rename and ordering CLI options.
 
 ## [0.1.6] - 2026-08-30
 
