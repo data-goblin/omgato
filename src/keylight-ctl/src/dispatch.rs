@@ -279,8 +279,8 @@ fn cmd_ls(out: &Out) -> i32 {
         }
         return 1;
     }
-    let (lights, states) = attempt(cache.lights, "all", light::get_state);
-    out.emit(&lights, &states);
+    let states = light::each(&cache.lights, light::get_state);
+    out.emit(&cache.lights, &states);
     0
 }
 

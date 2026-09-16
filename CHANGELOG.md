@@ -8,6 +8,12 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-16
+
+- Check lights only after explicit controls, leaving idle devices quiet.
+- Keep status queries from triggering repeated discovery of unavailable lights.
+- Allow other device status updates without contacting Key Lights.
+
 ## [0.1.7] - 2026-09-16
 
 - Replace the bar emblem with a larger, clearer play glyph.

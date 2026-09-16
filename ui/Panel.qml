@@ -36,6 +36,7 @@ Panel {
   property string device: "deck"
   property string pedalPosition: "left"
   property string lightsJson: ""
+  property bool refreshLights: false
   property string deckJson: ""
   property string deckPagesJson: ""
   property var deckPages: []
@@ -143,8 +144,10 @@ Panel {
       if (Date.now() - statusStartedAt > 8000) statusProc.signal(15)
       return
     }
-    if (interacting || renameMac !== "") return
+    if (interacting || renameMac !== "" || actionProc.running || actionQueue.length) return
     var cmd = root.opened ? ["omgato-panel"] : ["omgato-panel", "--lights-only"]
+    if (!refreshLights) cmd.push("--skip-lights")
+    refreshLights = false
     if (root.opened && root.view === "camera") cmd.push("--with-record")
     if (root.wantConflicts && root.opened) {
       cmd.push("--with-conflicts")
@@ -157,6 +160,8 @@ Panel {
 
   function act(cmd) {
     lastError = ""
+    if (cmd[0] === "keylight-ctl" || (cmd[0] === "omgato-panel"
+        && ["sync", "save-default", "restore-default", "undo", "redo", "rename", "order"].indexOf(cmd[1]) >= 0)) refreshLights = true
     if (cmd[0] === "omgato-panel" && String(cmd[1]).indexOf("shortcut") >= 0) wantConflicts = true
     actionQueue.push(cmd)
     runNextAction()
@@ -367,15 +372,18 @@ Panel {
 
   Process {
     id: statusProc
+    onExited: if (root.refreshLights) Qt.callLater(root.refresh)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         try {
           var data = JSON.parse(text || "{}")
-          var lightsText = JSON.stringify(data.lights || [])
-          if (lightsText !== root.lightsJson) {
-            root.lightsJson = lightsText
-            root.lights = data.lights || []
+          if (data.lights !== undefined) {
+            var lightsText = JSON.stringify(data.lights)
+            if (lightsText !== root.lightsJson) {
+              root.lightsJson = lightsText
+              root.lights = data.lights
+            }
           }
           if (data.deck) {
             var pagesText = JSON.stringify(data.deck.pages || [])
@@ -430,8 +438,8 @@ Panel {
   }
 
   Timer {
-    interval: root.opened ? 3000 : 15000
-    running: true
+    interval: 3000
+    running: root.opened
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
@@ -481,7 +489,7 @@ Panel {
     } else {
       releaseClaim()
     }
-    refresh()
+    if (opened) refresh()
   }
 
   BarIconButton {
@@ -642,6 +650,16 @@ Panel {
     Column {
       width: parent ? parent.width : 0
       spacing: Style.space(12)
+
+      Text {
+        width: parent.width
+        text: "Light checks are manual. Turn on or rediscover to refresh."
+        textFormat: Text.PlainText
+        wrapMode: Text.WordWrap
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
 
       ActionRow {
         primaryIcon: "󰓡"

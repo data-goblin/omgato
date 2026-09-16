@@ -29,6 +29,10 @@ struct Cli {
     #[arg(long, global = true)]
     with_record: bool,
 
+    /// Leave lights untouched when refreshing other devices
+    #[arg(long, global = true)]
+    skip_lights: bool,
+
     #[command(subcommand)]
     cmd: Option<Cmd>,
 }
@@ -99,7 +103,8 @@ enum Cmd {
 
 #[derive(Serialize)]
 struct Document {
-    lights: Vec<lights::Light>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lights: Option<Vec<lights::Light>>,
     history: state::Flags,
     /// Whether a saved default exists, so the panel knows if restoring is
     /// something the user can actually do yet.
@@ -114,10 +119,10 @@ struct Document {
     shortcuts: Option<shortcuts::Status>,
 }
 
-fn status(lights_only: bool, with_conflicts: bool, with_record: bool) {
+fn status(lights_only: bool, with_conflicts: bool, with_record: bool, skip_lights: bool) {
     let (lights, deck, camera) = std::thread::scope(|scope| {
         let devices = (!lights_only).then(|| (scope.spawn(deck::status), scope.spawn(camera::status)));
-        let lights = lights::read();
+        let lights = (!skip_lights).then(lights::read);
         match devices {
             Some((d, c)) => (lights, d.join().ok(), c.join().ok()),
             None => (lights, None, None),
@@ -125,7 +130,7 @@ fn status(lights_only: bool, with_conflicts: bool, with_record: bool) {
     });
 
     let mut history: state::History<Vec<state::Snap>> = state::History::load(state::LIGHTS_HISTORY);
-    if let Some(snap) = lights::snapshot(&lights, history.current()) {
+    if let Some(snap) = lights.as_ref().and_then(|lights| lights::snapshot(lights, history.current())) {
         history.fold(state::LIGHTS_HISTORY, snap);
     }
 
@@ -175,7 +180,7 @@ fn main() -> std::process::ExitCode {
     };
     let code = match cli.cmd {
         None | Some(Cmd::Status) => {
-            status(cli.lights_only, cli.with_conflicts, cli.with_record);
+            status(cli.lights_only, cli.with_conflicts, cli.with_record, cli.skip_lights);
             0
         }
         Some(Cmd::Sync) => {
