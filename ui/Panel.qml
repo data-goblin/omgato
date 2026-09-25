@@ -500,7 +500,6 @@ Panel {
     dimmed: !root.anyOn && !root.anyUnreachable
     active: root.anyUnreachable
     tooltipText: root.barSummary
-    slotSize: Style.bar.statusSlot
     fontSize: Style.font.iconLarge
     onPressed: function(b) {
       if (b === Qt.RightButton) root.act(["keylight-ctl", "click"])
