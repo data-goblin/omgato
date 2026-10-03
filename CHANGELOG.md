@@ -12,6 +12,9 @@ This file was written by an agent.
 - Stop one-shot `streamdeck-ctl` commands panicking when stdout is a pipe that closes early, such as `streamdeck-ctl deck show | head -1`.
 - Start the Stream Deck daemons with the graphical session, so `exec` actions reach the display after boot.
 - Give a page its own background with `bg` and `streamdeck-ctl deck page-bg PAGE [COLOR]`; pagination and empty keys keep the deck-wide `bg_color`.
+- Move a deck button with `streamdeck-ctl deck move PAGE FROM TO [--to-page PAGE]`, swapping with any button already at the destination.
+- Drag keys in the panel's key grid to rearrange them.
+- Move keys in the TUI with `m`, choose the spot with the arrows and `[` `]`, then drop with `Enter` or put back with `Esc`.
 
 ## [0.1.7] - 2026-09-16
 

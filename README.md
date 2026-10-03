@@ -236,11 +236,11 @@ streamdeck-ctl deck move omarchy 3 0 --to-page apps
 ```
 
 A click still selects a key for editing, so only a drag of a few pixels starts a
-move, and only real keys move — the paging arrows are generated, not configured.
+move, and only real keys move; the paging arrows are generated, not configured.
 
 `streamdeck-ctl tui` has the same move on the Deck tab: `m` picks the selected
-key up, the arrows and `[` `]` choose where it lands — including on another page
-— then `Enter` drops it and `Esc` puts it back.
+key up, the arrows and `[` `]` choose where it lands, including on another page,
+then `Enter` drops it and `Esc` puts it back.
 
 ## The camera overlay and the panel
 
