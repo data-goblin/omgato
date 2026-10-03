@@ -9,6 +9,7 @@ This file was written by an agent.
 ## [Unreleased]
 
 - Log a missing Stream Deck or Pedal once, then retry quietly, instead of on every reconnect attempt.
+- Stop one-shot `streamdeck-ctl` commands panicking when stdout is a pipe that closes early, such as `streamdeck-ctl deck show | head -1`.
 
 ## [0.1.7] - 2026-09-16
 
