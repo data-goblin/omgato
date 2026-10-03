@@ -1,6 +1,6 @@
 use crate::action::{self, Action};
 use crate::config::{Button, Page};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::{BTreeMap, HashMap};
 
 pub struct ParsedButton {

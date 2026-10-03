@@ -38,9 +38,13 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::OrderSet { names } => set_order(names),
         DeckCmd::AutoPaginate { enabled } => set_auto_paginate(enabled),
         DeckCmd::Preset { name, replace } => apply_preset(&name, replace),
-        DeckCmd::Export { out, page, size, keys, radius } => {
-            crate::export::run(&config::load()?, &out, page, size, keys, radius)
-        }
+        DeckCmd::Export {
+            out,
+            page,
+            size,
+            keys,
+            radius,
+        } => crate::export::run(&config::load()?, &out, page, size, keys, radius),
     }
 }
 
@@ -143,7 +147,11 @@ fn list_pages(cfg: &Config) -> Result<()> {
         let Some(page) = cfg.deck.pages.get(&name) else {
             continue;
         };
-        let marker = if name == cfg.deck.default_page { "*" } else { " " };
+        let marker = if name == cfg.deck.default_page {
+            "*"
+        } else {
+            " "
+        };
         println!("{} {} ({} buttons)", marker, name, page.buttons.len());
     }
     Ok(())
@@ -172,8 +180,12 @@ fn render_once(cfg: &Config) -> Result<()> {
         if let Some(btn) = by_idx.get(&i) {
             d.deck
                 .set_button_image(i, renderer.render_button(btn, page.bg.as_deref())?)?;
-        } else if let Some(synth) = cfg.deck.synthetic_button(&cfg.deck.default_page, i, key_count, d.kind.column_count()) {
-            d.deck.set_button_image(i, renderer.render_button(&synth, None)?)?;
+        } else if let Some(synth) =
+            cfg.deck
+                .synthetic_button(&cfg.deck.default_page, i, key_count, d.kind.column_count())
+        {
+            d.deck
+                .set_button_image(i, renderer.render_button(&synth, None)?)?;
         } else {
             d.deck.set_button_image(i, renderer.blank())?;
         }
@@ -236,7 +248,11 @@ fn set_button(
         let _ = action::parse(a)?;
     }
     let mut cfg = config::load()?;
-    let entry = cfg.deck.pages.entry(page.clone()).or_insert_with(Page::default);
+    let entry = cfg
+        .deck
+        .pages
+        .entry(page.clone())
+        .or_insert_with(Page::default);
     let pos = entry.buttons.iter().position(|b| b.index == index);
     let bref = match pos {
         Some(p) => &mut entry.buttons[p],
@@ -332,7 +348,11 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
     let Some((_, body)) = PRESETS.iter().find(|(id, _)| *id == name) else {
         anyhow::bail!(
             "unknown preset: {name} (have {})",
-            PRESETS.iter().map(|(id, _)| *id).collect::<Vec<_>>().join(", ")
+            PRESETS
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     };
     let preset: Config = toml::from_str(body)?;
@@ -357,7 +377,12 @@ fn apply_preset(name: &str, replace: bool) -> Result<()> {
         added.push(page);
     }
     if !cfg.deck.pages.contains_key(&cfg.deck.default_page) {
-        cfg.deck.default_page = cfg.deck.ordered_pages().first().cloned().unwrap_or_default();
+        cfg.deck.default_page = cfg
+            .deck
+            .ordered_pages()
+            .first()
+            .cloned()
+            .unwrap_or_default();
     }
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);

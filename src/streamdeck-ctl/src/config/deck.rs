@@ -37,7 +37,12 @@ impl DeckConfig {
             .filter(|n| self.pages.contains_key(*n))
             .cloned()
             .collect();
-        let rest: Vec<String> = self.pages.keys().filter(|n| !names.contains(n)).cloned().collect();
+        let rest: Vec<String> = self
+            .pages
+            .keys()
+            .filter(|n| !names.contains(n))
+            .cloned()
+            .collect();
         names.extend(rest);
         names
     }
@@ -50,8 +55,16 @@ impl DeckConfig {
         let Some(i) = order.iter().position(|n| n == page) else {
             return (None, None);
         };
-        let prev = if i > 0 { Some(order[i - 1].clone()) } else { None };
-        let next = if i + 1 < order.len() { Some(order[i + 1].clone()) } else { None };
+        let prev = if i > 0 {
+            Some(order[i - 1].clone())
+        } else {
+            None
+        };
+        let next = if i + 1 < order.len() {
+            Some(order[i + 1].clone())
+        } else {
+            None
+        };
         (prev, next)
     }
 
@@ -89,8 +102,6 @@ fn synth(index: u8, glyph: &str, target_page: &str) -> Button {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Page {
-    /// Background for this page's own buttons, overriding `bg_color`. Must be
-    /// serialised before `buttons`, since TOML emits values before tables.
     #[serde(default)]
     pub bg: Option<String>,
     #[serde(default)]
@@ -208,9 +219,6 @@ mod page_bg_tests {
         cfg
     }
 
-    /// TOML requires a table's plain values before its sub-tables, so `bg` has
-    /// to be declared ahead of `buttons`. Serialising is what catches a
-    /// reordering of the struct fields.
     #[test]
     fn a_page_colour_survives_a_round_trip() {
         let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
@@ -223,7 +231,9 @@ mod page_bg_tests {
     fn the_colour_is_written_before_the_buttons() {
         let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
         let bg = text.find("bg = \"#101820\"").expect("bg is written");
-        let buttons = text.find("[[deck.pages.main.buttons]]").expect("buttons written");
+        let buttons = text
+            .find("[[deck.pages.main.buttons]]")
+            .expect("buttons written");
         assert!(bg < buttons, "bg must precede the button tables:\n{text}");
     }
 
@@ -233,6 +243,9 @@ mod page_bg_tests {
         cfg.deck.pages.get_mut("main").unwrap().bg = None;
         let text = toml::to_string_pretty(&cfg).expect("serialises");
         let deck_section = text.split("[[deck.pages.main.buttons]]").next().unwrap();
-        assert!(!deck_section.contains("\nbg = "), "unset bg leaks a key:\n{text}");
+        assert!(
+            !deck_section.contains("\nbg = "),
+            "unset bg leaks a key:\n{text}"
+        );
     }
 }
