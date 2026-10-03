@@ -201,6 +201,29 @@ omgato-panel undo              # or step back one change at a time
 Both are buttons in the Key Lights view. Restore is greyed out until a default
 has been saved.
 
+## Colouring a page
+
+A page can name its own background, which every key on that page picks up
+unless it sets `bg` itself:
+
+```bash
+streamdeck-ctl deck page-bg media '#221a2c'
+streamdeck-ctl deck page-bg media           # back to the deck-wide bg_color
+```
+
+```toml
+[deck.pages.media]
+bg = "#221a2c"
+```
+
+A tint per page makes the current page obvious at a glance. Generated
+pagination keys and empty keys deliberately keep the deck-wide `bg_color`, so
+they stay visually separate from the page's own keys.
+
+Because the colour lives on the page rather than on every button, a script can
+recolour the deck without touching the layout, for instance to follow the
+desktop theme from a hook.
+
 ## Rearranging deck keys
 
 Drag a key in the grid and drop it where you want it. Dropping on an empty key
@@ -261,8 +284,9 @@ scripts/uninstall      reverse the installer
 ```
 
 `omgato-panel` is the only crate the panel asks for state. It gathers one JSON
-document from the other three tools, keeps local light names and display order,
-and owns the undo histories. Device commands go straight from the panel to
+document from the other three tools, keeps local light names and display order
+keyed by MAC so a DHCP lease change cannot orphan them, and owns the undo
+histories. Device commands go straight from the panel to
 `keylight-ctl`, `streamdeck-ctl` and `camlink-ctl`, so nothing sits between a click and
 the hardware.
 
@@ -376,9 +400,11 @@ Keys never update:        the daemons are not running. Check with
                           systemctl --user status streamdeck-ctl-deck
 No lights discovered:     run keylight-ctl discover. Key Lights answer over mDNS,
                           so the machine must be on the same subnet as the lights
-A light reads unreachable: probes retry inside a 500ms budget, so a light that
-                          still reports unreachable is genuinely not answering.
-                          Confirm with keylight-ctl ls --json
+A light reads unreachable: probes retry inside a 500ms budget, then every command
+                          rediscovers over mDNS once and retries against the
+                          addresses it finds, so a DHCP lease change heals itself.
+                          A light that still reports unreachable is genuinely not
+                          answering. Confirm with keylight-ctl ls --json
 Camera overlay is black:  the Cam Link is single-open. If a user service holds
                           it, the overlay borrows the device and gives it back
                           on hide. A plain process is named rather than killed.

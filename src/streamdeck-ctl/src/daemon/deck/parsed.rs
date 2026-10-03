@@ -1,6 +1,6 @@
 use crate::action::{self, Action};
 use crate::config::{Button, Page};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::{BTreeMap, HashMap};
 
 pub struct ParsedButton {
@@ -9,6 +9,7 @@ pub struct ParsedButton {
 }
 
 pub struct ParsedPage {
+    pub bg: Option<String>,
     pub buttons: Vec<ParsedButton>,
 }
 
@@ -24,7 +25,13 @@ pub fn parse_all(pages: &BTreeMap<String, Page>) -> Result<HashMap<String, Parse
                 action,
             });
         }
-        out.insert(name.clone(), ParsedPage { buttons: bs });
+        out.insert(
+            name.clone(),
+            ParsedPage {
+                bg: page.bg.clone(),
+                buttons: bs,
+            },
+        );
     }
     Ok(out)
 }

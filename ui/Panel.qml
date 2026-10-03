@@ -25,7 +25,7 @@ Panel {
   property int recSeconds: 0
   property var history: ({ can_undo: false, can_redo: false })
   property bool defaultSaved: false
-  property string renameIp: ""
+  property string renameMac: ""
   property bool renamingPage: false
   property string view: "lights"
   property int pageIndex: 0
@@ -145,7 +145,7 @@ Panel {
       if (Date.now() - statusStartedAt > 8000) statusProc.signal(15)
       return
     }
-    if (interacting || renameIp !== "") return
+    if (interacting || renameMac !== "") return
     var cmd = root.opened ? ["omgato-panel"] : ["omgato-panel", "--lights-only"]
     if (root.opened && root.view === "camera") cmd.push("--with-record")
     if (root.wantConflicts && root.opened) {
@@ -354,10 +354,10 @@ Panel {
     var to = dragTo
     cancelOrder()
     if (from < 0 || to < 0 || from === to) return
-    var addresses = lights.map(function(l) { return l.ip })
+    var addresses = lights.map(function(l) { return l.mac })
     addresses.splice(to, 0, addresses.splice(from, 1)[0])
     lightsJson = ""
-    act(["omgato-panel", "order", "--ips", addresses.join(",")])
+    act(["omgato-panel", "order", "--macs", addresses.join(",")])
   }
 
   function deckSet(pageName, index, field, value) {
@@ -490,7 +490,7 @@ Panel {
   onOpenedChanged: {
     if (opened) wantConflicts = true
     if (!opened) {
-      renameIp = ""
+      renameMac = ""
       selection = []
       interacting = false
       cancelOrder()
@@ -504,23 +504,16 @@ Panel {
     refresh()
   }
 
-  Component {
-    id: markIcon
-    OmgatoMark {
-      color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-    }
-  }
-
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    iconComponent: markIcon
+    text: "󰐊"
     dimmed: !root.anyOn && !root.anyUnreachable
     active: root.anyUnreachable
     tooltipText: root.barSummary
     slotSize: Style.bar.statusSlot
-    fontSize: Style.font.caption
+    fontSize: Style.font.iconLarge
     onPressed: function(b) {
       if (b === Qt.RightButton) root.act(["keylight-ctl", "click"])
       else root.toggle()
@@ -718,7 +711,7 @@ Panel {
             required property var modelData
             required property int index
             readonly property int cellIndex: index
-            readonly property bool renaming: root.renameIp === modelData.ip
+            readonly property bool renaming: root.renameMac === modelData.mac
             readonly property bool handlesVisible: cellHover.hovered || root.dragFrom >= 0
             readonly property bool dropTarget: root.dragFrom >= 0 && root.dragTo === index && root.dragFrom !== index
 
@@ -775,7 +768,7 @@ Panel {
                     opacity: lightCell.handlesVisible ? 1 : 0
                     enabled: lightCell.handlesVisible
                     anchors.verticalCenter: parent.verticalCenter
-                    onPressed: root.renameIp = lightCell.modelData.ip
+                    onPressed: root.renameMac = lightCell.modelData.mac
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                   }
 
@@ -823,10 +816,10 @@ Panel {
                   placeholderText: lightCell.modelData.name
                   font.pixelSize: Style.font.body
                   onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
-                onActiveFocusChanged: if (!activeFocus && root.renameIp === lightCell.modelData.ip) root.renameIp = ""
+                onActiveFocusChanged: if (!activeFocus && root.renameMac === lightCell.modelData.mac) root.renameMac = ""
                   onCommitted: function(v) {
-                    if (v !== lightCell.modelData.display) root.act(["omgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
-                    root.renameIp = ""
+                    if (v !== lightCell.modelData.display) root.act(["omgato-panel", "rename", "--mac", lightCell.modelData.mac, "--name", v])
+                    root.renameMac = ""
                   }
                 }
 

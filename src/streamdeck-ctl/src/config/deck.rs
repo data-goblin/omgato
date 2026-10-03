@@ -37,7 +37,12 @@ impl DeckConfig {
             .filter(|n| self.pages.contains_key(*n))
             .cloned()
             .collect();
-        let rest: Vec<String> = self.pages.keys().filter(|n| !names.contains(n)).cloned().collect();
+        let rest: Vec<String> = self
+            .pages
+            .keys()
+            .filter(|n| !names.contains(n))
+            .cloned()
+            .collect();
         names.extend(rest);
         names
     }
@@ -50,8 +55,16 @@ impl DeckConfig {
         let Some(i) = order.iter().position(|n| n == page) else {
             return (None, None);
         };
-        let prev = if i > 0 { Some(order[i - 1].clone()) } else { None };
-        let next = if i + 1 < order.len() { Some(order[i + 1].clone()) } else { None };
+        let prev = if i > 0 {
+            Some(order[i - 1].clone())
+        } else {
+            None
+        };
+        let next = if i + 1 < order.len() {
+            Some(order[i + 1].clone())
+        } else {
+            None
+        };
         (prev, next)
     }
 
@@ -132,6 +145,8 @@ fn synth(index: u8, glyph: &str, target_page: &str) -> Button {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Page {
+    #[serde(default)]
+    pub bg: Option<String>,
     #[serde(default)]
     pub buttons: Vec<Button>,
 }
@@ -218,6 +233,63 @@ impl Default for DeckConfig {
 impl DeckConfig {
     pub fn active_brightness(&self) -> u8 {
         if self.display_off { 0 } else { self.brightness }
+    }
+}
+
+#[cfg(test)]
+mod page_bg_tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn page_with_bg() -> Config {
+        let mut cfg = Config::default();
+        cfg.deck.pages.clear();
+        cfg.deck.pages.insert(
+            "main".to_owned(),
+            Page {
+                bg: Some("#101820".to_owned()),
+                buttons: vec![Button {
+                    index: 0,
+                    label: "a".to_owned(),
+                    glyph: None,
+                    icon: None,
+                    bg: None,
+                    fg: None,
+                    action: "noop".to_owned(),
+                }],
+            },
+        );
+        cfg
+    }
+
+    #[test]
+    fn a_page_colour_survives_a_round_trip() {
+        let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
+        let back: Config = toml::from_str(&text).expect("parses");
+        assert_eq!(back.deck.pages["main"].bg.as_deref(), Some("#101820"));
+        assert_eq!(back.deck.pages["main"].buttons.len(), 1);
+    }
+
+    #[test]
+    fn the_colour_is_written_before_the_buttons() {
+        let text = toml::to_string_pretty(&page_with_bg()).expect("serialises");
+        let bg = text.find("bg = \"#101820\"").expect("bg is written");
+        let buttons = text
+            .find("[[deck.pages.main.buttons]]")
+            .expect("buttons written");
+        assert!(bg < buttons, "bg must precede the button tables:\n{text}");
+    }
+
+    #[test]
+    fn a_page_without_a_colour_writes_no_bg_key() {
+        let mut cfg = page_with_bg();
+        cfg.deck.pages.get_mut("main").unwrap().bg = None;
+        let text = toml::to_string_pretty(&cfg).expect("serialises");
+        let deck_section = text.split("[[deck.pages.main.buttons]]").next().unwrap();
+        assert!(
+            !deck_section.contains("\nbg = "),
+            "unset bg leaks a key:\n{text}"
+        );
     }
 }
 

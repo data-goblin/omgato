@@ -1,5 +1,5 @@
 use crate::config::{Button, DeckConfig};
-use ab_glyph::{point, Font, FontVec, PxScale};
+use ab_glyph::{Font, FontVec, PxScale, point};
 use anyhow::{Context, Result};
 use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 use imageproc::drawing::{draw_text_mut, text_size};
@@ -32,9 +32,9 @@ impl Renderer {
         })
     }
 
-    pub fn render_button(&self, btn: &Button) -> Result<DynamicImage> {
+    pub fn render_button(&self, btn: &Button, page_bg: Option<&str>) -> Result<DynamicImage> {
         let s = self.size;
-        let bg = colour_or(btn.bg.as_deref(), self.default_bg);
+        let bg = colour_or(btn.bg.as_deref().or(page_bg), self.default_bg);
         let fg = colour_or(btn.fg.as_deref(), self.default_fg);
 
         let mut img: RgbImage = ImageBuffer::from_pixel(s, s, bg);
@@ -64,7 +64,7 @@ impl Renderer {
         };
         let s = self.size;
         let target = (s as f32 * 0.55) as u32;
-        let x_off = (s - target) / 2 ;
+        let x_off = (s - target) / 2;
         let y_off = (s as f32 * 0.10) as u32;
         let resized = icon
             .resize_exact(target, target, image::imageops::FilterType::Lanczos3)
@@ -90,8 +90,13 @@ impl Renderer {
     fn draw_glyph(&self, img: &mut RgbImage, glyph: &str, fg: Rgb<u8>) {
         let s = self.size;
         let scale = PxScale::from(s as f32 * 0.55);
-        let Some(c) = glyph.chars().next() else { return };
-        let g = self.glyph_font.glyph_id(c).with_scale_and_position(scale, point(0.0, 0.0));
+        let Some(c) = glyph.chars().next() else {
+            return;
+        };
+        let g = self
+            .glyph_font
+            .glyph_id(c)
+            .with_scale_and_position(scale, point(0.0, 0.0));
         if let Some(outlined) = self.glyph_font.outline_glyph(g) {
             let b = outlined.px_bounds();
             let visible_w = b.max.x - b.min.x;
@@ -117,9 +122,13 @@ impl Renderer {
                 break vec![(scale, label.to_string())];
             }
             if let Some((head, tail)) = split_label(label)
-                && self.line_width(scale, &head).max(self.line_width(scale, &tail)) <= budget {
-                    break vec![(scale, head), (scale, tail)];
-                }
+                && self
+                    .line_width(scale, &head)
+                    .max(self.line_width(scale, &tail))
+                    <= budget
+            {
+                break vec![(scale, head), (scale, tail)];
+            }
             steps += 1;
             if s * (LABEL_SCALE_MAX - steps as f32 * LABEL_SCALE_STEP) < s * LABEL_SCALE_MIN {
                 let scale = PxScale::from(s * LABEL_SCALE_MIN);
@@ -190,7 +199,9 @@ fn read_font(path: &str, fallback_family: &str) -> Result<Vec<u8>> {
         .filter(|out| out.status.success())
         .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
         .filter(|found| !found.is_empty())
-        .ok_or_else(|| anyhow::anyhow!("no font at {path} and fontconfig found no {fallback_family}"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("no font at {path} and fontconfig found no {fallback_family}")
+        })?;
     eprintln!("streamdeck-ctl: {path} missing, using {matched}");
     Ok(fs::read(&matched)?)
 }
