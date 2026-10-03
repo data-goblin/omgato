@@ -11,6 +11,7 @@ This file was written by an agent.
 - Log a missing Stream Deck or Pedal once, then retry quietly, instead of on every reconnect attempt.
 - Stop one-shot `streamdeck-ctl` commands panicking when stdout is a pipe that closes early, such as `streamdeck-ctl deck show | head -1`.
 - Start the Stream Deck daemons with the graphical session, so `exec` actions reach the display after boot.
+- Give a page its own background with `bg` and `streamdeck-ctl deck page-bg PAGE [COLOR]`; pagination and empty keys keep the deck-wide `bg_color`.
 
 ## [0.1.7] - 2026-09-16
 

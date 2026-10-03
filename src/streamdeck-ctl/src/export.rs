@@ -25,7 +25,11 @@ pub fn run(
     verify_trusted_directory(&out)?;
     let device = device::deck::open_first().ok();
     let size = size
-        .or_else(|| device.as_ref().map(|d| d.kind.key_image_format().size.0 as u32))
+        .or_else(|| {
+            device
+                .as_ref()
+                .map(|d| d.kind.key_image_format().size.0 as u32)
+        })
         .unwrap_or(FALLBACK_SIZE);
     let key_count = keys
         .or_else(|| device.as_ref().map(|d| d.kind.key_count()))
@@ -52,9 +56,9 @@ pub fn run(
         let by_index: HashMap<u8, &Button> = page.buttons.iter().map(|b| (b.index, b)).collect();
         for index in 0..key_count {
             let image = match by_index.get(&index) {
-                Some(btn) => renderer.render_button(btn)?,
+                Some(btn) => renderer.render_button(btn, page.bg.as_deref())?,
                 None => match cfg.deck.synthetic_button(&name, index, key_count, cols) {
-                    Some(synth) => renderer.render_button(&synth)?,
+                    Some(synth) => renderer.render_button(&synth, None)?,
                     None => renderer.blank(),
                 },
             };
@@ -73,7 +77,9 @@ fn absolute(path: &Path) -> Result<PathBuf> {
     if path.is_absolute() {
         Ok(path.to_owned())
     } else {
-        Ok(std::env::current_dir().context("resolve export directory")?.join(path))
+        Ok(std::env::current_dir()
+            .context("resolve export directory")?
+            .join(path))
     }
 }
 
@@ -100,7 +106,11 @@ fn verify_trusted_directory(path: &Path) -> Result<()> {
             anyhow::bail!("{} is not a real directory", current.display());
         }
         if meta.uid() != own_uid && meta.uid() != root_uid {
-            anyhow::bail!("{} is owned by untrusted uid {}", current.display(), meta.uid());
+            anyhow::bail!(
+                "{} is owned by untrusted uid {}",
+                current.display(),
+                meta.uid()
+            );
         }
         let mode = meta.permissions().mode() & 0o7777;
         if mode & 0o022 != 0 && mode & 0o1000 == 0 {
@@ -117,7 +127,9 @@ fn write_png_atomic(image: &DynamicImage, path: &Path) -> Result<()> {
     let parent = path.parent().context("PNG path has no parent")?;
     let tmp = parent.join(format!(
         ".{}.{}.tmp",
-        path.file_name().and_then(|name| name.to_str()).unwrap_or("key.png"),
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("key.png"),
         std::process::id()
     ));
     let mut file = fs::OpenOptions::new()
@@ -130,7 +142,8 @@ fn write_png_atomic(image: &DynamicImage, path: &Path) -> Result<()> {
         let _ = fs::remove_file(&tmp);
         return Err(e).with_context(|| format!("encode {}", path.display()));
     }
-    file.sync_all().with_context(|| format!("sync {}", tmp.display()))?;
+    file.sync_all()
+        .with_context(|| format!("sync {}", tmp.display()))?;
     drop(file);
     fs::rename(&tmp, path).with_context(|| format!("publish {}", path.display()))
 }
