@@ -29,6 +29,12 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         } => set_button(page, index, label, glyph, icon, bg, fg, action),
         DeckCmd::Unset { page, index } => unset_button(page, index),
         DeckCmd::PageBg { page, color } => set_page_bg(page, color),
+        DeckCmd::Move {
+            page,
+            from,
+            to,
+            to_page,
+        } => move_button(page, from, to, to_page),
         DeckCmd::Pages => list_pages(&config::load()?),
         DeckCmd::PageAdd { name } => page_add(name),
         DeckCmd::PageRm { name } => page_rm(name),
@@ -316,6 +322,31 @@ fn set_page_bg(page: String, color: Option<String>) -> Result<()> {
         anyhow::bail!("page '{}' does not exist", page);
     };
     entry.bg = color.filter(|c| !c.trim().is_empty());
+    config::save(&cfg)?;
+    let _ = service::reload(units::DECK_SERVICE);
+    Ok(())
+}
+
+fn move_button(page: String, from: u8, to: u8, to_page: Option<String>) -> Result<()> {
+    validate_page_name(&page)?;
+    let dest = match to_page {
+        Some(name) => {
+            validate_page_name(&name)?;
+            name
+        }
+        None => page.clone(),
+    };
+    let keys = device::deck_key_count();
+    if to >= keys {
+        anyhow::bail!(
+            "cannot move to key {to}: the deck has keys 0 to {}",
+            keys - 1
+        );
+    }
+    let mut cfg = config::load()?;
+    cfg.deck
+        .move_button(&page, from, &dest, to)
+        .map_err(|e| anyhow::anyhow!(e))?;
     config::save(&cfg)?;
     let _ = service::reload(units::DECK_SERVICE);
     Ok(())
