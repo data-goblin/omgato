@@ -8,6 +8,8 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+- Quote the `hyprctl dispatch` actions in the `omarchy` preset, so the Close, Full, Float, workspace, Scratch and Prev/Next ws keys on the `windows` page run instead of failing silently in `sh`. A deck set up from an earlier preset keeps the broken keys until `streamdeck-ctl deck page-rm windows` and `streamdeck-ctl deck preset omarchy` re-add the page.
+
 ## [0.1.8] - 2026-10-03
 
 - Check lights only after explicit controls, leaving idle devices quiet.

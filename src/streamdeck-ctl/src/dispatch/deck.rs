@@ -547,3 +547,33 @@ fn set_default_page(name: String) -> Result<()> {
     let _ = service::reload(units::DECK_SERVICE);
     Ok(())
 }
+
+#[cfg(test)]
+mod preset_tests {
+    use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn every_preset_exec_action_parses_as_a_shell_command() {
+        for (name, body) in PRESETS {
+            let preset: Config = toml::from_str(body).expect("preset parses");
+            for (page, buttons) in &preset.deck.pages {
+                for button in &buttons.buttons {
+                    let (kind, cmd) = action::split(&button.action);
+                    if kind != action::ActionKind::Exec {
+                        continue;
+                    }
+                    let status = Command::new("sh")
+                        .args(["-n", "-c", &format!("{cmd} &")])
+                        .status()
+                        .expect("sh runs");
+                    assert!(
+                        status.success(),
+                        "preset {name} page {page} key {} does not parse: {cmd}",
+                        button.index
+                    );
+                }
+            }
+        }
+    }
+}

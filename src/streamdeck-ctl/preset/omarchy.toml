@@ -224,19 +224,19 @@ action = "exec:omarchy-launch-about"
 index = 0
 label = "Close"
 glyph = "󰅖"
-action = "exec:hyprctl dispatch hl.dsp.window.close({})"
+action = "exec:hyprctl dispatch 'hl.dsp.window.close({})'"
 
 [[deck.pages.windows.buttons]]
 index = 1
 label = "Full"
 glyph = "󰊓"
-action = 'exec:hyprctl dispatch hl.dsp.window.fullscreen({ mode = "fullscreen" })'
+action = "exec:hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"fullscreen\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 2
 label = "Float"
 glyph = "󱂬"
-action = 'exec:hyprctl dispatch hl.dsp.window.float({ action = "toggle" })'
+action = "exec:hyprctl dispatch 'hl.dsp.window.float({ action = \"toggle\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 3
@@ -254,46 +254,46 @@ action = "exec:omarchy-hyprland-window-transparency-toggle"
 index = 5
 label = "1"
 glyph = "󰎤"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "1" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"1\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 6
 label = "2"
 glyph = "󰎧"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "2" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"2\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 7
 label = "3"
 glyph = "󰎪"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "3" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"3\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 8
 label = "4"
 glyph = "󰎭"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "4" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"4\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 9
 label = "5"
 glyph = "󰎱"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "5" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"5\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 11
 label = "Scratch"
 glyph = "󱊔"
-action = 'exec:hyprctl dispatch hl.dsp.workspace.toggle_special("scratchpad")'
+action = "exec:hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"scratchpad\")'"
 
 [[deck.pages.windows.buttons]]
 index = 12
 label = "Prev ws"
 glyph = "󰅁"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "e-1" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"e-1\" })'"
 
 [[deck.pages.windows.buttons]]
 index = 13
 label = "Next ws"
 glyph = "󰅂"
-action = 'exec:hyprctl dispatch hl.dsp.focus({ workspace = "e+1" })'
+action = "exec:hyprctl dispatch 'hl.dsp.focus({ workspace = \"e+1\" })'"
