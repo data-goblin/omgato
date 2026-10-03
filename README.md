@@ -250,10 +250,12 @@ The panel already retints itself when the theme changes. The keys can too:
 streamdeck-ctl deck follow-theme true    # opt in; off by default
 streamdeck-ctl deck theme                # apply now
 streamdeck-ctl deck theme --dry-run      # print the colours, change nothing
+streamdeck-ctl deck follow-theme false   # opt out and remove the hook
 ```
 
-The installer places a `theme-set` hook, so from then on the deck recolours
-itself whenever you switch theme. The hook is inert until you opt in.
+Opting in installs a `theme-set` hook through `omarchy-hook-install`, so from
+then on the deck recolours itself whenever you switch theme. Opting out removes
+it again.
 
 Colours come from `omarchy-theme-color`, so they resolve exactly as every other
 Omarchy consumer sees them. The deck background and text follow the theme's
@@ -263,7 +265,7 @@ Choosing those page colours is the fiddly part. Reading four fixed palette keys
 falls apart on a theme whose palette is warm or monochrome throughout, where
 they all land on the same colour. So the whole palette is considered and the
 entries furthest apart perceptually are chosen. Where a palette genuinely holds
-nothing distinct — Vantablack, say — the pages are separated by weight instead,
+nothing distinct, Vantablack say, the pages are separated by weight instead,
 one accent laid on progressively thicker. Either way each colour is eased back
 toward the background if it would not leave the label readable.
 
@@ -355,6 +357,9 @@ one touches outside its own directory.
 ~/.local/state/omgato-panel/: light display names, display order, undo history
 ~/.cache/omgato-panel/:   rendered key previews
 ~/.config/streamdeck-ctl/config.toml: your deck and pedal configuration
+~/.config/omarchy/hooks/theme-set.d/omgato-deck.hook: recolours the deck on a
+                          theme change, only after `deck follow-theme true`;
+                          `deck follow-theme false` or scripts/uninstall removes it
 $XDG_RUNTIME_DIR/camlink-ctl/: overlay position and pid, cleared on reboot
 agent skill directories:  a symlink to src/skill/, only where the directory
                           already exists, and only if you did not pass --no-skill
