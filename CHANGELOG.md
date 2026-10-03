@@ -8,6 +8,8 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+- Log a missing Stream Deck or Pedal once, then retry quietly, instead of on every reconnect attempt.
+
 ## [0.1.7] - 2026-09-16
 
 - Replace the bar emblem with a larger, clearer play glyph.
