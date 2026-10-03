@@ -4,16 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+This file was written by an agent.
+
 ## [Unreleased]
 
-### Fixed
+- Log a missing Stream Deck or Pedal once, then retry quietly, instead of on every reconnect attempt.
+- Stop one-shot `streamdeck-ctl` commands panicking when stdout is a pipe that closes early, such as `streamdeck-ctl deck show | head -1`.
 
-- The daemons started before the graphical session on boot, inheriting an
-  environment with no `WAYLAND_DISPLAY` or `HYPRLAND_INSTANCE_SIGNATURE`, so
-  every key rendered and every press was read but no `exec` action could reach
-  the display. `After=` alone did not order them, because `default.target` does
-  not pull in `graphical-session.target`; the units are now wanted by, and part
-  of, the graphical session
+## [0.1.7] - 2026-09-16
+
+- Replace the bar emblem with a larger, clearer play glyph.
+- Preserve light names, ordering, and history when network addresses change.
+- Automatically rediscover unreachable Key Lights and retry failed control commands.
+- Use MAC addresses for light rename and ordering CLI options.
 
 ## [0.1.6] - 2026-08-30
 

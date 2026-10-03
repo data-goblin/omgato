@@ -71,6 +71,8 @@ pub struct Snap {
     pub name: String,
     #[serde(default)]
     pub ip: String,
+    #[serde(default)]
+    pub mac: String,
     pub on: bool,
     pub brightness: u8,
     pub kelvin: u32,
