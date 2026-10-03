@@ -1080,15 +1080,10 @@ Panel {
               }
 
               onReleased: {
-                if (!dragged) return
-                dragged = false
-                root.commitKeyDrag()
+                if (dragged) root.commitKeyDrag()
               }
 
-              onCanceled: {
-                dragged = false
-                root.cancelKeyDrag()
-              }
+              onCanceled: root.cancelKeyDrag()
 
               onClicked: function(mouse) {
                 if (dragged) return
