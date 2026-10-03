@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "streamdeck-ctl", about = "Control Stream Deck devices (pedal, deck)")]
+#[command(
+    name = "streamdeck-ctl",
+    about = "Control Stream Deck devices (pedal, deck)"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub cmd: Cmd,
@@ -36,8 +39,6 @@ pub enum Cmd {
 }
 
 impl Cmd {
-    /// True for the commands that stay running under systemd, which keep the
-    /// Rust default handling of `SIGPIPE`.
     pub fn is_daemon(&self) -> bool {
         matches!(
             self,
@@ -55,10 +56,7 @@ pub enum PedalCmd {
     /// Show all configured pedal bindings (per gesture)
     Show,
     /// Get one binding: GESTURE is tap|long|double
-    Get {
-        position: String,
-        gesture: String,
-    },
+    Get { position: String, gesture: String },
     /// Set one binding. ACTION is one of:
     ///   key:KEY_F13  exec:firefox  noop
     Set {
@@ -164,8 +162,18 @@ mod tests {
     #[test]
     fn the_printing_commands_are_not_daemons() {
         assert!(!Cmd::Deck { cmd: DeckCmd::Show }.is_daemon());
-        assert!(!Cmd::Deck { cmd: DeckCmd::Pages }.is_daemon());
-        assert!(!Cmd::Pedal { cmd: PedalCmd::Show }.is_daemon());
+        assert!(
+            !Cmd::Deck {
+                cmd: DeckCmd::Pages
+            }
+            .is_daemon()
+        );
+        assert!(
+            !Cmd::Pedal {
+                cmd: PedalCmd::Show
+            }
+            .is_daemon()
+        );
         assert!(!Cmd::Ls { json: false }.is_daemon());
         assert!(!Cmd::Tui.is_daemon());
     }
