@@ -68,9 +68,6 @@ impl DeckConfig {
         (prev, next)
     }
 
-    /// Move the button at `from` on `page` to index `to` on `dest`, swapping
-    /// with whatever already sits there. Nothing is changed unless the whole
-    /// move succeeds.
     pub fn move_button(&mut self, page: &str, from: u8, dest: &str, to: u8) -> Result<(), String> {
         if page == dest && from == to {
             return Ok(());
@@ -313,8 +310,12 @@ mod tests {
         let mut cfg = DeckConfig::default();
         cfg.pages.clear();
         for (name, indices) in pages {
-            let buttons = indices.iter().map(|i| button(*i, &format!("b{i}"))).collect();
-            cfg.pages.insert((*name).to_owned(), Page { buttons });
+            let buttons = indices
+                .iter()
+                .map(|i| button(*i, &format!("b{i}")))
+                .collect();
+            cfg.pages
+                .insert((*name).to_owned(), Page { bg: None, buttons });
         }
         cfg
     }
