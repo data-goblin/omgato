@@ -1,10 +1,10 @@
 use crate::tui::state::{App, Tab};
 use ratatui::{
+    Frame,
     layout::Rect,
     style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {

@@ -1,11 +1,11 @@
 use crate::config::Button;
-use crate::tui::deck::{parse_action, ActionKind, ROWS_PER_PAGE};
+use crate::tui::deck::{ActionKind, ROWS_PER_PAGE, parse_action};
 use crate::tui::state::App;
 use ratatui::{
+    Frame,
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table},
-    Frame,
 };
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
@@ -22,7 +22,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             .fg(Color::Yellow),
     );
 
-    let rows: Vec<Row> = (0..crate::tui::deck::rows_per_page())
+    let rows: Vec<Row> = (0..crate::device::deck_key_count())
         .map(|i| build_row(i, app))
         .collect();
     let widths = [
@@ -100,10 +100,7 @@ fn button_row(index: u8, b: &Button) -> Row<'static> {
         Style::default()
     };
     let (visual, visual_style) = match (&b.icon, &b.glyph) {
-        (Some(_), _) => (
-            "PNG".to_string(),
-            Style::default().fg(Color::Yellow),
-        ),
+        (Some(_), _) => ("PNG".to_string(), Style::default().fg(Color::Yellow)),
         (None, Some(g)) => (g.clone(), Style::default()),
         _ => (String::new(), Style::default()),
     };

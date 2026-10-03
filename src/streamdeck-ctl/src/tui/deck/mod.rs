@@ -45,13 +45,6 @@ impl Field {
 
 pub const ROWS_PER_PAGE: u8 = 15;
 
-pub fn rows_per_page() -> u8 {
-    crate::device::list_decks()
-        .ok()
-        .and_then(|d| d.first().map(|(kind, _)| kind.key_count()))
-        .unwrap_or(ROWS_PER_PAGE)
-}
-
 pub struct DeckView {
     pub current_page: String,
     pub table: TableState,
@@ -60,7 +53,6 @@ pub struct DeckView {
     pub edit_action_kind: ActionKind,
     pub edit_buffer: String,
     pub page_names: Vec<String>,
-    /// Page and index a button was picked up from, while a move is in flight.
     pub move_from: Option<(String, u8)>,
 }
 
@@ -147,4 +139,3 @@ fn ordered_pages_with_unordered_appended(cfg: &Config) -> Vec<String> {
     }
     out
 }
-

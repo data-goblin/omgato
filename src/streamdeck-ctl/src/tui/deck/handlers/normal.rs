@@ -32,8 +32,6 @@ pub fn handle(app: &mut App, code: KeyCode, _mods: KeyModifiers) -> Result<bool>
     Ok(false)
 }
 
-/// While a button is held, the deck tab is a two-key affair: move the cursor
-/// (or change page, which moves the button across pages), then drop or cancel.
 fn moving(app: &mut App, code: KeyCode) -> Result<bool> {
     match code {
         KeyCode::Up | KeyCode::Char('k') => move_sel(app, -1),
@@ -58,7 +56,10 @@ fn pick_up(app: &mut App) {
         app.flash(format!("nothing to move at #{idx}"), Color::Yellow);
         return;
     }
-    app.flash(format!("moving #{idx} - Enter to drop, Esc to cancel"), Color::Cyan);
+    app.flash(
+        format!("moving #{idx} - Enter to drop, Esc to cancel"),
+        Color::Cyan,
+    );
     app.deck.move_from = Some((page, idx));
 }
 
@@ -91,7 +92,7 @@ fn cancel_move(app: &mut App) {
 
 fn move_sel(app: &mut App, delta: i32) {
     let cur = app.deck.table.selected().unwrap_or(0) as i32;
-    let next = (cur + delta).rem_euclid(crate::tui::deck::rows_per_page() as i32);
+    let next = (cur + delta).rem_euclid(crate::device::deck_key_count() as i32);
     app.deck.table.select(Some(next as usize));
 }
 

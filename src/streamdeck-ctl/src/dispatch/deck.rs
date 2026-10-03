@@ -29,7 +29,12 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         } => set_button(page, index, label, glyph, icon, bg, fg, action),
         DeckCmd::Unset { page, index } => unset_button(page, index),
         DeckCmd::PageBg { page, color } => set_page_bg(page, color),
-        DeckCmd::Move { page, from, to, to_page } => move_button(page, from, to, to_page),
+        DeckCmd::Move {
+            page,
+            from,
+            to,
+            to_page,
+        } => move_button(page, from, to, to_page),
         DeckCmd::Pages => list_pages(&config::load()?),
         DeckCmd::PageAdd { name } => page_add(name),
         DeckCmd::PageRm { name } => page_rm(name),
@@ -331,6 +336,13 @@ fn move_button(page: String, from: u8, to: u8, to_page: Option<String>) -> Resul
         }
         None => page.clone(),
     };
+    let keys = device::deck_key_count();
+    if to >= keys {
+        anyhow::bail!(
+            "cannot move to key {to}: the deck has keys 0 to {}",
+            keys - 1
+        );
+    }
     let mut cfg = config::load()?;
     cfg.deck
         .move_button(&page, from, &dest, to)
