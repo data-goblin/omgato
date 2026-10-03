@@ -43,14 +43,14 @@ for unit in "$repo"/src/streamdeck-ctl/systemd/*.service; do
 done
 systemctl --user daemon-reload 2>/dev/null || true
 
-# The units moved from default.target to graphical-session.target. An install
-# over the top leaves the old enablement symlink in place, which is the very
-# thing that starts the daemon too early, so move it across.
 for unit in streamdeck-ctl.service streamdeck-ctl-deck.service; do
     if [ -L "$unit_dir/default.target.wants/$unit" ]; then
         systemctl --user disable "$unit" >/dev/null 2>&1 || true
-        systemctl --user enable "$unit" >/dev/null 2>&1 || true
-        echo "  unit   $unit re-enabled under graphical-session.target"
+        if systemctl --user enable "$unit" >/dev/null 2>&1; then
+            echo "  unit   $unit re-enabled under graphical-session.target"
+        else
+            echo "  unit   $unit is disabled; enable it with: systemctl --user enable $unit"
+        fi
     fi
 done
 
