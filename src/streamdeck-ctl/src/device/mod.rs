@@ -75,6 +75,13 @@ pub fn list_pedals() -> Result<Vec<(Kind, String)>> {
         .collect())
 }
 
+pub fn deck_key_count() -> u8 {
+    list_decks()
+        .ok()
+        .and_then(|d| d.first().map(|(kind, _)| kind.key_count()))
+        .unwrap_or(15)
+}
+
 pub fn list_decks() -> Result<Vec<(Kind, String)>> {
     Ok(list_all()?
         .into_iter()
