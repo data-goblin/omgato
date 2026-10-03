@@ -156,10 +156,11 @@ streamdeck-ctl enable
 
 `omarchy plugin add` only clones the plugin and places the widget on the right of
 the bar. `scripts/install` is what builds the workspace, links the four binaries
-onto PATH, installs the systemd user units, links the agent skill, and applies a
-starter Stream Deck layout **only if you have no configuration yet**. Pass
-`--no-preset` or `--no-skill` to skip either. It prints the one privileged step it
-will not take for you: installing the udev rule.
+onto PATH, installs the systemd user units, and applies a starter Stream Deck
+layout **only if you have no configuration yet**; pass `--no-preset` to skip it.
+It links the agent skill only when you pass `--with-skill`, or run
+`scripts/install-skill` yourself. It prints the one privileged step it will not
+take for you: installing the udev rule.
 
 ## Update
 
@@ -313,7 +314,7 @@ src/streamdeck-ctl/    Stream Deck and Pedal daemons, rendering, TUI, preset
 src/camlink-ctl/            Cam Link overlay and status
 src/omgato-panel/      status aggregation, names, shortcuts, undo/redo history
 src/skill/             the agent skill describing the tools
-scripts/install        build, link, install units, link the skill
+scripts/install        build, link, install units; the skill with --with-skill
 scripts/install-skill  link only the agent skill
 scripts/uninstall      reverse the installer
 ```
@@ -361,8 +362,9 @@ one touches outside its own directory.
                           theme change, only after `deck follow-theme true`;
                           `deck follow-theme false` or scripts/uninstall removes it
 $XDG_RUNTIME_DIR/camlink-ctl/: overlay position and pid, cleared on reboot
-agent skill directories:  a symlink to src/skill/, only where the directory
-                          already exists, and only if you did not pass --no-skill
+agent skill directories:  a symlink to src/skill/, only when you pass --with-skill
+                          or run scripts/install-skill, and only where the
+                          directory already exists
 ```
 
 `scripts/uninstall` reverses all of it. It keeps your device configuration

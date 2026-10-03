@@ -7,7 +7,7 @@ unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
 deck_config="${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml"
 with_preset=1
-with_skill=1
+with_skill=0
 
 first_install=0
 [ -f "$deck_config" ] || first_install=1
@@ -15,9 +15,10 @@ first_install=0
 for arg in "$@"; do
     case "$arg" in
         --no-preset) with_preset=0 ;;
-        --no-skill) with_skill=0 ;;
+        --with-skill) with_skill=1 ;;
+        --no-skill) ;;
         -h|--help)
-            echo "Usage: scripts/install [--no-preset] [--no-skill]"
+            echo "Usage: scripts/install [--no-preset] [--with-skill]"
             exit 0
             ;;
     esac

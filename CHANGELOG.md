@@ -9,6 +9,7 @@ This file was written by an agent.
 ## [Unreleased]
 
 - Quote the `hyprctl dispatch` actions in the `omarchy` preset, so the Close, Full, Float, workspace, Scratch and Prev/Next ws keys on the `windows` page run instead of failing silently in `sh`. A deck set up from an earlier preset keeps the broken keys until `streamdeck-ctl deck page-rm windows` and `streamdeck-ctl deck preset omarchy` re-add the page.
+- Link the agent skill only when `scripts/install` is given `--with-skill`, instead of by default; `--no-skill` is still accepted and does nothing, and `scripts/install-skill` still links it on its own.
 
 ## [0.1.8] - 2026-10-03
 
