@@ -8,6 +8,7 @@ mod export;
 mod pipe;
 mod render;
 mod synth;
+mod theme;
 mod tui;
 mod units;
 

@@ -15,6 +15,9 @@ This file was written by an agent.
 - Move a deck button with `streamdeck-ctl deck move PAGE FROM TO [--to-page PAGE]`, swapping with any button already at the destination.
 - Drag keys in the panel's key grid to rearrange them.
 - Move keys in the TUI with `m`, choose the spot with the arrows and `[` `]`, then drop with `Enter` or put back with `Esc`.
+- Colour the deck's pages from the current Omarchy theme with `streamdeck-ctl deck theme`, previewed with `--dry-run`, `--strength` and `--colors`.
+- Keep the deck in step with the theme after `streamdeck-ctl deck follow-theme true`, which installs a `theme-set` hook that `follow-theme false` removes.
+- Accept `true` and `false` in `streamdeck-ctl deck auto-paginate`, which failed with an error, and stop a bare `deck auto-paginate` quietly turning it off.
 
 ## [0.1.7] - 2026-09-16
 

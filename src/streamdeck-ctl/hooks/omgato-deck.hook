@@ -1,0 +1,4 @@
+#!/bin/bash
+[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml" ] || exit 0
+command -v streamdeck-ctl >/dev/null || exit 0
+exec streamdeck-ctl deck theme
