@@ -1,11 +1,14 @@
 use crate::sh;
-use crate::state::{Snap, load_aliases, load_order};
+use crate::state::{Aliases, Snap, load_aliases, load_order, save_aliases, save_order};
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Row {
     pub name: String,
     pub ip: String,
+    #[serde(default)]
+    pub mac: String,
     pub reachable: bool,
     pub on: bool,
     pub brightness: u8,
@@ -17,29 +20,74 @@ pub struct Light {
     pub name: String,
     pub display: String,
     pub ip: String,
+    pub mac: String,
     pub reachable: bool,
     pub on: bool,
     pub brightness: u8,
     pub kelvin: u32,
 }
 
+fn is_mac(key: &str) -> bool {
+    key.contains(':') && key.bytes().all(|byte| byte.is_ascii_hexdigit() || byte == b':')
+}
+
+fn remap_key(key: &str, by_ip: &HashMap<&str, &str>) -> Option<String> {
+    if is_mac(key) {
+        return Some(key.to_string());
+    }
+    by_ip.get(key).map(|mac| (*mac).to_string())
+}
+
+fn migrate_to_macs(rows: &[Row]) {
+    let by_ip: HashMap<&str, &str> = rows
+        .iter()
+        .filter(|row| !row.mac.is_empty())
+        .map(|row| (row.ip.as_str(), row.mac.as_str()))
+        .collect();
+    if by_ip.is_empty() {
+        return;
+    }
+
+    let aliases = load_aliases();
+    if aliases.keys().any(|key| !is_mac(key)) {
+        let migrated: Aliases = aliases
+            .iter()
+            .filter_map(|(key, value)| {
+                remap_key(key, &by_ip).map(|mac| (mac, value.clone()))
+            })
+            .collect();
+        save_aliases(&migrated);
+    }
+
+    let order = load_order();
+    if order.iter().any(|key| !is_mac(key)) {
+        let migrated: Vec<String> = order
+            .iter()
+            .filter_map(|key| remap_key(key, &by_ip))
+            .collect();
+        save_order(&migrated);
+    }
+}
+
 pub fn read() -> Vec<Light> {
+    let rows: Vec<Row> = serde_json::from_str(&sh::run(&["keylight-ctl", "--json", "ls"])).unwrap_or_default();
+    migrate_to_macs(&rows);
     let aliases = load_aliases();
     let order = load_order();
-    let rows: Vec<Row> = serde_json::from_str(&sh::run(&["keylight-ctl", "--json", "ls"])).unwrap_or_default();
     let mut lights: Vec<Light> = rows
         .into_iter()
         .map(|r| Light {
-            display: aliases.get(&r.ip).cloned().unwrap_or_else(|| r.name.clone()),
+            display: aliases.get(&r.mac).cloned().unwrap_or_else(|| r.name.clone()),
             name: r.name,
             ip: r.ip,
+            mac: r.mac,
             reachable: r.reachable,
             on: r.on,
             brightness: r.brightness,
             kelvin: r.kelvin,
         })
         .collect();
-    lights.sort_by_key(|l| order.iter().position(|ip| *ip == l.ip).unwrap_or(order.len()));
+    lights.sort_by_key(|l| order.iter().position(|mac| *mac == l.mac).unwrap_or(order.len()));
     lights
 }
 
@@ -54,7 +102,9 @@ pub fn snapshot(lights: &[Light], previous: Option<&Vec<Snap>>) -> Option<Vec<Sn
                 return previous
                     .and_then(|p| {
                         p.iter().find(|s| {
-                            if s.ip.is_empty() {
+                            if !s.mac.is_empty() && !l.mac.is_empty() {
+                                s.mac.eq_ignore_ascii_case(&l.mac)
+                            } else if s.ip.is_empty() {
                                 s.name == l.name
                             } else {
                                 s.ip == l.ip
@@ -66,21 +116,25 @@ pub fn snapshot(lights: &[Light], previous: Option<&Vec<Snap>>) -> Option<Vec<Sn
             Some(Snap {
                 name: l.name.clone(),
                 ip: l.ip.clone(),
+                mac: l.mac.clone(),
                 on: l.on,
                 brightness: l.brightness,
                 kelvin: l.kelvin,
             })
         })
         .collect();
-    snap.sort_by(|a, b| a.ip.cmp(&b.ip).then_with(|| a.name.cmp(&b.name)));
+    snap.sort_by(|a, b| a.mac.cmp(&b.mac).then_with(|| a.ip.cmp(&b.ip)).then_with(|| a.name.cmp(&b.name)));
     Some(snap)
 }
 
 pub fn restore(snap: &[Snap]) -> Result<(), String> {
-    let live = snap.iter().any(|s| s.ip.is_empty()).then(read);
+    let live = snap.iter().any(|s| s.mac.is_empty() && s.ip.is_empty()).then(read);
     let targets: Result<Vec<String>, String> = snap
         .iter()
         .map(|s| {
+            if !s.mac.is_empty() {
+                return Ok(s.mac.clone());
+            }
             if !s.ip.is_empty() {
                 return Ok(s.ip.clone());
             }
@@ -192,11 +246,20 @@ mod tests {
             name: "Key Light".into(),
             display: "Key Light".into(),
             ip: ip.into(),
+            mac: String::new(),
             reachable,
             on: true,
             brightness,
             kelvin: 4000,
         }
+    }
+
+    #[test]
+    fn remaps_addresses_to_macs_and_drops_dead_ones() {
+        let by_ip = HashMap::from([("192.168.68.56", "3C:6A:9D:24:F6:AB")]);
+        assert_eq!(remap_key("192.168.68.56", &by_ip).as_deref(), Some("3C:6A:9D:24:F6:AB"));
+        assert_eq!(remap_key("3C:6A:9D:24:F6:AC", &by_ip).as_deref(), Some("3C:6A:9D:24:F6:AC"));
+        assert_eq!(remap_key("192.168.68.58", &by_ip), None);
     }
 
     #[test]

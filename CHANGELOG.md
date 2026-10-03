@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+This file was written by an agent.
+
+## [Unreleased]
+
+## [0.1.7] - 2026-09-16
+
+- Replace the bar emblem with a larger, clearer play glyph.
+- Preserve light names, ordering, and history when network addresses change.
+- Automatically rediscover unreachable Key Lights and retry failed control commands.
+- Use MAC addresses for light rename and ordering CLI options.
+
 ## [0.1.6] - 2026-08-30
 
 ### Security

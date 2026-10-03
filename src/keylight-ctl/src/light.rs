@@ -170,10 +170,6 @@ where
         .collect()
 }
 
-pub fn probe(lights: &[Light]) -> Vec<Result<LightState, String>> {
-    each(lights, get_state)
-}
-
 pub fn kelvin_to_mired(k: u32) -> u16 {
     let m = 1_000_000 / k.max(1);
     m.clamp(143, 344) as u16
