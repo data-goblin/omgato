@@ -50,14 +50,14 @@ enum Cmd {
     /// Give a light a local display name
     Rename {
         #[arg(long)]
-        ip: String,
+        mac: String,
         #[arg(long)]
         name: String,
     },
-    /// Set the display order from a comma-separated list of light addresses
+    /// Set the display order from a comma-separated list of light MAC addresses
     Order {
         #[arg(long)]
-        ips: String,
+        macs: String,
     },
     /// Step back one Stream Deck configuration
     DeckUndo,
@@ -190,19 +190,19 @@ fn main() -> std::process::ExitCode {
         })),
         Some(Cmd::Undo) => report(travel_lights(-1)),
         Some(Cmd::Redo) => report(travel_lights(1)),
-        Some(Cmd::Rename { ip, name }) => {
+        Some(Cmd::Rename { mac, name }) => {
             let mut aliases = state::load_aliases();
             let name = name.trim();
             if name.is_empty() {
-                aliases.remove(&ip);
+                aliases.remove(&mac);
             } else {
-                aliases.insert(ip, name.to_owned());
+                aliases.insert(mac, name.to_owned());
             }
             state::save_aliases(&aliases);
             0
         }
-        Some(Cmd::Order { ips }) => {
-            let order: Vec<String> = ips
+        Some(Cmd::Order { macs }) => {
+            let order: Vec<String> = macs
                 .split(',')
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
