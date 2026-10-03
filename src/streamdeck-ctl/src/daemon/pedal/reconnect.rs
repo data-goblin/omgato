@@ -1,5 +1,5 @@
 use crate::daemon::retry_log::RetryLog;
-use crate::device::pedal::{open_first, Pedal};
+use crate::device::pedal::{Pedal, open_first};
 use anyhow::Result;
 use std::time::Duration;
 
@@ -7,8 +7,6 @@ const MAX_DELAY: Duration = Duration::from_secs(10);
 
 pub fn open_with_retry() -> Result<Pedal> {
     let mut delay = Duration::from_millis(500);
-    // An absent device fails with the same reason every time. Say so once,
-    // then keep retrying quietly so a later hotplug is still picked up.
     let mut log = RetryLog::new();
     loop {
         match open_first() {
@@ -18,8 +16,7 @@ pub fn open_with_retry() -> Result<Pedal> {
                 if log.should_log(&reason) {
                     eprintln!(
                         "streamdeck-ctl: pedal connect failed ({reason}); \
-                         retrying every {:?} until it appears",
-                        MAX_DELAY
+                         retrying in {delay:?}, doubling up to {MAX_DELAY:?}, until it appears"
                     );
                 }
                 std::thread::sleep(delay);
