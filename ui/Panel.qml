@@ -25,7 +25,7 @@ Panel {
   property int recSeconds: 0
   property var history: ({ can_undo: false, can_redo: false })
   property bool defaultSaved: false
-  property string renameIp: ""
+  property string renameMac: ""
   property bool renamingPage: false
   property string view: "lights"
   property int pageIndex: 0
@@ -50,6 +50,8 @@ Panel {
   property bool wantConflicts: true
   property int dragFrom: -1
   property int dragTo: -1
+  property int keyDragFrom: -1
+  property int keyDragTo: -1
   property string claimedOwner: ""
 
   readonly property bool anyOn: lights.some(function(l) { return l.on })
@@ -143,7 +145,7 @@ Panel {
       if (Date.now() - statusStartedAt > 8000) statusProc.signal(15)
       return
     }
-    if (interacting || renameIp !== "") return
+    if (interacting || renameMac !== "") return
     var cmd = root.opened ? ["omgato-panel"] : ["omgato-panel", "--lights-only"]
     if (root.opened && root.view === "camera") cmd.push("--with-record")
     if (root.wantConflicts && root.opened) {
@@ -352,14 +354,31 @@ Panel {
     var to = dragTo
     cancelOrder()
     if (from < 0 || to < 0 || from === to) return
-    var addresses = lights.map(function(l) { return l.ip })
+    var addresses = lights.map(function(l) { return l.mac })
     addresses.splice(to, 0, addresses.splice(from, 1)[0])
     lightsJson = ""
-    act(["omgato-panel", "order", "--ips", addresses.join(",")])
+    act(["omgato-panel", "order", "--macs", addresses.join(",")])
   }
 
   function deckSet(pageName, index, field, value) {
     act(["streamdeck-ctl", "deck", "set", pageName, String(index), "--" + field, value])
+  }
+
+  function cancelKeyDrag() {
+    keyDragFrom = -1
+    keyDragTo = -1
+    interacting = false
+  }
+
+  function commitKeyDrag() {
+    var from = keyDragFrom
+    var to = keyDragTo
+    var pageName = page ? page.name : ""
+    cancelKeyDrag()
+    if (pageName === "" || from < 0 || to < 0 || from === to) return
+    selection = [to]
+    selectionAnchor = to
+    act(["streamdeck-ctl", "deck", "move", pageName, String(from), String(to)])
   }
 
   implicitWidth: button.implicitWidth
@@ -471,10 +490,11 @@ Panel {
   onOpenedChanged: {
     if (opened) wantConflicts = true
     if (!opened) {
-      renameIp = ""
+      renameMac = ""
       selection = []
       interacting = false
       cancelOrder()
+      cancelKeyDrag()
     }
     if (opened) {
       if (settings.showCamera !== false) Qt.callLater(root.claimSpace)
@@ -484,23 +504,16 @@ Panel {
     refresh()
   }
 
-  Component {
-    id: markIcon
-    OmgatoMark {
-      color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-    }
-  }
-
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    iconComponent: markIcon
+    text: "󰐊"
     dimmed: !root.anyOn && !root.anyUnreachable
     active: root.anyUnreachable
     tooltipText: root.barSummary
     slotSize: Style.bar.statusSlot
-    fontSize: Style.font.caption
+    fontSize: Style.font.iconLarge
     onPressed: function(b) {
       if (b === Qt.RightButton) root.act(["keylight-ctl", "click"])
       else root.toggle()
@@ -698,7 +711,7 @@ Panel {
             required property var modelData
             required property int index
             readonly property int cellIndex: index
-            readonly property bool renaming: root.renameIp === modelData.ip
+            readonly property bool renaming: root.renameMac === modelData.mac
             readonly property bool handlesVisible: cellHover.hovered || root.dragFrom >= 0
             readonly property bool dropTarget: root.dragFrom >= 0 && root.dragTo === index && root.dragFrom !== index
 
@@ -755,7 +768,7 @@ Panel {
                     opacity: lightCell.handlesVisible ? 1 : 0
                     enabled: lightCell.handlesVisible
                     anchors.verticalCenter: parent.verticalCenter
-                    onPressed: root.renameIp = lightCell.modelData.ip
+                    onPressed: root.renameMac = lightCell.modelData.mac
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                   }
 
@@ -803,10 +816,10 @@ Panel {
                   placeholderText: lightCell.modelData.name
                   font.pixelSize: Style.font.body
                   onVisibleChanged: if (visible) { forceActiveFocus(); selectAll() }
-                onActiveFocusChanged: if (!activeFocus && root.renameIp === lightCell.modelData.ip) root.renameIp = ""
+                onActiveFocusChanged: if (!activeFocus && root.renameMac === lightCell.modelData.mac) root.renameMac = ""
                   onCommitted: function(v) {
-                    if (v !== lightCell.modelData.display) root.act(["omgato-panel", "rename", "--ip", lightCell.modelData.ip, "--name", v])
-                    root.renameIp = ""
+                    if (v !== lightCell.modelData.display) root.act(["omgato-panel", "rename", "--mac", lightCell.modelData.mac, "--name", v])
+                    root.renameMac = ""
                   }
                 }
 
@@ -982,14 +995,21 @@ Panel {
         opacity: root.deck.display_off ? 0.16 : 0.25 + 0.75 * (root.deckBrightness / 100)
         Behavior on opacity { NumberAnimation { duration: 120 } }
         readonly property real cell: (width - spacing * (columns - 1)) / columns
+        readonly property real dragThreshold: Math.max(6, cell * 0.2)
 
         Repeater {
           model: root.page ? root.page.keys : []
           Item {
             id: keyCell
             required property var modelData
+            readonly property int cellIndex: modelData.index
+            readonly property bool movable: modelData.kind === "button"
+            readonly property bool dropTarget: root.keyDragFrom >= 0
+                                               && root.keyDragTo === cellIndex
+                                               && root.keyDragFrom !== cellIndex
             width: keyGrid.cell
             height: keyGrid.cell
+            opacity: root.keyDragFrom === cellIndex ? 0.4 : 1
 
             Image {
               id: keyImage
@@ -1017,9 +1037,13 @@ Panel {
 
             Rectangle {
               anchors.fill: parent
-              color: "transparent"
               radius: Style.space(5)
-              border.width: root.selectionContains(keyCell.modelData.index) ? 2 : (keyArea.containsMouse ? 1 : 0)
+              color: keyCell.dropTarget
+                     ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.14)
+                     : "transparent"
+              border.width: keyCell.dropTarget || root.selectionContains(keyCell.cellIndex)
+                            ? 2
+                            : (keyArea.containsMouse && root.keyDragFrom < 0 ? 1 : 0)
               border.color: root.foreground
             }
 
@@ -1027,14 +1051,47 @@ Panel {
               id: keyArea
               anchors.fill: parent
               hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
+              cursorShape: root.keyDragFrom >= 0 ? Qt.SizeAllCursor : Qt.PointingHandCursor
               acceptedButtons: Qt.LeftButton
+              preventStealing: root.keyDragFrom === keyCell.cellIndex
+
+              property point pressAt
+              property bool dragged: false
+
+              onPressed: function(mouse) {
+                pressAt = Qt.point(mouse.x, mouse.y)
+                dragged = false
+              }
+
+              onPositionChanged: function(mouse) {
+                if (!pressed || !keyCell.movable || mouse.modifiers !== Qt.NoModifier) return
+                if (!dragged) {
+                  var far = Math.abs(mouse.x - pressAt.x) > keyGrid.dragThreshold
+                            || Math.abs(mouse.y - pressAt.y) > keyGrid.dragThreshold
+                  if (!far) return
+                  dragged = true
+                  root.interacting = true
+                  root.keyDragFrom = keyCell.cellIndex
+                  root.keyDragTo = keyCell.cellIndex
+                }
+                var point = mapToItem(keyGrid, mouse.x, mouse.y)
+                var over = keyGrid.childAt(point.x, point.y)
+                root.keyDragTo = over && over.cellIndex !== undefined ? over.cellIndex : -1
+              }
+
+              onReleased: {
+                if (dragged) root.commitKeyDrag()
+              }
+
+              onCanceled: root.cancelKeyDrag()
+
               onClicked: function(mouse) {
+                if (dragged) return
                 if (keyCell.modelData.kind === "page" && mouse.modifiers === Qt.NoModifier) {
                   root.gotoPage(keyCell.modelData.target)
                   return
                 }
-                root.selectKey(keyCell.modelData.index, mouse.modifiers)
+                root.selectKey(keyCell.cellIndex, mouse.modifiers)
               }
             }
           }

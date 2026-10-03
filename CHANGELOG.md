@@ -4,24 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+This file was written by an agent.
+
 ## [Unreleased]
 
-### Added
+- Log a missing Stream Deck or Pedal once, then retry quietly, instead of on every reconnect attempt.
+- Stop one-shot `streamdeck-ctl` commands panicking when stdout is a pipe that closes early, such as `streamdeck-ctl deck show | head -1`.
+- Start the Stream Deck daemons with the graphical session, so `exec` actions reach the display after boot.
+- Give a page its own background with `bg` and `streamdeck-ctl deck page-bg PAGE [COLOR]`; pagination and empty keys keep the deck-wide `bg_color`.
+- Move a deck button with `streamdeck-ctl deck move PAGE FROM TO [--to-page PAGE]`, swapping with any button already at the destination.
+- Drag keys in the panel's key grid to rearrange them.
+- Move keys in the TUI with `m`, choose the spot with the arrows and `[` `]`, then drop with `Enter` or put back with `Esc`.
 
-- A page can set `bg`, the background every key on it uses unless the key names
-  its own, with `streamdeck-ctl deck page-bg PAGE [COLOR]` to set or clear it.
-  Generated pagination keys and empty keys keep the deck-wide `bg_color`, so a
-  tinted page stays distinguishable from the navigation around it
-- `streamdeck-ctl deck theme` colours the pages from the current Omarchy theme,
-  with `--dry-run`, `--strength` and `--colors` to preview one. A `theme-set`
-  hook placed by the installer keeps the deck in step with the theme, inert
-  until `deck follow-theme true`
+## [0.1.7] - 2026-09-16
 
-### Fixed
-
-- `deck auto-paginate true` failed with "0 values required for '[ENABLED]'".
-  clap's derive treats a bare `bool` as a flag, so the positional took no
-  value, and a bare `deck auto-paginate` quietly set it to false
+- Replace the bar emblem with a larger, clearer play glyph.
+- Preserve light names, ordering, and history when network addresses change.
+- Automatically rediscover unreachable Key Lights and retry failed control commands.
+- Use MAC addresses for light rename and ordering CLI options.
 
 ## [0.1.6] - 2026-08-30
 

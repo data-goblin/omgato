@@ -42,7 +42,7 @@ laid out correctly with no change here. All are USB vendor `0fd9`.
 
 | Device | Grid | USB ID | Supported | Tested | What the plugin does with it |
 | --- | :---: | :---: | :---: | :---: | --- |
-| Stream Deck MK.2 | 5x3 | `0080` | ✓ | ✓ | Key grid, pages, multi-key editing, brightness, display power |
+| Stream Deck MK.2 | 5x3 | `0080` | ✓ | ✓ | Key grid, drag to rearrange, pages, multi-key editing, brightness, display power |
 | Stream Deck | 5x3 | `0060` | ✓ | ✗ | Same grid and paging as the MK.2 |
 | Stream Deck V2 | 5x3 | `006d` | ✓ | ✗ | Same grid and paging as the MK.2 |
 | Stream Deck Scissor Keys | 5x3 | `00a5` | ✓ | ✗ | Same as the MK.2; only the key switches differ |
@@ -221,8 +221,26 @@ pagination keys and empty keys deliberately keep the deck-wide `bg_color`, so
 they stay visually separate from the page's own keys.
 
 Because the colour lives on the page rather than on every button, a script can
-recolour the deck without touching the layout — following the desktop theme
-from a hook, for instance.
+recolour the deck without touching the layout, for instance to follow the
+desktop theme from a hook.
+
+## Rearranging deck keys
+
+Drag a key in the grid and drop it where you want it. Dropping on an empty key
+moves it there; dropping on another key swaps the two. Nothing is retyped, and
+the deck's undo button steps the move back. The same thing from a script:
+
+```bash
+streamdeck-ctl deck move omarchy 3 7              # 3 and 7 trade places
+streamdeck-ctl deck move omarchy 3 0 --to-page apps
+```
+
+A click still selects a key for editing, so only a drag of a few pixels starts a
+move, and only real keys move; the paging arrows are generated, not configured.
+
+`streamdeck-ctl tui` has the same move on the Deck tab: `m` picks the selected
+key up, the arrows and `[` `]` choose where it lands, including on another page,
+then `Enter` drops it and `Esc` puts it back.
 
 ## Following the Omarchy theme
 
@@ -299,8 +317,9 @@ scripts/uninstall      reverse the installer
 ```
 
 `omgato-panel` is the only crate the panel asks for state. It gathers one JSON
-document from the other three tools, keeps local light names and display order,
-and owns the undo histories. Device commands go straight from the panel to
+document from the other three tools, keeps local light names and display order
+keyed by MAC so a DHCP lease change cannot orphan them, and owns the undo
+histories. Device commands go straight from the panel to
 `keylight-ctl`, `streamdeck-ctl` and `camlink-ctl`, so nothing sits between a click and
 the hardware.
 
@@ -414,9 +433,11 @@ Keys never update:        the daemons are not running. Check with
                           systemctl --user status streamdeck-ctl-deck
 No lights discovered:     run keylight-ctl discover. Key Lights answer over mDNS,
                           so the machine must be on the same subnet as the lights
-A light reads unreachable: probes retry inside a 500ms budget, so a light that
-                          still reports unreachable is genuinely not answering.
-                          Confirm with keylight-ctl ls --json
+A light reads unreachable: probes retry inside a 500ms budget, then every command
+                          rediscovers over mDNS once and retries against the
+                          addresses it finds, so a DHCP lease change heals itself.
+                          A light that still reports unreachable is genuinely not
+                          answering. Confirm with keylight-ctl ls --json
 Camera overlay is black:  the Cam Link is single-open. If a user service holds
                           it, the overlay borrows the device and gives it back
                           on hide. A plain process is named rather than killed.

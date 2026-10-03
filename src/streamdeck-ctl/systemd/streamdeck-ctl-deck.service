@@ -1,6 +1,8 @@
 [Unit]
 Description=Stream Deck (Mk2/XL/Mini) daemon (streamdeck-ctl deck)
 After=graphical-session.target
+Requisite=graphical-session.target
+PartOf=graphical-session.target
 StartLimitIntervalSec=60
 StartLimitBurst=20
 
@@ -10,4 +12,4 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

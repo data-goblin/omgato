@@ -44,6 +44,17 @@ for unit in "$repo"/src/streamdeck-ctl/systemd/*.service; do
 done
 systemctl --user daemon-reload 2>/dev/null || true
 
+for unit in streamdeck-ctl.service streamdeck-ctl-deck.service; do
+    if [ -L "$unit_dir/default.target.wants/$unit" ]; then
+        systemctl --user disable "$unit" >/dev/null 2>&1 || true
+        if systemctl --user enable "$unit" >/dev/null 2>&1; then
+            echo "  unit   $unit re-enabled under graphical-session.target"
+        else
+            echo "  unit   $unit is disabled; enable it with: systemctl --user enable $unit"
+        fi
+    fi
+done
+
 # Recolours the deck when the Omarchy theme changes. Inert until the user
 # runs `streamdeck-ctl deck follow-theme true`, so installing it changes
 # nothing on its own.

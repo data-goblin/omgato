@@ -32,6 +32,7 @@ streamdeck-ctl deck pages | show | order
 streamdeck-ctl deck set PAGE INDEX --label L --glyph G --icon PATH \
                                    --bg '#rrggbb' --fg '#rrggbb' --action 'exec:firefox'
 streamdeck-ctl deck unset PAGE INDEX
+streamdeck-ctl deck move PAGE FROM TO [--to-page PAGE]  # swaps if TO is taken
 streamdeck-ctl deck page-add NAME | page-rm NAME | default NAME
 streamdeck-ctl deck brightness 0-100
 streamdeck-ctl deck power on | off | toggle       # blanks the display, keeps the level
@@ -62,8 +63,8 @@ omgato-panel sync                # every light to the average brightness and tem
 omgato-panel undo | redo         # light history
 omgato-panel deck-undo | deck-redo
 omgato-panel cam-undo | cam-redo
-omgato-panel rename --ip IP --name NAME
-omgato-panel order --ips a,b,c
+omgato-panel rename --mac MAC --name NAME
+omgato-panel order --macs a,b,c
 omgato-panel record --target pick | last | screen [--desktop-audio] [--mic]
 omgato-panel record --stop
 omgato-panel scope-undo | scope-redo
