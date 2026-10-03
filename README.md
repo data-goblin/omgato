@@ -221,8 +221,8 @@ pagination keys and empty keys deliberately keep the deck-wide `bg_color`, so
 they stay visually separate from the page's own keys.
 
 Because the colour lives on the page rather than on every button, a script can
-recolour the deck without touching the layout — following the desktop theme
-from a hook, for instance.
+recolour the deck without touching the layout, for instance to follow the
+desktop theme from a hook.
 
 ## The camera overlay and the panel
 
