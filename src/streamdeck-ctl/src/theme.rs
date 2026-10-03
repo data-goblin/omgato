@@ -1,43 +1,38 @@
-//! Colour the deck's pages from the current Omarchy theme.
-//!
-//! The panel already retints itself when the theme changes; the keys are the
-//! one surface that does not. `deck theme` closes that gap by resolving the
-//! theme's palette and giving each page a background from it.
-//!
-//! Picking colours is the interesting part. Reading four fixed palette keys
-//! (blue, green, magenta, yellow) fails on any theme whose palette is warm or
-//! monochrome throughout, where all four land on nearly the same colour. So
-//! consider the whole palette and choose the entries that sit furthest apart
-//! perceptually, falling back to shading one accent only when the palette
-//! genuinely holds nothing else.
-
 use crate::config::{Config, DeckConfig};
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Palette keys worth considering as a page colour, most characteristic first.
-/// The accent seeds the selection, so the first page keeps the colour the
-/// theme leads with.
+const HOOK: &str = include_str!("../hooks/omgato-deck.hook");
+const HOOK_NAME: &str = "omgato-deck.hook";
+
 const CANDIDATE_KEYS: &[&str] = &[
-    "accent", "red", "green", "yellow", "blue", "magenta", "cyan", "orange",
-    "purple", "brown", "bright_red", "bright_green", "bright_yellow",
-    "bright_blue", "bright_magenta", "bright_cyan", "muted",
+    "accent",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "orange",
+    "purple",
+    "brown",
+    "bright_red",
+    "bright_green",
+    "bright_yellow",
+    "bright_blue",
+    "bright_magenta",
+    "bright_cyan",
+    "muted",
 ];
 
-/// Below this perceptual distance between the resulting tints, the pages are
-/// not tellable apart and shading an accent reads better than pretending.
 const MIN_SEPARATION: f64 = 5.0;
 
-/// A tint is eased back toward the background until the label clears this
-/// contrast ratio against it.
 const MIN_CONTRAST: f64 = 3.0;
 
-/// A candidate this close to the background cannot tint it at any strength.
 const MIN_FROM_BACKGROUND: f64 = 12.0;
 
-/// Multiples of `strength` bounding the accent-only fallback.
 const LIGHTNESS_MIN: f64 = 0.474;
 const LIGHTNESS_MAX: f64 = 1.789;
 
@@ -60,14 +55,17 @@ impl Palette {
         self.0.get(key).and_then(|v| parse_hex(v))
     }
 
-    fn first(&self, keys: &[&str], fallback: Rgb) -> Rgb {
-        keys.iter().find_map(|k| self.get(k)).unwrap_or(fallback)
+    fn first(&self, keys: &[&str]) -> Option<Rgb> {
+        keys.iter().find_map(|k| self.get(k))
     }
 }
 
-/// Resolve the palette through `omarchy-theme-color`, which applies the same
-/// alias and fallback cascade every other Omarchy consumer sees.
 pub fn load(colors_file: Option<&Path>) -> Result<Palette> {
+    if let Some(path) = colors_file
+        && !path.is_file()
+    {
+        anyhow::bail!("no colors file at {}", path.display());
+    }
     let mut cmd = Command::new("omarchy-theme-color");
     if let Some(path) = colors_file {
         cmd.arg("--file").arg(path);
@@ -102,7 +100,6 @@ pub fn to_hex(c: Rgb) -> String {
     format!("#{:02x}{:02x}{:02x}", clamp(c[0]), clamp(c[1]), clamp(c[2]))
 }
 
-/// `t` of `a` laid over `b`.
 pub fn mix(a: Rgb, b: Rgb, t: f64) -> Rgb {
     [
         a[0] * t + b[0] * (1.0 - t),
@@ -125,7 +122,6 @@ pub fn luminance(c: Rgb) -> f64 {
     0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-/// WCAG relative contrast ratio, 1.0 (identical) to 21.0 (black on white).
 pub fn contrast(a: Rgb, b: Rgb) -> f64 {
     let (x, y) = (luminance(a), luminance(b));
     let (hi, lo) = if x > y { (x, y) } else { (y, x) };
@@ -148,14 +144,11 @@ fn to_lab(c: Rgb) -> [f64; 3] {
     [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
 }
 
-/// CIE76 colour difference. Roughly: 2.3 is just noticeable, 10 is obvious.
 pub fn delta_e(a: Rgb, b: Rgb) -> f64 {
     let (x, y) = (to_lab(a), to_lab(b));
     ((x[0] - y[0]).powi(2) + (x[1] - y[1]).powi(2) + (x[2] - y[2]).powi(2)).sqrt()
 }
 
-/// Greedy farthest-point selection: after the seed, repeatedly take whichever
-/// candidate is furthest from everything picked so far.
 pub fn pick_distinct(candidates: &[Rgb], seed: Rgb, want: usize) -> Vec<Rgb> {
     if candidates.is_empty() {
         return vec![seed; want];
@@ -188,19 +181,15 @@ pub fn pick_distinct(candidates: &[Rgb], seed: Rgb, want: usize) -> Vec<Rgb> {
             });
         match next {
             Some(c) => chosen.push(c),
-            // Fewer distinct colours than pages: reuse, rather than fail.
             None => chosen.push(chosen[chosen.len() % candidates.len()]),
         }
     }
     chosen
 }
 
-/// How the pages ended up being told apart, reported so `--dry-run` can say.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Separation {
-    /// Distinct colours from the palette.
     Hue,
-    /// One accent at increasing strengths, for palettes with nothing else.
     Lightness,
 }
 
@@ -212,10 +201,16 @@ pub struct Scheme {
     pub closest: f64,
 }
 
-pub fn scheme(deck: &DeckConfig, palette: &Palette, strength: f64) -> Scheme {
-    let base = palette.first(&["lighter_background", "background"], [26.0, 26.0, 26.0]);
-    let fg = palette.first(&["foreground", "fg"], [255.0, 255.0, 255.0]);
-    let accent = palette.first(&["accent", "blue"], [128.0, 128.0, 128.0]);
+pub fn scheme(deck: &DeckConfig, palette: &Palette, strength: f64) -> Result<Scheme> {
+    let base = palette
+        .first(&["lighter_background", "background"])
+        .context("the theme has no background colour")?;
+    let fg = palette
+        .first(&["foreground", "fg"])
+        .context("the theme has no foreground colour")?;
+    let accent = palette
+        .first(&["accent", "blue"])
+        .unwrap_or([128.0, 128.0, 128.0]);
 
     let names = deck.ordered_pages();
     let want = names.len().max(1);
@@ -235,17 +230,10 @@ pub fn scheme(deck: &DeckConfig, palette: &Palette, strength: f64) -> Scheme {
         .map(|c| mix(c, base, strength))
         .collect();
 
-    let closest = closest_pair(&tints);
-    let separation = if closest < MIN_SEPARATION {
-        // Nothing in the palette separates the pages, so separate them by
-        // weight instead: the same accent, laid on progressively thicker.
+    let separation = if closest_pair(&tints) < MIN_SEPARATION {
         let steps = want.max(1);
         tints = (0..steps)
             .map(|i| {
-                // Spread evenly between a light wash and a strong one, both
-                // scaled by `strength` so the knob still governs the whole
-                // range. Tuned so four pages step clearly without the last
-                // one becoming a flat block of accent.
                 let f = if steps > 1 {
                     i as f64 / (steps - 1) as f64
                 } else {
@@ -260,8 +248,6 @@ pub fn scheme(deck: &DeckConfig, palette: &Palette, strength: f64) -> Scheme {
         Separation::Hue
     };
 
-    // Keep every label legible: ease a tint back toward the background until
-    // it clears the contrast floor against the theme's foreground.
     for tint in &mut tints {
         let mut guard = 0;
         while contrast(*tint, fg) < MIN_CONTRAST && guard < 24 {
@@ -270,13 +256,16 @@ pub fn scheme(deck: &DeckConfig, palette: &Palette, strength: f64) -> Scheme {
         }
     }
 
-    Scheme {
+    Ok(Scheme {
         background: to_hex(base),
         foreground: to_hex(fg),
-        pages: names.into_iter().zip(tints.into_iter().map(to_hex)).collect(),
+        closest: closest_pair(&tints),
+        pages: names
+            .into_iter()
+            .zip(tints.into_iter().map(to_hex))
+            .collect(),
         separation,
-        closest,
-    }
+    })
 }
 
 fn closest_pair(tints: &[Rgb]) -> f64 {
@@ -287,6 +276,45 @@ fn closest_pair(tints: &[Rgb]) -> f64 {
         }
     }
     if closest.is_finite() { closest } else { 0.0 }
+}
+
+fn hook_path() -> Result<PathBuf> {
+    let home = dirs::home_dir().context("no home directory")?;
+    Ok(home
+        .join(".config/omarchy/hooks/theme-set.d")
+        .join(HOOK_NAME))
+}
+
+pub fn install_hook() -> Result<()> {
+    let dir = dirs::runtime_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!("omgato-hook-{}", std::process::id()));
+    std::fs::create_dir(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let file = dir.join(HOOK_NAME);
+    let installed = std::fs::write(&file, HOOK)
+        .with_context(|| format!("write {}", file.display()))
+        .and_then(|()| {
+            Command::new("omarchy-hook-install")
+                .arg("theme-set")
+                .arg(&file)
+                .status()
+                .context("running omarchy-hook-install (is Omarchy installed?)")
+        });
+    let _ = std::fs::remove_dir_all(&dir);
+    let status = installed?;
+    if !status.success() {
+        anyhow::bail!("omarchy-hook-install exited {status}");
+    }
+    Ok(())
+}
+
+pub fn remove_hook() -> Result<Option<PathBuf>> {
+    let path = hook_path()?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(Some(path)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e).with_context(|| format!("remove {}", path.display())),
+    }
 }
 
 pub fn apply(cfg: &mut Config, scheme: &Scheme) {
@@ -317,8 +345,6 @@ mod tests {
         deck
     }
 
-    /// A palette whose colours are all near-identical warm pinks, the case
-    /// that made four fixed palette keys useless.
     fn warm_palette() -> Palette {
         Palette::of(&[
             ("background", "#000000"),
@@ -383,14 +409,17 @@ mod tests {
     fn selection_prefers_colours_that_are_far_apart() {
         let candidates = [
             [255.0, 0.0, 0.0],
-            [250.0, 5.0, 5.0], // all but identical to the first
+            [250.0, 5.0, 5.0],
             [0.0, 255.0, 0.0],
             [0.0, 0.0, 255.0],
         ];
         let picked = pick_distinct(&candidates, [255.0, 0.0, 0.0], 3);
         assert_eq!(picked.len(), 3);
         let closest = closest_pair(&picked);
-        assert!(closest > 50.0, "picked near-duplicates: {picked:?} ({closest})");
+        assert!(
+            closest > 50.0,
+            "picked near-duplicates: {picked:?} ({closest})"
+        );
     }
 
     #[test]
@@ -408,17 +437,15 @@ mod tests {
     #[test]
     fn a_varied_palette_separates_the_pages_by_hue() {
         let deck = deck_with(&["one", "two", "three", "four"]);
-        let scheme = scheme(&deck, &varied_palette(), 0.38);
+        let scheme = scheme(&deck, &varied_palette(), 0.38).expect("a scheme");
         assert_eq!(scheme.separation, Separation::Hue);
         assert_eq!(scheme.pages.len(), 4);
     }
 
-    /// The whole point: a palette with nothing distinct in it should shade one
-    /// accent rather than produce four colours that look the same.
     #[test]
     fn a_warm_palette_falls_back_to_shading_the_accent() {
         let deck = deck_with(&["one", "two", "three", "four"]);
-        let scheme = scheme(&deck, &warm_palette(), 0.38);
+        let scheme = scheme(&deck, &warm_palette(), 0.38).expect("a scheme");
         assert_eq!(scheme.separation, Separation::Lightness);
         let tints: Vec<Rgb> = scheme
             .pages
@@ -435,7 +462,7 @@ mod tests {
     fn every_page_stays_readable_against_the_foreground() {
         for palette in [warm_palette(), varied_palette()] {
             let deck = deck_with(&["one", "two", "three", "four"]);
-            let scheme = scheme(&deck, &palette, 0.9);
+            let scheme = scheme(&deck, &palette, 0.9).expect("a scheme");
             let fg = parse_hex(&scheme.foreground).expect("a colour");
             for (name, colour) in &scheme.pages {
                 let ratio = contrast(parse_hex(colour).expect("a colour"), fg);
@@ -445,12 +472,21 @@ mod tests {
     }
 
     #[test]
+    fn a_palette_without_a_background_or_foreground_is_refused() {
+        let deck = deck_with(&["one"]);
+        let no_bg = Palette::of(&[("foreground", "#ffffff"), ("accent", "#7aa2f7")]);
+        let no_fg = Palette::of(&[("background", "#000000"), ("accent", "#7aa2f7")]);
+        assert!(scheme(&deck, &no_bg, 0.38).is_err());
+        assert!(scheme(&deck, &no_fg, 0.38).is_err());
+    }
+
+    #[test]
     fn a_colour_is_produced_for_every_page_however_many_there_are() {
         for count in [1usize, 2, 4, 7] {
             let names: Vec<String> = (0..count).map(|i| format!("p{i}")).collect();
             let refs: Vec<&str> = names.iter().map(String::as_str).collect();
             let deck = deck_with(&refs);
-            let scheme = scheme(&deck, &varied_palette(), 0.38);
+            let scheme = scheme(&deck, &varied_palette(), 0.38).expect("a scheme");
             assert_eq!(scheme.pages.len(), count, "{count} pages");
         }
     }
@@ -461,7 +497,7 @@ mod tests {
             deck: deck_with(&["one", "two"]),
             ..Default::default()
         };
-        let scheme = scheme(&cfg.deck.clone(), &varied_palette(), 0.38);
+        let scheme = scheme(&cfg.deck.clone(), &varied_palette(), 0.38).expect("a scheme");
         apply(&mut cfg, &scheme);
         assert_eq!(cfg.deck.bg_color, scheme.background);
         assert_eq!(cfg.deck.text_color, scheme.foreground);

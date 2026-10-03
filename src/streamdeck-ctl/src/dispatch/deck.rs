@@ -43,9 +43,12 @@ pub fn dispatch(cmd: DeckCmd) -> Result<()> {
         DeckCmd::Order => show_order(&config::load()?),
         DeckCmd::OrderSet { names } => set_order(names),
         DeckCmd::AutoPaginate { enabled } => set_auto_paginate(enabled),
-        DeckCmd::Theme { dry_run, force, strength, colors } => {
-            apply_theme(dry_run, force, strength, colors.as_deref())
-        }
+        DeckCmd::Theme {
+            dry_run,
+            force,
+            strength,
+            colors,
+        } => apply_theme(dry_run, force, strength, colors.as_deref()),
         DeckCmd::FollowTheme { enabled } => set_follow_theme(enabled),
         DeckCmd::Preset { name, replace } => apply_preset(&name, replace),
         DeckCmd::Export {
@@ -93,6 +96,11 @@ fn set_order(names: Vec<String>) -> Result<()> {
 
 fn set_follow_theme(enabled: bool) -> Result<()> {
     let mut cfg = config::load()?;
+    if enabled {
+        theme::install_hook()?;
+    } else if let Some(path) = theme::remove_hook()? {
+        println!("Removed theme-set hook: {}", path.display());
+    }
     cfg.deck.follow_theme = enabled;
     config::save(&cfg)?;
     Ok(())
@@ -111,7 +119,7 @@ fn apply_theme(
     }
     let strength = f64::from(strength.unwrap_or(cfg.deck.theme_strength)).clamp(0.0, 1.0);
     let palette = theme::load(colors)?;
-    let scheme = theme::scheme(&cfg.deck, &palette, strength);
+    let scheme = theme::scheme(&cfg.deck, &palette, strength)?;
 
     let how = match scheme.separation {
         theme::Separation::Hue => "distinct palette colours",
