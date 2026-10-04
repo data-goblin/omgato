@@ -52,6 +52,8 @@ enum Cmd {
     Font { value: u32 },
     /// Line height as a percentage of the text size (100 to 300)
     Spacing { value: u32 },
+    /// Dim the picture: 5 to 100 percent (the Prompter's backlight is not reachable on Linux)
+    Brightness { value: u32 },
     /// Text 4 px bigger
     Bigger,
     /// Text 4 px smaller
@@ -88,6 +90,7 @@ fn line(cmd: &Cmd) -> String {
         Cmd::Speed { value } => format!("speed {value}"),
         Cmd::Font { value } => format!("font {value}"),
         Cmd::Spacing { value } => format!("spacing {value}"),
+        Cmd::Brightness { value } => format!("brightness {value}"),
         Cmd::Mirror { state } => format!("mirror {}", state.as_deref().unwrap_or("toggle")),
         Cmd::On => "on".into(),
         Cmd::Off => "off".into(),

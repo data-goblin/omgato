@@ -160,6 +160,9 @@ monitor:  adds a 1024x600 Hyprland output named PROMPTER and copies it to the
 off:      blanks the glass and removes the PROMPTER output
 ```
 
+Brightness dims the picture rather than the backlight: the DisplayLink driver
+passes no DDC/CI, so the Prompter's backlight cannot be reached from Linux.
+
 Scripts live in `~/.local/share/prompter-ctl/scripts/` as Markdown. Write them in
 the panel, or open them in the Omarchy editor from it; saving the loaded script
 redraws the glass in place. For monitor mode, give the output its size in

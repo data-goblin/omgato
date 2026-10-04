@@ -18,7 +18,7 @@ Panel {
   property var lights: []
   property var deck: ({ devices: [], pages: [], pedal: {}, services: {}, brightness: 0, default_page: "", auto_paginate: false, history: { can_undo: false, can_redo: false } })
   property var camera: ({ state: "", tooltip: "", paused: false, overlay: false, corner: "", history: { can_undo: false, can_redo: false } })
-  property var prompter: ({ running: false, connected: false, mode: "off", script: "", scripts: [], playing: false, speed: 60, font: 56, spacing: 130, mirror: false, progress: 0 })
+  property var prompter: ({ running: false, connected: false, mode: "off", script: "", scripts: [], playing: false, speed: 60, font: 56, spacing: 130, brightness: 100, mirror: false, progress: 0 })
   property bool composing: false
   property string composeName: ""
   property string armedDelete: ""
@@ -1793,6 +1793,18 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         text: "The glass shows the PROMPTER monitor, right of your main screen. Move any window there."
+      }
+
+      SliderRow {
+        visible: root.prompter.running && root.prompter.mode !== "off"
+        title: "Brightness"
+        unit: "%"
+        valueText: root.prompter.brightness + "%"
+        minimum: 5
+        maximum: 100
+        step: 5
+        value: root.prompter.brightness
+        onCommitted: function(v) { root.act(["prompter-ctl", "brightness", String(Math.round(v))]) }
       }
 
       Column {

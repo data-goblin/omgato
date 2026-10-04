@@ -35,12 +35,13 @@ struct Settings {
     speed: u32,
     font: u32,
     spacing: u32,
+    brightness: u32,
     mirror: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { mode: Mode::Script, last_on: Mode::Script, script: String::new(), speed: 60, font: 56, spacing: 130, mirror: false }
+        Settings { mode: Mode::Script, last_on: Mode::Script, script: String::new(), speed: 60, font: 56, spacing: 130, brightness: 100, mirror: false }
     }
 }
 
@@ -57,6 +58,7 @@ struct Status<'a> {
     speed: u32,
     font: u32,
     spacing: u32,
+    brightness: u32,
     mirror: bool,
     progress: f32,
 }
@@ -72,16 +74,21 @@ struct Daemon {
     cap: Option<Capture>,
 }
 
-fn blit(frame: &Frame, dst: &mut [u8], pitch: usize, width: usize, height: usize) {
+fn blit(frame: &Frame, level: u32, dst: &mut [u8], pitch: usize, width: usize, height: usize) {
     let w = frame.width.min(width);
     let h = frame.height.min(height);
     for y in 0..h {
         let sy = if frame.y_invert { frame.height - 1 - y } else { y };
         let src = &frame.data[sy * frame.stride..sy * frame.stride + w * 4];
         let out = &mut dst[y * pitch..y * pitch + w * 4];
+        let dim = |c: u8| (c as u32 * level / 100) as u8;
         if frame.bgr {
             for (o, s) in out.as_chunks_mut::<4>().0.iter_mut().zip(src.as_chunks::<4>().0) {
-                *o = [s[2], s[1], s[0], s[3]];
+                *o = [dim(s[2]), dim(s[1]), dim(s[0]), s[3]];
+            }
+        } else if level < 100 {
+            for (o, s) in out.as_chunks_mut::<4>().0.iter_mut().zip(src.as_chunks::<4>().0) {
+                *o = [dim(s[0]), dim(s[1]), dim(s[2]), s[3]];
             }
         } else {
             out.copy_from_slice(src);
@@ -108,8 +115,8 @@ impl Daemon {
         if self.s.mode != Mode::Script {
             return Ok(());
         }
-        let (font, page, offset, mirror) = (&self.font, &self.page, self.offset as usize, self.s.mirror);
-        self.card.paint(|dst, pitch| text::draw(font, page, offset, mirror, dst, pitch))
+        let (font, page, offset, mirror, level) = (&self.font, &self.page, self.offset as usize, self.s.mirror, self.s.brightness);
+        self.card.paint(|dst, pitch| text::draw(font, page, offset, mirror, level, dst, pitch))
     }
 
     fn enter(&mut self) -> Result<(), String> {
@@ -198,6 +205,10 @@ impl Daemon {
                 self.relayout(true);
                 self.repaint()?
             }
+            "brightness" => {
+                self.s.brightness = num()?.clamp(5, 100);
+                self.repaint()?
+            }
             "mirror" => {
                 self.s.mirror = match arg { "on" => true, "off" => false, "" | "toggle" => !self.s.mirror, _ => return Err(format!("mirror on, off or toggle, got {arg:?}")) };
                 self.repaint()?
@@ -237,6 +248,7 @@ impl Daemon {
             speed: self.s.speed,
             font: self.s.font,
             spacing: self.s.spacing,
+            brightness: self.s.brightness,
             mirror: self.s.mirror,
             progress: (progress * 100.0).round() / 100.0,
         })
@@ -270,10 +282,10 @@ impl Daemon {
     }
 
     fn pump(&mut self) -> Result<(), String> {
-        let (Some(cap), card) = (self.cap.as_mut(), &mut self.card) else { return Ok(()) };
+        let (Some(cap), card, level) = (self.cap.as_mut(), &mut self.card, self.s.brightness) else { return Ok(()) };
         let (w, h) = (card.width, card.height);
         while let Some(frame) = cap.poll_frame()? {
-            card.paint(|dst, pitch| blit(&frame, dst, pitch, w, h))?;
+            card.paint(|dst, pitch| blit(&frame, level, dst, pitch, w, h))?;
             cap.request();
         }
         Ok(())

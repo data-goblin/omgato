@@ -57,7 +57,7 @@ pub fn layout(font: &FontVec, text: &str, px: f32, spacing: f32, width: usize, h
     Page { lines, scale, ascent: sf.ascent(), margin, line, lead, height: lead + row * line + (height - lead), width, screen: height }
 }
 
-pub fn draw(font: &FontVec, page: &Page, offset: usize, mirror: bool, dst: &mut [u8], pitch: usize) {
+pub fn draw(font: &FontVec, page: &Page, offset: usize, mirror: bool, level: u32, dst: &mut [u8], pitch: usize) {
     let (width, height) = (page.width, page.screen);
     dst.fill(0);
     let mut put = |x: i32, y: i32, v: u8| {
@@ -66,7 +66,7 @@ pub fn draw(font: &FontVec, page: &Page, offset: usize, mirror: bool, dst: &mut 
         }
         let x = if mirror { width - 1 - x as usize } else { x as usize };
         let i = y as usize * pitch + x * 4;
-        let v = v.max(dst[i]);
+        let v = ((v as u32 * level / 100) as u8).max(dst[i]);
         dst[i..i + 4].copy_from_slice(&[v, v, v, 0xff]);
     };
     let sf = font.as_scaled(page.scale);

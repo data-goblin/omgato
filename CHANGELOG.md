@@ -8,6 +8,8 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+- Dim the Prompter from the panel or with `prompter-ctl brightness 5-100`, in script and monitor mode. It scales the picture, because the DisplayLink driver passes no DDC/CI, so the backlight itself is out of reach on Linux.
+
 ## [0.2.0] - 2026-10-04
 
 - Drive the Elgato Prompter with the new `prompter-ctl`: it scrolls saved scripts on the glass, or mirrors a 1024x600 Hyprland output named `PROMPTER`, and blanks it when off. It needs the AUR `evdi-dkms` and `displaylink` packages plus `udev/72-prompter-ctl.rules`, which keeps the compositor off the DisplayLink card so it works on NVIDIA.
