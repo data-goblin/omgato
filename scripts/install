@@ -5,6 +5,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 udev_rule="/etc/udev/rules.d/70-streamdeck-ctl.rules"
+prompter_rule="/etc/udev/rules.d/72-prompter-ctl.rules"
 deck_config="${XDG_CONFIG_HOME:-$HOME/.config}/streamdeck-ctl/config.toml"
 with_preset=1
 with_skill=0
@@ -33,12 +34,12 @@ for tool in camctl elgatoctl elgato-panel; do
         echo "  bin    removed obsolete $tool link"
     fi
 done
-for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl; do
+for tool in camlink-ctl keylight-ctl omgato-panel prompter-ctl streamdeck-ctl; do
     ln -sfn "$repo/target/release/$tool" "$bin_dir/$tool"
     echo "  bin    $bin_dir/$tool"
 done
 
-for unit in "$repo"/src/streamdeck-ctl/systemd/*.service; do
+for unit in "$repo"/src/streamdeck-ctl/systemd/*.service "$repo"/src/prompter-ctl/systemd/*.service; do
     install -m 0644 "$unit" "$unit_dir/$(basename "$unit")"
     echo "  unit   $unit_dir/$(basename "$unit")"
 done
@@ -60,6 +61,13 @@ if [ ! -f "$udev_rule" ]; then
     echo "Stream Deck access needs a udev rule. Install it with:"
     echo "  sudo install -m 0644 $repo/src/streamdeck-ctl/udev/70-streamdeck-ctl.rules $udev_rule"
     echo "  sudo udevadm control --reload-rules && sudo udevadm trigger"
+fi
+
+if [ ! -f "$prompter_rule" ]; then
+    echo
+    echo "Elgato Prompter (optional) needs the AUR packages evdi-dkms and displaylink, then:"
+    echo "  sed 's/@USER@/$USER/' $repo/src/prompter-ctl/udev/72-prompter-ctl.rules | sudo tee $prompter_rule >/dev/null"
+    echo "  sudo udevadm control --reload && sudo systemctl restart displaylink"
 fi
 
 case ":$PATH:" in

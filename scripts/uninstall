@@ -13,7 +13,7 @@ purge=0
 
 [ "${1:-}" = "--purge" ] && purge=1
 
-for unit in streamdeck-ctl.service streamdeck-ctl-deck.service; do
+for unit in streamdeck-ctl.service streamdeck-ctl-deck.service prompter-ctl.service; do
     systemctl --user disable --now "$unit" 2>/dev/null || true
     if [ -f "$unit_dir/$unit" ]; then
         rm -f "$unit_dir/$unit"
@@ -29,7 +29,7 @@ fi
 
 "$repo/scripts/install-skill" --remove 2>/dev/null || true
 
-for tool in camlink-ctl keylight-ctl omgato-panel streamdeck-ctl camctl elgatoctl elgato-panel; do
+for tool in camlink-ctl keylight-ctl omgato-panel prompter-ctl streamdeck-ctl camctl elgatoctl elgato-panel; do
     if [ -L "$bin_dir/$tool" ]; then
         rm -f "$bin_dir/$tool"
         echo "  bin      unlinked $tool"
@@ -55,10 +55,14 @@ if [ "$purge" = 1 ]; then
         rm -rf "$legacy_state_dir"
         echo "  state    removed $legacy_state_dir"
     fi
+    rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/prompter-ctl"
+    echo "  state    removed prompter-ctl settings"
 else
     echo "  state    kept $state_dir; pass --purge to remove it"
 fi
 
 echo
-echo "Left alone: your Stream Deck, camlink-ctl and Key Light configuration."
-echo "The udev rule, if you installed it, is at /etc/udev/rules.d/70-streamdeck-ctl.rules"
+echo "Left alone: your Stream Deck, camlink-ctl and Key Light configuration, and your"
+echo "Prompter scripts in ${XDG_DATA_HOME:-$HOME/.local/share}/prompter-ctl/scripts."
+echo "The udev rules, if you installed them, are /etc/udev/rules.d/70-streamdeck-ctl.rules"
+echo "and /etc/udev/rules.d/72-prompter-ctl.rules"

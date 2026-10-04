@@ -116,16 +116,18 @@ struct Document {
     #[serde(skip_serializing_if = "Option::is_none")]
     record: Option<record::Status>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    prompter: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     shortcuts: Option<shortcuts::Status>,
 }
 
 fn status(lights_only: bool, with_conflicts: bool, with_record: bool, skip_lights: bool) {
-    let (lights, deck, camera) = std::thread::scope(|scope| {
-        let devices = (!lights_only).then(|| (scope.spawn(deck::status), scope.spawn(camera::status)));
+    let (lights, deck, camera, prompter) = std::thread::scope(|scope| {
+        let devices = (!lights_only).then(|| (scope.spawn(deck::status), scope.spawn(camera::status), scope.spawn(prompter_status)));
         let lights = (!skip_lights).then(lights::read);
         match devices {
-            Some((d, c)) => (lights, d.join().ok(), c.join().ok()),
-            None => (lights, None, None),
+            Some((d, c, p)) => (lights, d.join().ok(), c.join().ok(), p.join().ok().flatten()),
+            None => (lights, None, None, None),
         }
     });
 
@@ -141,9 +143,14 @@ fn status(lights_only: bool, with_conflicts: bool, with_record: bool, skip_light
         deck,
         camera,
         record: (!lights_only).then(|| record::status(with_record)),
+        prompter,
         shortcuts: (!lights_only).then(|| shortcuts::status(with_conflicts)),
     };
     println!("{}", serde_json::to_string(&doc).unwrap_or_default());
+}
+
+fn prompter_status() -> Option<serde_json::Value> {
+    serde_json::from_str(&sh::run(&["prompter-ctl", "status"])).ok()
 }
 
 fn travel_lights(step: i64) -> Result<(), String> {

@@ -18,6 +18,10 @@ Panel {
   property var lights: []
   property var deck: ({ devices: [], pages: [], pedal: {}, services: {}, brightness: 0, default_page: "", auto_paginate: false, history: { can_undo: false, can_redo: false } })
   property var camera: ({ state: "", tooltip: "", paused: false, overlay: false, corner: "", history: { can_undo: false, can_redo: false } })
+  property var prompter: ({ running: false, connected: false, mode: "off", script: "", scripts: [], playing: false, speed: 60, font: 56, mirror: false, progress: 0 })
+  property bool composing: false
+  property string composeName: ""
+  property string armedDelete: ""
   property var record: ({ active: false, seconds: 0, directory: "", scope: "", options: { desktop_audio: false, mic: false }, history: { can_undo: false, can_redo: false } })
   property bool recDesktopAudio: false
   property bool recMic: false
@@ -75,6 +79,7 @@ Panel {
     if (settings.showLights !== false) out.push({ id: "lights", label: "Lights", glyph: "󰌵" })
     if (settings.showDeck !== false) out.push({ id: "deck", label: "StreamDeck", glyph: "󰌌" })
     if (settings.showCamera !== false) out.push({ id: "camera", label: "CamLink", glyph: "󰄀" })
+    if (settings.showPrompter !== false) out.push({ id: "prompter", label: "Prompter", glyph: "󰈙" })
     return out
   }
 
@@ -89,9 +94,11 @@ Panel {
 
   readonly property string contextLabel: view === "lights" ? "Lights"
     : view === "deck" ? (device === "pedal" ? "Pedal" : "Deck")
+    : view === "prompter" ? "Prompter"
     : "Overlay"
   readonly property bool contextChecked: view === "lights" ? anyOn
     : view === "deck" ? (deck.services[deckDaemonKey] === "active")
+    : view === "prompter" ? (prompter.running && prompter.mode !== "off")
     : camera.overlay
 
   function kelvinColor(kelvin) {
@@ -138,6 +145,7 @@ Panel {
   function contextToggle() {
     if (view === "lights") { setLights("all", { on: !anyOn }); return }
     if (view === "deck") { act(["systemctl", "--user", deck.services[deckDaemonKey] === "active" ? "stop" : "start", deckDaemonKey]); return }
+    if (view === "prompter") { act(["prompter-ctl", contextChecked ? "off" : "on"]); return }
     act(["camlink-ctl", "toggle"])
   }
 
@@ -418,6 +426,7 @@ Panel {
             }
           }
           if (data.camera) root.camera = data.camera
+          if (data.prompter) root.prompter = data.prompter
           if (data.shortcuts) {
             var incoming = data.shortcuts
             if (root.shortcuts.shortcuts && root.shortcuts.shortcuts.length === incoming.shortcuts.length) {
@@ -498,6 +507,8 @@ Panel {
   onOpenedChanged: {
     if (opened) wantConflicts = true
     if (!opened) {
+      composing = false
+      armedDelete = ""
       renameMac = ""
       selection = []
       interacting = false
@@ -658,7 +669,7 @@ Panel {
 
         Loader {
           width: parent.width
-          sourceComponent: root.view === "lights" ? lightsView : (root.view === "deck" ? deckView : cameraView)
+          sourceComponent: root.view === "lights" ? lightsView : root.view === "deck" ? deckView : root.view === "prompter" ? prompterView : cameraView
         }
       }
     }
@@ -1694,6 +1705,327 @@ Panel {
           visible: shortcutHover.hovered && shortcutRow.modelData.conflict !== ""
           text: "Already used by: " + shortcutRow.modelData.conflict
           delay: 300
+        }
+      }
+    }
+  }
+
+  Timer {
+    id: disarmDelete
+    interval: 3000
+    onTriggered: root.armedDelete = ""
+  }
+
+  Component {
+    id: prompterView
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(10)
+
+      Text {
+        visible: !root.prompter.running
+        width: parent.width
+        wrapMode: Text.WordWrap
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        text: root.prompter.connected
+          ? "The Prompter is plugged in but prompter-ctl is not running. Start it with: systemctl --user start prompter-ctl"
+          : "No Prompter found. Plug it in; prompter-ctl starts on its own once the DisplayLink driver and the udev rule are installed."
+      }
+
+      Row {
+        id: prompterModes
+        visible: root.prompter.running
+        width: parent.width
+        spacing: Style.space(6)
+        readonly property real cellWidth: (width - spacing) / 2
+        PanelButton {
+          width: prompterModes.cellWidth
+          iconText: "󰈙"
+          text: "Script"
+          bordered: true
+          active: root.prompter.mode === "script"
+          onClicked: root.act(["prompter-ctl", "mode", "script"])
+        }
+        PanelButton {
+          width: prompterModes.cellWidth
+          iconText: "󰍹"
+          text: "Monitor"
+          bordered: true
+          active: root.prompter.mode === "monitor"
+          onClicked: root.act(["prompter-ctl", "mode", "monitor"])
+        }
+      }
+
+      Text {
+        visible: root.prompter.running && root.prompter.mode === "monitor"
+        width: parent.width
+        wrapMode: Text.WordWrap
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        text: "The glass shows the PROMPTER monitor, right of your main screen. Move any window there."
+      }
+
+      Column {
+        visible: root.prompter.running && root.prompter.mode !== "monitor"
+        width: parent.width
+        spacing: Style.space(10)
+
+        Row {
+          id: transport
+          width: parent.width
+          spacing: Style.space(6)
+          readonly property real cellWidth: (width - spacing * 3) / 4
+          PanelButton { width: transport.cellWidth; iconText: "󰒮"; text: "Top"; bordered: true; onClicked: root.act(["prompter-ctl", "top"]) }
+          PanelButton { width: transport.cellWidth; iconText: "󰁝"; text: "Back"; bordered: true; onClicked: root.act(["prompter-ctl", "back"]) }
+          PanelButton {
+            width: transport.cellWidth
+            iconText: root.prompter.playing ? "󰏤" : "󰐊"
+            text: root.prompter.playing ? "Pause" : "Play"
+            bordered: true
+            active: root.prompter.playing
+            onClicked: root.act(["prompter-ctl", "toggle"])
+          }
+          PanelButton { width: transport.cellWidth; iconText: "󰁅"; text: "Next"; bordered: true; onClicked: root.act(["prompter-ctl", "forward"]) }
+        }
+
+        Item {
+          width: parent.width
+          implicitHeight: Style.space(18)
+          Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - progressText.width - Style.space(8)
+            text: root.prompter.script || "No script loaded"
+            color: root.foreground
+            elide: Text.ElideRight
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+          Text {
+            id: progressText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: Math.round((root.prompter.progress || 0) * 100) + "%"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+        Rectangle {
+          width: parent.width
+          height: Style.space(3)
+          radius: height / 2
+          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.15)
+          Rectangle {
+            width: parent.width * Math.max(0, Math.min(1, root.prompter.progress || 0))
+            height: parent.height
+            radius: parent.radius
+            color: root.foreground
+          }
+        }
+
+        SliderRow {
+          title: "Speed"
+          unit: " px/s"
+          valueText: root.prompter.speed + " px/s"
+          minimum: 5
+          maximum: 300
+          step: 5
+          value: root.prompter.speed
+          onCommitted: function(v) { root.act(["prompter-ctl", "speed", String(Math.round(v))]) }
+        }
+        SliderRow {
+          title: "Text size"
+          unit: " px"
+          valueText: root.prompter.font + " px"
+          minimum: 20
+          maximum: 160
+          step: 2
+          value: root.prompter.font
+          onCommitted: function(v) { root.act(["prompter-ctl", "font", String(Math.round(v))]) }
+        }
+        Toggle {
+          width: parent.width
+          label: "Mirror"
+          description: "Flip the text left to right"
+          checked: root.prompter.mirror
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClicked: root.act(["prompter-ctl", "mirror", root.prompter.mirror ? "off" : "on"])
+        }
+      }
+
+      PanelSectionHeader { visible: root.prompter.running; text: "SCRIPTS"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Text {
+        visible: root.prompter.running && !(root.prompter.scripts || []).length
+        width: parent.width
+        text: "No scripts yet."
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Repeater {
+        model: root.prompter.running ? (root.prompter.scripts || []) : []
+        Item {
+          id: scriptRow
+          required property string modelData
+          readonly property bool armed: root.armedDelete === modelData
+          width: parent.width
+          implicitHeight: Style.spacing.controlHeight
+          HoverHandler { id: scriptHover }
+          PanelButton {
+            anchors.left: parent.left
+            anchors.right: scriptTools.left
+            anchors.rightMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            text: scriptRow.modelData
+            leftAlign: true
+            active: root.prompter.script === scriptRow.modelData
+            onClicked: root.act(["prompter-ctl", "load", scriptRow.modelData])
+          }
+          Row {
+            id: scriptTools
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(4)
+            opacity: scriptHover.hovered || scriptRow.armed ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+            WidgetButton {
+              bar: root.bar
+              text: "󰏫"
+              fontSize: Style.font.caption
+              foreground: root.dim
+              labelVisible: true
+              horizontalMargin: 2
+              onPressed: root.act(["prompter-ctl", "script", "edit", scriptRow.modelData])
+            }
+            WidgetButton {
+              bar: root.bar
+              text: scriptRow.armed ? "Delete?" : "󰆴"
+              fontSize: Style.font.caption
+              foreground: scriptRow.armed ? root.urgent : root.dim
+              labelVisible: true
+              horizontalMargin: 2
+              onPressed: {
+                if (scriptRow.armed) {
+                  root.armedDelete = ""
+                  root.act(["prompter-ctl", "script", "rm", scriptRow.modelData])
+                } else {
+                  root.armedDelete = scriptRow.modelData
+                  disarmDelete.restart()
+                }
+              }
+            }
+          }
+        }
+      }
+
+      PanelButton {
+        visible: root.prompter.running && !root.composing
+        width: parent.width
+        iconText: "󰐕"
+        text: "New script"
+        bordered: true
+        onClicked: {
+          root.composeName = ""
+          root.composing = true
+        }
+      }
+
+      Column {
+        visible: root.prompter.running && root.composing
+        width: parent.width
+        spacing: Style.space(8)
+
+        EditField {
+          width: parent.width
+          placeholderText: "Script name"
+          text: root.composeName
+          onTextChanged: root.composeName = text
+        }
+
+        ScrollView {
+          width: parent.width
+          height: Style.space(150)
+          TextArea {
+            id: composeBody
+            wrapMode: TextArea.Wrap
+            textFormat: TextEdit.PlainText
+            placeholderText: "Type or paste the script. Blank lines start a new paragraph."
+            placeholderTextColor: root.dim
+            color: root.foreground
+            selectionColor: Style.selectionFillFor(root.foreground, Color.accent)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            background: BorderSurface {
+              color: Style.controlFill(composeBody.activeFocus, composeBody.hovered, root.foreground, Color.accent)
+              borderSpec: Border.controlSpec(composeBody.activeFocus ? "focus" : "normal", root.foreground, Color.accent)
+              radius: Style.cornerRadius
+            }
+          }
+        }
+
+        Row {
+          id: composeActions
+          width: parent.width
+          spacing: Style.space(6)
+          readonly property real cellWidth: (width - spacing * 2) / 3
+          readonly property bool named: root.composeName.trim() !== ""
+          PanelButton {
+            width: composeActions.cellWidth
+            iconText: "󰆓"
+            text: "Save"
+            bordered: true
+            opacity: composeActions.named ? 1 : 0.35
+            onClicked: {
+              if (!composeActions.named) return
+              var name = root.composeName.trim()
+              if ((root.prompter.scripts || []).indexOf(name) >= 0) {
+                root.lastError = "A script named " + name + " exists; pick another name or edit it from the list"
+                return
+              }
+              root.act(["prompter-ctl", "script", "write", name, "--text", composeBody.text])
+              root.act(["prompter-ctl", "load", name])
+              composeBody.text = ""
+              root.composing = false
+            }
+          }
+          PanelButton {
+            width: composeActions.cellWidth
+            iconText: "󰏫"
+            text: "Editor"
+            bordered: true
+            opacity: composeActions.named ? 1 : 0.35
+            onClicked: {
+              if (!composeActions.named) return
+              var name = root.composeName.trim()
+              if (composeBody.text !== "" && (root.prompter.scripts || []).indexOf(name) >= 0) {
+                root.lastError = "A script named " + name + " exists; pick another name or edit it from the list"
+                return
+              }
+              if (composeBody.text !== "") root.act(["prompter-ctl", "script", "write", name, "--text", composeBody.text])
+              root.act(["prompter-ctl", "script", "edit", name])
+              composeBody.text = ""
+              root.composing = false
+            }
+          }
+          PanelButton {
+            width: composeActions.cellWidth
+            iconText: "󰅖"
+            text: "Cancel"
+            bordered: true
+            onClicked: {
+              composeBody.text = ""
+              root.composing = false
+            }
+          }
         }
       }
     }

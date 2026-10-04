@@ -4,6 +4,7 @@ members = [
     "src/camlink-ctl",
     "src/keylight-ctl",
     "src/omgato-panel",
+    "src/prompter-ctl",
     "src/streamdeck-ctl",
 ]
 

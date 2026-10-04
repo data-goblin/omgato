@@ -1,11 +1,11 @@
 ---
 name: omarchy-omgato
-description: Control Key Light, Stream Deck and Cam Link hardware on Omarchy from the command line - Key Light power, brightness and colour temperature; Stream Deck pages, keys and brightness; the Stream Deck Pedal; and the Cam Link 4K overlay and screen recording. Use whenever the user asks to turn lights on or off, change light brightness or warmth, edit or inspect Stream Deck keys or pages, move or place the camera overlay, or start and stop a screen recording.
+description: Control Key Light, Stream Deck, Cam Link and Elgato Prompter hardware on Omarchy from the command line - Key Light power, brightness and colour temperature; Stream Deck pages, keys and brightness; the Stream Deck Pedal; the Cam Link 4K overlay and screen recording; and teleprompter scripts, scrolling and mirroring on the Prompter. Use whenever the user asks to turn lights on or off, change light brightness or warmth, edit or inspect Stream Deck keys or pages, move or place the camera overlay, start and stop a screen recording, or load, write, scroll or speed up a teleprompter script.
 ---
 
 # Omgato
 
-Four command line tools. Each prints plain text by default and JSON with `--json`
+Five command line tools. Each prints plain text by default and JSON with `--json`
 where a machine-readable answer helps.
 
 ## Key Lights
@@ -54,10 +54,31 @@ camlink-ctl pick                      # drag one out with the shared picker
 camlink-ctl reset                     # USB re-authorize a wedged Cam Link
 ```
 
+## Prompter
+
+```bash
+prompter-ctl status                   # JSON: running, connected, mode, script, scripts, playing, speed, font, mirror, progress
+prompter-ctl on | off                 # off blanks the glass; on returns to the last mode
+prompter-ctl mode script | monitor    # monitor adds a 1024x600 Hyprland output named PROMPTER
+prompter-ctl load NAME                # switches to script mode at the top
+prompter-ctl play | pause | toggle | top | back | forward
+prompter-ctl speed 5-600 | faster | slower      # pixels per second
+prompter-ctl font 20-200 | bigger | smaller     # pixels
+prompter-ctl mirror on | off | toggle
+prompter-ctl script list | show NAME | rm NAME
+prompter-ctl script write NAME [--text T]       # stdin when --text is absent
+prompter-ctl script edit NAME                   # opens omarchy-launch-editor
+```
+
+Scripts are `~/.local/share/prompter-ctl/scripts/NAME.md`; saving the loaded
+one redraws the glass in place. Leading `#` is stripped and blank lines start
+a paragraph. The daemon is `prompter-ctl.service`, started by its udev rule
+when the Prompter appears; every other subcommand needs it running.
+
 ## Panel state and recording
 
 ```bash
-omgato-panel                     # one JSON document: lights, deck, camera, record, shortcuts
+omgato-panel                     # one JSON document: lights, deck, camera, record, prompter, shortcuts
 omgato-panel --lights-only       # cheaper, lights only
 omgato-panel sync                # every light to the average brightness and temperature
 omgato-panel undo | redo         # light history

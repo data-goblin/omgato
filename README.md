@@ -5,7 +5,7 @@
 [![Omarchy](https://img.shields.io/badge/omarchy-quattro-8a63d2.svg)](https://omarchy.org)
 
 An unofficial Omarchy plugin for controlling studio hardware: lights,
-stream deck and CamLink.
+stream deck, CamLink and teleprompter.
 
 <p align="center">
   <img src="docs/images/demo.gif" alt="Switching the camera overlay on from the panel, watching it park clear, raising one Key Light and dimming the other, restoring the saved default, then switching everything back off" width="700">
@@ -138,12 +138,39 @@ Nothing in this plugin yet drives audio hardware.
 
 ### Teleprompter
 
-Nothing in this plugin yet supports teleprompters.
-
-| Device | Supported | Tested | Why not |
+| Device | Supported | Tested | Notes |
 | --- | :---: | :---: | --- |
-| Prompter | ✗ | ✗ | Presents as an extra USB-C display, not a controllable device |
-| Prompter XL | ✗ | ✗ | Presents as an extra USB display, not a controllable device |
+| Prompter | ✓ | ✓ | Through the DisplayLink driver; tested on an NVIDIA desktop |
+| Prompter XL | ? | ✗ | Same DisplayLink path, untested |
+
+The Prompter has no video input: it is a DisplayLink screen over USB-C, which
+only the closed Synaptics driver can talk to. Install the AUR packages
+`evdi-dkms` and `displaylink`, then the udev rule the installer prints. The rule
+moves the virtual DisplayLink card off your seat, so Hyprland never opens it
+(on NVIDIA, Hyprland cannot draw to it and would leave a dead monitor), and it
+starts `prompter-ctl.service` whenever the Prompter appears.
+
+`prompter-ctl` then owns the glass in one of three modes:
+
+```yaml
+script:   draws a saved script itself, white on black, with a marker on the
+          reading line; scrolls only while playing, so it idles at no cost
+monitor:  adds a 1024x600 Hyprland output named PROMPTER and copies it to the
+          glass, so any window can go there
+off:      blanks the glass and removes the PROMPTER output
+```
+
+Scripts live in `~/.local/share/prompter-ctl/scripts/` as Markdown. Write them in
+the panel, or open them in the Omarchy editor from it; saving the loaded script
+redraws the glass in place. For monitor mode, give the output its size in
+`~/.config/hypr/monitors.lua`:
+
+```lua
+hl.monitor({ output = "PROMPTER", mode = "1024x600@60", position = "auto", scale = 1 })
+```
+
+Stream Deck and Pedal keys can drive it with `exec:prompter-ctl toggle`,
+`exec:prompter-ctl back` and the like.
 
 
 ## Install
@@ -155,7 +182,7 @@ streamdeck-ctl enable
 ```
 
 `omarchy plugin add` only clones the plugin and places the widget on the right of
-the bar. `scripts/install` is what builds the workspace, links the four binaries
+the bar. `scripts/install` is what builds the workspace, links the five binaries
 onto PATH, installs the systemd user units, and applies a starter Stream Deck
 layout **only if you have no configuration yet**; pass `--no-preset` to skip it.
 It links the agent skill only when you pass `--with-skill`, or run
@@ -303,6 +330,7 @@ omarchy bar set io.github.data-goblin.omgato showDeck false --json
 | `showLights` | `true` | Brightness, temperature and per-light control for Key Lights |
 | `showDeck` | `true` | Key grid, pages and pedal bindings for a Stream Deck |
 | `showCamera` | `true` | Camera overlay placement and quick screen recording |
+| `showPrompter` | `true` | Prompter scripts, scrolling, mirroring and monitor mode |
 
 ## Layout
 
@@ -312,6 +340,7 @@ ui/Panel.qml           the bar widget and panel
 src/keylight-ctl/         Key Lights over their local HTTP API
 src/streamdeck-ctl/    Stream Deck and Pedal daemons, rendering, TUI, preset
 src/camlink-ctl/            Cam Link overlay and status
+src/prompter-ctl/      Prompter daemon: scripts, scrolling, monitor mode, udev rule
 src/omgato-panel/      status aggregation, names, shortcuts, undo/redo history
 src/skill/             the agent skill describing the tools
 scripts/install        build, link, install units; the skill with --with-skill
@@ -320,7 +349,7 @@ scripts/uninstall      reverse the installer
 ```
 
 `omgato-panel` is the only crate the panel asks for state. It gathers one JSON
-document from the other three tools, keeps local light names and display order
+document from the other four tools, keeps local light names and display order
 keyed by MAC so a DHCP lease change cannot orphan them, and owns the undo
 histories. Device commands go straight from the panel to
 `keylight-ctl`, `streamdeck-ctl` and `camlink-ctl`, so nothing sits between a click and
@@ -350,9 +379,13 @@ Plugins run unsandboxed with your user permissions, so here is everything this
 one touches outside its own directory.
 
 ```yaml
-~/.local/bin/:            symlinks to the four binaries it builds
+~/.local/bin/:            symlinks to the five binaries it builds
 ~/.config/systemd/user/:  streamdeck-ctl.service and streamdeck-ctl-deck.service,
-                          the Stream Deck and Pedal daemons
+                          the Stream Deck and Pedal daemons, and prompter-ctl.service,
+                          started only by its udev rule
+~/.local/share/prompter-ctl/scripts/: your Prompter scripts
+~/.local/state/prompter-ctl/settings.json: Prompter mode, script, speed, size, mirror
+$XDG_RUNTIME_DIR/prompter-ctl/: the Prompter control socket, mode 0700
 ~/.config/hypr/:          omgato-bindings.lua, plus one guarded pcall line added
                           to bindings.lua, only when you install shortcuts
 ~/.local/state/omgato-panel/: light display names, display order, undo history
@@ -373,7 +406,7 @@ unless you pass `--purge`.
 ### Privileges
 
 No sudoers rule ships with the plugin, and `scripts/install` performs no
-privileged step itself. Two operations need root:
+privileged step itself. Three operations need root:
 
 - installing the udev rule that grants access to Stream Deck hardware. The
   installer prints these and leaves them to you:
@@ -383,6 +416,17 @@ privileged step itself. Two operations need root:
     ~/.config/omarchy/plugins/io.github.data-goblin.omgato/src/streamdeck-ctl/udev/70-streamdeck-ctl.rules \
     /etc/udev/rules.d/70-streamdeck-ctl.rules
   sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+
+- installing the Prompter udev rule, only if you have a Prompter. It assigns
+  the DisplayLink card to a seat of its own, hands it to your user and starts
+  `prompter-ctl.service`. The installer prints it with your user name filled in:
+
+  ```bash
+  sed "s/@USER@/$USER/" \
+    ~/.config/omarchy/plugins/io.github.data-goblin.omgato/src/prompter-ctl/udev/72-prompter-ctl.rules \
+    | sudo tee /etc/udev/rules.d/72-prompter-ctl.rules >/dev/null
+  sudo udevadm control --reload && sudo systemctl restart displaylink
   ```
 
 - re-authorizing the Cam Link over USB, which clears the wedged state the device
@@ -426,7 +470,9 @@ slurp:                region picking for the overlay and recording (slurp)
 fonts:                a text font and a Nerd Font for rendering deck keys;
                       fontconfig supplies a stand-in if the configured paths
                       do not exist
-systemd --user:       the Stream Deck and Pedal daemons
+systemd --user:       the Stream Deck, Pedal and Prompter daemons
+evdi-dkms, displaylink: the Prompter only (AUR); displaylink is closed source
+fc-match:             the Prompter script font (fontconfig)
 ```
 
 Package names in brackets are the Arch packages that provide each binary.

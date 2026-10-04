@@ -5,7 +5,7 @@
   "version": "0.1.9",
   "author": "Kurt Buhler",
   "license": "MIT",
-  "description": "Key Lights, Stream Deck and Cam Link in one Omarchy panel.",
+  "description": "Key Lights, Stream Deck, Cam Link and Prompter in one Omarchy panel.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,14 +14,15 @@
   },
   "barWidget": {
     "displayName": "Omgato",
-    "description": "Key Light brightness and temperature, the Stream Deck key grid and pedal, and Cam Link overlay placement with quick recording.",
+    "description": "Key Light brightness and temperature, the Stream Deck key grid and pedal, Cam Link overlay placement with quick recording, and Prompter scripts.",
     "category": "Hardware",
     "defaultSection": "right",
     "allowMultiple": false,
     "defaults": {
       "showLights": true,
       "showDeck": true,
-      "showCamera": true
+      "showCamera": true,
+      "showPrompter": true
     },
     "schema": [
       {
@@ -43,6 +44,13 @@
         "type": "boolean",
         "label": "Cam Link",
         "description": "Camera overlay placement and quick screen recording. Turn off to leave recording to another plugin.",
+        "defaultValue": true
+      },
+      {
+        "key": "showPrompter",
+        "type": "boolean",
+        "label": "Prompter",
+        "description": "Scroll scripts on an Elgato Prompter, or use it as a monitor.",
         "defaultValue": true
       }
     ]

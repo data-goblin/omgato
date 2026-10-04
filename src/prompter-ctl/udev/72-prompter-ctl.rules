@@ -1,0 +1,1 @@
+SUBSYSTEM=="drm", KERNEL=="card[0-9]*", DEVPATH=="/devices/platform/evdi.*", ENV{ID_SEAT}="seat-prompter", TAG-="uaccess", TAG-="master-of-seat", OWNER="@USER@", MODE="0600", SYMLINK+="dri/prompter", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}+="prompter-ctl.service"

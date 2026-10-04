@@ -8,6 +8,9 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+- Drive the Elgato Prompter with the new `prompter-ctl`: it scrolls saved scripts on the glass, or mirrors a 1024x600 Hyprland output named `PROMPTER`, and blanks it when off. It needs the AUR `evdi-dkms` and `displaylink` packages plus `udev/72-prompter-ctl.rules`, which keeps the compositor off the DisplayLink card so it works on NVIDIA.
+- Add a Prompter tab to the panel: on and off, script or monitor mode, play, pause, top, back and next, speed, text size, mirror, and creating, editing in the Omarchy editor, loading and deleting scripts. Hide it with the `showPrompter` setting.
+
 ## [0.1.9] - 2026-10-03
 
 - Quote the `hyprctl dispatch` actions in the `omarchy` preset, so the Close, Full, Float, workspace, Scratch and Prev/Next ws keys on the `windows` page run instead of failing silently in `sh`. A deck set up from an earlier preset keeps the broken keys until `streamdeck-ctl deck page-rm windows` and `streamdeck-ctl deck preset omarchy` re-add the page.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Elgato Prompter bridge (prompter-ctl)
+BindsTo=dev-dri-prompter.device
+After=dev-dri-prompter.device graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=%h/.local/bin/prompter-ctl run
+Restart=on-failure
+RestartSec=2
