@@ -169,8 +169,9 @@ redraws the glass in place. For monitor mode, give the output its size in
 hl.monitor({ output = "PROMPTER", mode = "1024x600@60", position = "auto", scale = 1 })
 ```
 
-Stream Deck and Pedal keys can drive it with `exec:prompter-ctl toggle`,
-`exec:prompter-ctl back` and the like.
+Stream Deck and Pedal keys can drive it: `exec:prompter-ctl toggle` starts and
+stops scrolling, and `exec:prompter-ctl back` and `exec:prompter-ctl forward` step
+one line, for example on the left and right Pedal taps.
 
 
 ## Install

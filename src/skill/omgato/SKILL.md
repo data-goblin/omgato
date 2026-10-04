@@ -57,13 +57,14 @@ camlink-ctl reset                     # USB re-authorize a wedged Cam Link
 ## Prompter
 
 ```bash
-prompter-ctl status                   # JSON: running, connected, mode, script, scripts, playing, speed, font, mirror, progress
+prompter-ctl status                   # JSON: running, connected, mode, script, scripts, playing, speed, font, spacing, mirror, progress
 prompter-ctl on | off                 # off blanks the glass; on returns to the last mode
 prompter-ctl mode script | monitor    # monitor adds a 1024x600 Hyprland output named PROMPTER
 prompter-ctl load NAME                # switches to script mode at the top
 prompter-ctl play | pause | toggle | top | back | forward
 prompter-ctl speed 5-600 | faster | slower      # pixels per second
 prompter-ctl font 20-200 | bigger | smaller     # pixels
+prompter-ctl spacing 100-300                    # line height, % of text size
 prompter-ctl mirror on | off | toggle
 prompter-ctl script list | show NAME | rm NAME
 prompter-ctl script write NAME [--text T]       # stdin when --text is absent

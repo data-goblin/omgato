@@ -38,9 +38,9 @@ enum Cmd {
     Toggle,
     /// Jump back to the start of the script
     Top,
-    /// Move back two lines
+    /// Move back one line
     Back,
-    /// Move forward two lines
+    /// Move forward one line
     Forward,
     /// Scroll speed in pixels per second (5 to 600)
     Speed { value: u32 },
@@ -50,6 +50,8 @@ enum Cmd {
     Slower,
     /// Text size in pixels (20 to 200)
     Font { value: u32 },
+    /// Line height as a percentage of the text size (100 to 300)
+    Spacing { value: u32 },
     /// Text 4 px bigger
     Bigger,
     /// Text 4 px smaller
@@ -85,6 +87,7 @@ fn line(cmd: &Cmd) -> String {
         Cmd::Load { name } => format!("load {name}"),
         Cmd::Speed { value } => format!("speed {value}"),
         Cmd::Font { value } => format!("font {value}"),
+        Cmd::Spacing { value } => format!("spacing {value}"),
         Cmd::Mirror { state } => format!("mirror {}", state.as_deref().unwrap_or("toggle")),
         Cmd::On => "on".into(),
         Cmd::Off => "off".into(),

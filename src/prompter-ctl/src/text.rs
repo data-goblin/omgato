@@ -20,10 +20,10 @@ pub fn load_font() -> Result<FontVec, String> {
     FontVec::try_from_vec(bytes).map_err(|e| format!("font {path}: {e}"))
 }
 
-pub fn layout(font: &FontVec, text: &str, px: f32, width: usize, height: usize) -> Page {
+pub fn layout(font: &FontVec, text: &str, px: f32, spacing: f32, width: usize, height: usize) -> Page {
     let scale = PxScale::from(px);
     let sf = font.as_scaled(scale);
-    let line = (sf.height() * 1.3).ceil() as usize;
+    let line = (sf.height() * spacing).ceil() as usize;
     let margin = width / 16;
     let room = width.saturating_sub(2 * margin) as f32;
     let space = sf.h_advance(font.glyph_id(' '));

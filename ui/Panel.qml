@@ -18,7 +18,7 @@ Panel {
   property var lights: []
   property var deck: ({ devices: [], pages: [], pedal: {}, services: {}, brightness: 0, default_page: "", auto_paginate: false, history: { can_undo: false, can_redo: false } })
   property var camera: ({ state: "", tooltip: "", paused: false, overlay: false, corner: "", history: { can_undo: false, can_redo: false } })
-  property var prompter: ({ running: false, connected: false, mode: "off", script: "", scripts: [], playing: false, speed: 60, font: 56, mirror: false, progress: 0 })
+  property var prompter: ({ running: false, connected: false, mode: "off", script: "", scripts: [], playing: false, speed: 60, font: 56, spacing: 130, mirror: false, progress: 0 })
   property bool composing: false
   property string composeName: ""
   property string armedDelete: ""
@@ -1875,6 +1875,16 @@ Panel {
           step: 2
           value: root.prompter.font
           onCommitted: function(v) { root.act(["prompter-ctl", "font", String(Math.round(v))]) }
+        }
+        SliderRow {
+          title: "Line spacing"
+          unit: "%"
+          valueText: root.prompter.spacing + "%"
+          minimum: 100
+          maximum: 300
+          step: 5
+          value: root.prompter.spacing
+          onCommitted: function(v) { root.act(["prompter-ctl", "spacing", String(Math.round(v))]) }
         }
         Toggle {
           width: parent.width

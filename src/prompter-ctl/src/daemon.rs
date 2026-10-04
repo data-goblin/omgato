@@ -34,12 +34,13 @@ struct Settings {
     script: String,
     speed: u32,
     font: u32,
+    spacing: u32,
     mirror: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { mode: Mode::Script, last_on: Mode::Script, script: String::new(), speed: 60, font: 56, mirror: false }
+        Settings { mode: Mode::Script, last_on: Mode::Script, script: String::new(), speed: 60, font: 56, spacing: 130, mirror: false }
     }
 }
 
@@ -55,6 +56,7 @@ struct Status<'a> {
     playing: bool,
     speed: u32,
     font: u32,
+    spacing: u32,
     mirror: bool,
     progress: f32,
 }
@@ -98,7 +100,7 @@ impl Daemon {
             "" => EMPTY.to_owned(),
             name => scripts::read(name).unwrap_or_else(|e| e),
         };
-        self.page = text::layout(&self.font, &text, self.s.font as f32, self.card.width, self.card.height);
+        self.page = text::layout(&self.font, &text, self.s.font as f32, self.s.spacing as f32 / 100.0, self.card.width, self.card.height);
         self.offset = (progress * self.max_offset()).round();
     }
 
@@ -181,13 +183,18 @@ impl Daemon {
                 self.offset = 0.0;
                 self.repaint()?
             }
-            "back" => self.step(-2.0)?,
-            "forward" => self.step(2.0)?,
+            "back" => self.step(-1.0)?,
+            "forward" => self.step(1.0)?,
             "speed" => self.s.speed = num()?.clamp(5, 600),
             "faster" => self.s.speed = (self.s.speed + 10).min(600),
             "slower" => self.s.speed = self.s.speed.saturating_sub(10).max(5),
             "font" | "bigger" | "smaller" => {
                 self.s.font = match verb { "bigger" => self.s.font + 4, "smaller" => self.s.font.saturating_sub(4), _ => num()? }.clamp(20, 200);
+                self.relayout(true);
+                self.repaint()?
+            }
+            "spacing" => {
+                self.s.spacing = num()?.clamp(100, 300);
                 self.relayout(true);
                 self.repaint()?
             }
@@ -229,6 +236,7 @@ impl Daemon {
             playing: self.playing,
             speed: self.s.speed,
             font: self.s.font,
+            spacing: self.s.spacing,
             mirror: self.s.mirror,
             progress: (progress * 100.0).round() / 100.0,
         })
@@ -311,7 +319,7 @@ pub fn run() -> Result<(), String> {
     let card = Card::open(DEVICE)?;
     let font = text::load_font()?;
     let s: Settings = fs::read(settings_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-    let page = text::layout(&font, "", s.font as f32, card.width, card.height);
+    let page = text::layout(&font, "", s.font as f32, s.spacing as f32 / 100.0, card.width, card.height);
     let mut d = Daemon { card, font, s, page, offset: 0.0, playing: false, tick: Instant::now(), cap: None };
     d.relayout(false);
     let watch = watch_scripts()?;
