@@ -8,6 +8,8 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-04
+
 - Dim the Prompter from the panel or with `prompter-ctl brightness 5-100`, in script and monitor mode. It scales the picture, because the DisplayLink driver passes no DDC/CI, so the backlight itself is out of reach on Linux.
 
 ## [0.2.0] - 2026-10-04
