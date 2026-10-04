@@ -197,11 +197,27 @@ impl Daemon {
             }
             _ => return Err(format!("unknown command {verb:?}")),
         }
+        self.save()
+    }
+
+    fn save(&self) -> Result<(), String> {
         if let Some(dir) = settings_path().parent() {
             fs::create_dir_all(dir).ok();
         }
         fs::write(settings_path(), serde_json::to_vec_pretty(&self.s).unwrap_or_default())
             .map_err(|e| format!("save settings: {e}"))
+    }
+
+    fn script_changed(&mut self) -> Result<(), String> {
+        if scripts::path(&self.s.script).is_ok_and(|p| p.exists()) {
+            self.relayout(true);
+        } else {
+            self.s.script.clear();
+            self.playing = false;
+            self.relayout(false);
+            self.save()?;
+        }
+        self.repaint()
     }
 
     fn status(&self) -> String {
@@ -259,7 +275,7 @@ impl Daemon {
 fn watch_scripts() -> Result<std::os::fd::OwnedFd, String> {
     fs::create_dir_all(scripts::dir()).map_err(|e| format!("create {}: {e}", scripts::dir().display()))?;
     let fd = inotify::init(inotify::CreateFlags::CLOEXEC | inotify::CreateFlags::NONBLOCK).map_err(|e| format!("inotify: {e}"))?;
-    inotify::add_watch(&fd, scripts::dir(), inotify::WatchFlags::CLOSE_WRITE | inotify::WatchFlags::MOVED_TO)
+    inotify::add_watch(&fd, scripts::dir(), inotify::WatchFlags::CLOSE_WRITE | inotify::WatchFlags::MOVED_TO | inotify::WatchFlags::DELETE | inotify::WatchFlags::MOVED_FROM)
         .map_err(|e| format!("watch {}: {e}", scripts::dir().display()))?;
     Ok(fd)
 }
@@ -355,8 +371,7 @@ fn serve(d: &mut Daemon, stop: &UnixStream, listener: &UnixListener, watch: &std
             }
         }
         if ready[2] && touched_current(watch, &d.s.script) {
-            d.relayout(true);
-            d.repaint()?;
+            d.script_changed()?;
         }
         if d.playing {
             d.advance()?;
