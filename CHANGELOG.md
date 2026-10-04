@@ -8,8 +8,12 @@ This file was written by an agent.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
 - Drive the Elgato Prompter with the new `prompter-ctl`: it scrolls saved scripts on the glass, or mirrors a 1024x600 Hyprland output named `PROMPTER`, and blanks it when off. It needs the AUR `evdi-dkms` and `displaylink` packages plus `udev/72-prompter-ctl.rules`, which keeps the compositor off the DisplayLink card so it works on NVIDIA.
-- Add a Prompter tab to the panel: on and off, script or monitor mode, play, pause, top, back and next, speed, text size, mirror, and creating, editing in the Omarchy editor, loading and deleting scripts. Hide it with the `showPrompter` setting.
+- Add a Prompter tab to the panel: on and off, script or monitor mode, play, pause, top, back and next, speed, text size, line spacing, mirror, and creating, editing in the Omarchy editor, loading and deleting scripts. Hide it with the `showPrompter` setting. Back and next move one line, so Pedal keys bound to `exec:prompter-ctl back` and `exec:prompter-ctl forward` step through a script.
+- Render every panel label as plain text, so a Key Light name advertised on the LAN can no longer carry markup that makes Qt fetch a remote image and disclose the desktop's address.
+- Size the section tabs to the widest label and grow the panel to fit, and call the Stream Deck tab Deck, so four tabs never overflow.
 
 ## [0.1.9] - 2026-10-03
 
