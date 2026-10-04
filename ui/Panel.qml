@@ -545,7 +545,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(380))
+    contentWidth: panel.fittedContentWidth(Math.max(Style.space(380), selector.neededWidth + panel.padding * 2 + Border.left(panel.borderSpec) + Border.right(panel.borderSpec)))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
     onContentHeightChanged: root.claimSpace()
     onContentWidthChanged: root.claimSpace()
@@ -613,6 +613,12 @@ Panel {
           visible: root.sections.length > 1
           spacing: Style.space(6)
           readonly property real cellWidth: (width - spacing * (root.sections.length - 1)) / Math.max(1, root.sections.length)
+          readonly property real widestCell: {
+            var widest = 0
+            for (var i = 0; i < children.length; i++) widest = Math.max(widest, children[i].implicitWidth || 0)
+            return widest
+          }
+          readonly property real neededWidth: widestCell * root.sections.length + spacing * Math.max(0, root.sections.length - 1)
           Repeater {
             model: root.sections
             PanelButton {
