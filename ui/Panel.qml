@@ -77,7 +77,7 @@ Panel {
   readonly property var sections: {
     var out = []
     if (settings.showLights !== false) out.push({ id: "lights", label: "Lights", glyph: "󰌵" })
-    if (settings.showDeck !== false) out.push({ id: "deck", label: "StreamDeck", glyph: "󰌌" })
+    if (settings.showDeck !== false) out.push({ id: "deck", label: "Deck", glyph: "󰌌" })
     if (settings.showCamera !== false) out.push({ id: "camera", label: "CamLink", glyph: "󰄀" })
     if (settings.showPrompter !== false) out.push({ id: "prompter", label: "Prompter", glyph: "󰈙" })
     return out
