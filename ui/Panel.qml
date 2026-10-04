@@ -590,6 +590,7 @@ Panel {
             Row {
               spacing: Style.space(8)
               Text {
+                textFormat: Text.PlainText
                 text: root.contextLabel
                 color: root.dim
                 font.family: root.fontFamily
@@ -647,6 +648,7 @@ Panel {
             color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.12)
           }
           Text {
+            textFormat: Text.PlainText
             id: errorText
             anchors.left: parent.left
             anchors.right: dismissError.left
@@ -782,6 +784,7 @@ Panel {
                   spacing: Style.space(2)
 
                   Text {
+                    textFormat: Text.PlainText
                     text: lightCell.modelData.display
                     color: lightCell.modelData.reachable ? root.foreground : root.urgent
                     font.family: root.fontFamily
@@ -816,6 +819,7 @@ Panel {
                     Behavior on opacity { NumberAnimation { duration: 120 } }
 
                     Text {
+                      textFormat: Text.PlainText
                       id: dragGlyph
                       anchors.centerIn: parent
                       text: "󰇛"
@@ -889,6 +893,7 @@ Panel {
               }
 
               Text {
+                textFormat: Text.PlainText
                 visible: !lightCell.modelData.reachable
                 text: "unreachable"
                 color: root.urgent
@@ -976,6 +981,7 @@ Panel {
           anchors.centerIn: parent
           spacing: Style.space(4)
           Text {
+            textFormat: Text.PlainText
             text: root.page ? (root.page.name + (root.page.name === root.deck.default_page ? "  ·  default" : "")) : "no pages"
             color: root.foreground
             font.family: root.fontFamily
@@ -1061,6 +1067,7 @@ Panel {
               radius: Style.space(4)
               color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
               Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: String(keyCell.modelData.index)
                 color: root.dim
@@ -1310,6 +1317,7 @@ Panel {
                 anchors.centerIn: parent
                 spacing: Style.space(3)
                 Text {
+                  textFormat: Text.PlainText
                   anchors.horizontalCenter: parent.horizontalCenter
                   text: pedalShape.modelData.wide ? "E" : ""
                   color: root.foreground
@@ -1318,6 +1326,7 @@ Panel {
                   font.bold: pedalShape.modelData.wide
                 }
                 Text {
+                  textFormat: Text.PlainText
                   anchors.horizontalCenter: parent.horizontalCenter
                   text: pedalShape.modelData.label
                   color: root.foreground
@@ -1325,6 +1334,7 @@ Panel {
                   font.pixelSize: Style.font.caption
                 }
                 Text {
+                  textFormat: Text.PlainText
                   anchors.horizontalCenter: parent.horizontalCenter
                   width: pedalShape.width - Style.space(10)
                   horizontalAlignment: Text.AlignHCenter
@@ -1365,6 +1375,7 @@ Panel {
           implicitHeight: Style.spacing.controlHeight
 
           Text {
+            textFormat: Text.PlainText
             id: gestureIcon
             text: gestureRow.modelData.glyph
             color: root.dim
@@ -1374,6 +1385,7 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
           }
           Text {
+            textFormat: Text.PlainText
             id: gestureLabel
             text: gestureRow.modelData.label
             color: root.dim
@@ -1466,6 +1478,7 @@ Panel {
         implicitHeight: Style.spacing.controlHeight
 
         Text {
+          textFormat: Text.PlainText
           text: "Area"
           color: root.dim
           font.family: root.fontFamily
@@ -1474,6 +1487,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
         }
         Text {
+          textFormat: Text.PlainText
           text: root.record.scope
           color: root.foreground
           font.family: root.fontFamily
@@ -1620,6 +1634,7 @@ Panel {
       width: parent.width
       implicitHeight: Style.spacing.controlHeight
       Text {
+        textFormat: Text.PlainText
         text: "SHORTCUTS"
         color: root.dim
         font.family: root.fontFamily
@@ -1667,6 +1682,7 @@ Panel {
         HoverHandler { id: shortcutHover }
 
         Text {
+          textFormat: Text.PlainText
           id: shortcutLabel
           text: shortcutRow.modelData.label
           color: root.dim
@@ -1679,6 +1695,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           id: shortcutKeys
           text: shortcutRow.capturing ? "press a combination"
               : (shortcutRow.modelData.display || "not set")
@@ -1708,9 +1725,11 @@ Panel {
         }
 
         ToolTip {
+          id: conflictTip
           visible: shortcutHover.hovered && shortcutRow.modelData.conflict !== ""
           text: "Already used by: " + shortcutRow.modelData.conflict
           delay: 300
+          contentItem: Text { text: conflictTip.text; textFormat: Text.PlainText; color: conflictTip.palette.toolTipText; font: conflictTip.font; wrapMode: Text.Wrap }
         }
       }
     }
@@ -1803,6 +1822,7 @@ Panel {
           width: parent.width
           implicitHeight: Style.space(18)
           Text {
+            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - progressText.width - Style.space(8)
@@ -1813,6 +1833,7 @@ Panel {
             font.pixelSize: Style.font.bodySmall
           }
           Text {
+            textFormat: Text.PlainText
             id: progressText
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -1869,6 +1890,7 @@ Panel {
       PanelSectionHeader { visible: root.prompter.running; text: "SCRIPTS"; foreground: root.foreground; fontFamily: root.fontFamily }
 
       Text {
+        textFormat: Text.PlainText
         visible: root.prompter.running && !(root.prompter.scripts || []).length
         width: parent.width
         text: "No scripts yet."
@@ -2102,7 +2124,7 @@ Panel {
     Item {
       width: parent.width
       implicitHeight: Math.max(sliderTitle.implicitHeight, sliderValue.implicitHeight)
-      Text { id: sliderTitle; text: sliderRow.title; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+      Text { textFormat: Text.PlainText; id: sliderTitle; text: sliderRow.title; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.body; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
       Row {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -2115,7 +2137,7 @@ Panel {
           color: root.kelvinColor(slider.dragging ? slider.liveValue : sliderRow.value)
           anchors.verticalCenter: parent.verticalCenter
         }
-        Text { id: sliderValue; text: slider.dragging ? Math.round(slider.liveValue) + sliderRow.unit : sliderRow.valueText; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
+        Text { textFormat: Text.PlainText; id: sliderValue; text: slider.dragging ? Math.round(slider.liveValue) + sliderRow.unit : sliderRow.valueText; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
       }
     }
     PanelSlider {
@@ -2154,6 +2176,7 @@ Panel {
     readonly property bool previewVisible: colorPreview && root.hexValid(field.text)
 
     Text {
+      textFormat: Text.PlainText
       id: fieldLabel
       text: fieldRow.label
       color: root.dim
@@ -2219,7 +2242,7 @@ Panel {
     property string value: ""
     width: parent ? parent.width : 0
     implicitHeight: Math.max(pairLabel.implicitHeight, pairValue.implicitHeight)
-    Text { id: pairLabel; text: label; color: root.dim; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
-    Text { id: pairValue; text: value; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideLeft; anchors.right: parent.right; anchors.left: pairLabel.right; anchors.leftMargin: Style.spacing.sm; horizontalAlignment: Text.AlignRight; anchors.verticalCenter: parent.verticalCenter }
+    Text { textFormat: Text.PlainText; id: pairLabel; text: label; color: root.dim; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+    Text { textFormat: Text.PlainText; id: pairValue; text: value; color: root.foreground; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideLeft; anchors.right: parent.right; anchors.left: pairLabel.right; anchors.leftMargin: Style.spacing.sm; horizontalAlignment: Text.AlignRight; anchors.verticalCenter: parent.verticalCenter }
   }
 }
